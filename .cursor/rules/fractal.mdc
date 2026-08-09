@@ -1,0 +1,70 @@
+---
+description: Reglas del proyecto Fractal para agentes de código
+globs:
+alwaysApply: true
+---
+
+# Fractal — reglas para agentes de código
+
+Este proyecto se rige por `docs/CONSTITUTION.md`. Estas reglas son un resumen
+operativo para trabajar en el código; ante cualquier duda, la Constitución
+manda.
+
+## Regla más importante: Artículo II
+
+`packages/core` y `packages/deploy` NUNCA contienen referencias a un
+framework concreto. Términos prohibidos ahí (ADR-0002):
+`laravel`, `artisan`, `eloquent`, `blade`, `composer`, `rails`,
+`activerecord`, `gemfile`, `bundler`, `erb`.
+
+Todo conocimiento específico de framework vive exclusivamente en
+`packages/adapter-laravel` o `packages/adapter-rails`.
+
+Antes de tocar `packages/core` o `packages/deploy`: verificar explícitamente
+que el cambio no introduce esos términos ni asume comportamiento de un
+framework particular. Ante la duda, detenerse y preguntar — no asumir.
+
+## El spec es el contrato
+
+No se implementa ninguna capability sin un spec en estado **Aprobado** en
+`docs/specs/`. Si el spec relevante está en Draft, en revisión, o no existe,
+no se escribe código: se avisa.
+
+## Decisiones técnicas no contempladas
+
+Si durante la implementación aparece una decisión técnica con más de una
+alternativa viable que el spec no resolvió, no se elige unilateralmente. Se
+detiene el trabajo y se señala el punto de bloqueo para que se escriba un ADR.
+
+## Estructura del monorepo
+
+```
+packages/
+├── core/              CLI, FDL, orquestación. Agnóstico.
+├── adapter-laravel/   Stubs y lógica PHP/Laravel
+├── adapter-rails/     Stubs y lógica Ruby/Rails
+└── deploy/            Provisioning y CI/CD. Agnóstico.
+```
+
+## Tests
+
+Todo stub tiene test de snapshot (golden file, Artículo X). Un stub sin test
+no se mergea. Todo cambio a un stub actualiza su snapshot correspondiente,
+revisado en el PR.
+
+## Commits
+
+Conventional Commits, en español. Scopes válidos: `core`, `adapter-laravel`,
+`adapter-rails`, `deploy`, `docs`, `ci`, `e2e`.
+
+## Antes de abrir PR
+
+- Lint de acoplamiento pasa (sin términos de framework fuera de
+  `packages/adapter-*`)
+- Snapshots actualizados
+- Test e2e pasa
+- Spec actualizado si el código divergió de lo escrito
+
+## Referencias
+
+`docs/CONSTITUTION.md`, `docs/PROCESO.md`, `docs/AGENT_PLAYBOOK.md`.
