@@ -1,6 +1,6 @@
 # ADR-0004: Estrategia multi-DB
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 **Fecha:** 2026-08-08
 **Decisores:** Diego
 
@@ -141,13 +141,31 @@ decide en un solo lugar.
 
 ## Decisión
 
-Pendiente. Diego decide entre las opciones desarrolladas arriba.
+Elegimos la **Opción B**: FDL admite tipos y anotaciones específicas de
+motor, de forma opcional.
 
 ---
 
 ## Consecuencias
 
-Pendiente de la opción elegida.
+### Positivas
+- No fuerza a bajar todo al mínimo común denominador entre motores.
+- El usuario que ya sabe qué motor va a usar puede modelar con precisión
+  cuando lo necesita.
+- El camino feliz (no usar anotaciones específicas) sigue siendo neutral, no
+  penaliza al caso simple.
+
+### Negativas
+- Introduce en FDL conocimiento de motores de DB concretos, un acoplamiento
+  nuevo de la misma naturaleza que el Artículo II prohíbe para frameworks.
+- Cambiar de motor después de haber usado una anotación específica puede
+  romper la entidad.
+- El contrato del adapter (ADR-0002) tiene que crecer para declarar qué
+  anotaciones específicas soporta cada motor que expone.
+
+### Neutras / a monitorear
+- Si el uso de anotaciones específicas termina siendo tan frecuente que
+  erosiona la neutralidad real de FDL, revisar el balance de esta decisión.
 
 ---
 
