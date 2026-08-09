@@ -1,6 +1,6 @@
 # ADR-0007: CI/CD para deploy por merge
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 **Fecha:** 2026-08-08
 **Decisores:** Diego
 
@@ -125,17 +125,36 @@ en la práctica es casi cualquiera— puede dispararlo.
 
 ## Decisión
 
-Pendiente. Diego decide entre las opciones desarrolladas arriba.
+Elegimos la **Opción B**: capa de CI/CD agnóstica de proveedor Git, con
+plantillas para GitHub Actions y GitLab CI.
 
-Nota: si la decisión confirma GitHub Actions (Opción A), este ADR formaliza
-lo que SPEC-0003 (AC-8, AC-9) ya asume y no requiere cambios ahí. Si elige
-B o C, SPEC-0003 debe actualizarse antes de pasar a Aprobado.
+Esta decisión **rompe el supuesto que SPEC-0003 (AC-8, AC-9) ya tenía por
+escrito** (workflow y secrets específicamente de GitHub). SPEC-0003 debe
+actualizarse para reflejar el mecanismo agnóstico antes de pasar a Aprobado.
+Queda registrado como pendiente de seguimiento.
 
 ---
 
 ## Consecuencias
 
-Pendiente de la opción elegida.
+### Positivas
+- No ata a un único proveedor de hosting Git.
+- Da soporte real al usuario secundario que ya tenga GitLab como estándar
+  de equipo.
+- Consistente con "paridad, no uniformidad" (Artículo III) aplicado por
+  analogía a proveedores de CI.
+
+### Negativas
+- Duplica el trabajo de mantener y testear plantillas de workflow por
+  proveedor, cuya sintaxis no es intercambiable.
+- El contrato de "secrets exactos a cargar" (AC-8) y el mecanismo de
+  rollback (AC-10) deben expresarse de forma neutral y traducirse por
+  proveedor.
+- SPEC-0003 queda desalineado hasta que se actualice explícitamente.
+
+### Neutras / a monitorear
+- Hoy no hay caso de uso real de GitLab — si nunca aparece, revisar si se
+  justificó la abstracción o si convenía la Opción A.
 
 ---
 
