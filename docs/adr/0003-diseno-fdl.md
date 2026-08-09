@@ -1,6 +1,6 @@
 # ADR-0003: Diseño de FDL (Fractal Definition Language)
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 **Fecha:** 2026-08-08
 **Decisores:** Diego
 
@@ -156,13 +156,29 @@ ecosistema en lugar de diseñar uno nuevo.
 
 ## Decisión
 
-Pendiente. Diego decide entre las opciones desarrolladas arriba.
+Elegimos la **Opción B**, en su variante **JSON, no YAML**.
 
 ---
 
 ## Consecuencias
 
-Pendiente de la opción elegida.
+### Positivas
+- Sin parser propio que mantener: `JSON.parse` nativo alcanza.
+- Mismo formato que ya cruza el puente Node → toolchain de ADR-0001, sin
+  conversión adicional entre lo que el usuario define y lo que el adapter
+  recibe.
+- Validable con JSON Schema estándar, con tooling de editor disponible sin
+  construir nada propio.
+
+### Negativas
+- Menos legible para edición manual que YAML: sin comentarios nativos, más
+  llaves y comillas.
+- Expresividad acotada al mínimo común denominador para reglas condicionales
+  o valores calculados, sin un mini-lenguaje de expresiones embebido.
+
+### Neutras / a monitorear
+- Si la falta de comentarios en JSON dificulta documentar entidades
+  complejas, evaluar una convención tipo campo `_comment`.
 
 ---
 
