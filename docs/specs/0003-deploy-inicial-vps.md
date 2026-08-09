@@ -85,8 +85,9 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 ### AC-8: CI/CD
 - **Dado** que el provisioning terminó
 - **Cuando** el CLI genera el workflow
-- **Entonces** se crea `.github/workflows/deploy.yml` y se listan los secrets
-  exactos que debo cargar en GitHub
+- **Entonces** se genera el workflow o pipeline correspondiente al proveedor
+  de CI/CD elegido (GitHub Actions o GitLab CI, según ADR-0007), y se listan
+  los secrets exactos que debo cargar en ese proveedor
 
 ### AC-9: Deploy por merge
 - **Dado** que los secrets están configurados
@@ -130,8 +131,9 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 | Depende de | Tipo | Estado |
 |---|---|---|
 | SPEC-0001 (comando `new`) | Bloqueante | Draft |
-| ADR-0006 (Docker Compose como runtime) | Bloqueante | Pendiente |
-| ADR-0007 (GitHub Actions como CI/CD) | Bloqueante | Pendiente |
+| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Draft |
+| ADR-0006 (runtime de producción) | Bloqueante | Aceptado |
+| ADR-0007 (CI/CD para deploy por merge) | Bloqueante | Aceptado |
 
 ---
 
