@@ -1,6 +1,6 @@
 # ADR-0006: Runtime de producción
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 **Fecha:** 2026-08-08
 **Decisores:** Diego
 
@@ -118,17 +118,42 @@ Nginx y la base de datos como paquetes nativos— sin ninguna capa de Docker.
 
 ## Decisión
 
-Pendiente. Diego decide entre las opciones desarrolladas arriba.
+Elegimos la **Opción A: Docker Compose** como runtime por defecto. Este ADR
+formaliza lo que SPEC-0003 (AC-4) ya asumía, sin requerir cambios ahí.
 
-Nota: si la decisión confirma Docker Compose (Opción A), este ADR formaliza
-lo que SPEC-0003 (AC-4) ya asume y no requiere cambios ahí. Si elige B o C,
-SPEC-0003 debe actualizarse antes de pasar a Aprobado.
+Con una reserva explícita: se documenta como mejora futura que el runtime
+sea configurable para VPS que ya tienen infraestructura corriendo — por
+ejemplo, un contenedor Nginx propio administrando otros sitios — en vez de
+asumir siempre que Fractal controla el stack completo desde cero. Todavía no
+hay claridad sobre el mejor mecanismo para eso. Ver
+[`docs/MEJORAS_FUTURAS.md`](../MEJORAS_FUTURAS.md).
 
 ---
 
 ## Consecuencias
 
-Pendiente de la opción elegida.
+### Positivas
+- Un solo archivo declarativo describe todo el stack, encaja directamente
+  con lo que SPEC-0003 (AC-4) ya asume.
+- Reconstrucción con un comando si el VPS se destruye, cumple el Artículo
+  VII de forma directa.
+- `docker compose up` es naturalmente idempotente si el archivo no cambió,
+  favorece el Artículo VIII sin lógica adicional a mano.
+- Aislamiento de dependencias por contenedor evita que dos proyectos Fractal
+  en el mismo VPS choquen por versiones de PHP o Ruby.
+
+### Negativas
+- Exige instalar Docker Engine y el plugin Compose como paso de
+  provisioning adicional.
+- El overhead de memoria de correr seis contenedores simultáneos es una
+  preocupación real en el piso mínimo de recursos que fija AC-2 (1 vCPU,
+  2 GB RAM).
+- Asume por defecto control total del servidor — no contempla todavía un
+  VPS con infraestructura preexistente (ver reserva arriba).
+
+### Neutras / a monitorear
+- Evaluar un mecanismo de "bring your own reverse proxy" cuando haya señal
+  real de uso — registrado en `docs/MEJORAS_FUTURAS.md`.
 
 ---
 
