@@ -130,8 +130,8 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 
 | Depende de | Tipo | Estado |
 |---|---|---|
-| SPEC-0001 (comando `new`) | Bloqueante | Draft |
-| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Draft |
+| SPEC-0001 (comando `new`) | Bloqueante | Aprobado |
+| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Aprobado |
 | ADR-0006 (runtime de producción) | Bloqueante | Aceptado |
 | ADR-0007 (CI/CD para deploy por merge) | Bloqueante | Aceptado |
 
