@@ -1,6 +1,6 @@
 # SPEC-0001: `fractal new` genera proyecto Laravel base
 
-**Estado:** Draft
+**Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-09
 **Issue:** #
@@ -117,7 +117,7 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
 |---|---|---|
 | ADR-0001 (CLI híbrido Node) | Bloqueante | Aceptado |
 | ADR-0002 (arquitectura multi-target) | Bloqueante | Aceptado |
-| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Draft |
+| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Aprobado |
 | SPEC-0006 (contrato del adapter, no escrito aún) | Blanda | — |
 
 ---
