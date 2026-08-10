@@ -1,6 +1,6 @@
 # SPEC-0002: Bridge Node → toolchain del target
 
-**Estado:** Draft
+**Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-09
 **Issue:** #
