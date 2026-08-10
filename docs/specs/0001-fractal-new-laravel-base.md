@@ -81,10 +81,23 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
 
 ### AC-7: Tiempo de ejecución acotado
 - **Dado** que el comando corre en condiciones normales de red
-- **Cuando** mido el tiempo entre invocación y finalización
-- **Entonces** termina dentro del presupuesto que permite cumplir TTP < 30
-  min junto con `fractal deploy` (número exacto a calibrar — ver preguntas
-  abiertas)
+- **Cuando** mido el tiempo entre invocación y finalización, sin contar el
+  tiempo que el usuario tarda en responder los prompts
+- **Entonces** termina en menos de **5 minutos**
+
+### AC-8: Directorio destino existente
+- **Dado** que el directorio destino ya existe
+- **Cuando** ejecuto `fractal new` apuntando a ese directorio
+- **Entonces** el comando aborta con un mensaje claro y no modifica nada,
+  salvo que el directorio esté vacío o contenga únicamente un `.git` sin
+  historia (repo recién clonado vacío), en cuyo caso continúa con
+  normalidad
+
+### AC-9: Override explícito
+- **Dado** que quiero forzar la generación sobre un directorio no vacío
+- **Cuando** ejecuto `fractal new` con el flag `--force`
+- **Entonces** el comando procede sin abortar — comportamiento avanzado,
+  nunca el default (Artículo IV)
 
 ---
 
@@ -105,33 +118,42 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
 | ADR-0001 (CLI híbrido Node) | Bloqueante | Aceptado |
 | ADR-0002 (arquitectura multi-target) | Bloqueante | Aceptado |
 | SPEC-0002 (bridge Node → toolchain) | Bloqueante | Draft |
+| SPEC-0006 (contrato del adapter, no escrito aún) | Blanda | — |
 
 ---
 
 ## 7. Consideraciones técnicas
 
 **Rendimiento**
-- El comando debe dejar margen suficiente dentro del presupuesto de TTP <
-  30 min compartido con `fractal deploy`
+- 5 minutos surge de repartir el presupuesto de TTP < 30 min: SPEC-0003 ya
+  fija el provisioning completo en < 15 min, y `fractal new` es la parte más
+  controlable de lo que queda (no depende de propagación DNS ni de paneles
+  de terceros). Deja 10 minutos de colchón para todo lo manual que el CLI
+  no controla.
 
 **Seguridad**
 - Ninguna credencial de ejemplo capaz de llegar a producción (Artículo VI)
 - `APP_KEY` y cualquier secret se generan localmente, nunca se commitean
 
 **Compatibilidad**
-- Laravel LTS vigente (Artículo, VISION.md sección 6)
-- Versión mínima de PHP y Composer a validar antes de generar (ver SPEC-0002
-  AC-4, detección de dependencias faltantes)
+- Laravel LTS vigente (VISION.md sección 6)
+- La validación de versión mínima de PHP/Composer **no es responsabilidad
+  de este spec**. Por Artículo II, el core no puede saber que Laravel
+  necesita PHP 8.2+ o Composer 2.x — ese umbral es conocimiento del
+  framework. `adapter-laravel` declara la versión mínima requerida a través
+  del contrato de adapter (SPEC-0006), y el mecanismo genérico de detección
+  de binario ausente **o insuficiente** vive en SPEC-0002 (AC-4).
 
 ---
 
 ## 8. Preguntas abiertas
 
-- [ ] ¿Cuál es el número exacto de minutos aceptable para este comando,
-      dentro del presupuesto total de TTP < 30 min?
-- [ ] ¿El comando valida versión de PHP/Composer antes de generar, o asume
-      que ya están instalados y delega la detección a SPEC-0002?
-- [ ] ¿Qué pasa si el directorio destino ya existe y no está vacío?
+Ninguna pendiente. Las tres preguntas originales se resolvieron el
+2026-08-09:
+- Tiempo de ejecución → AC-7 (5 minutos)
+- Validación de versión de PHP/Composer → delegada a SPEC-0002 (AC-4) +
+  contrato de adapter (SPEC-0006), ver sección 7
+- Directorio destino existente → AC-8 y AC-9
 
 ---
 

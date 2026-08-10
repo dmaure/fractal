@@ -50,13 +50,15 @@ que la sostenga.
 - **Entonces** lo invoca a través de una interfaz uniforme —mismo shape de
   entrada y salida— sin importar qué target sea
 
-### AC-2: Payload serializable
+### AC-2: Payload serializable por stdin/stdout
 - **Dado** que el core invoca al adapter
 - **Cuando** le pasa datos de entrada (nombre del proyecto, configuración
   elegida, etc.)
 - **Entonces** lo hace a través de un payload serializable en JSON
-  (consistente con ADR-0003), no mediante argumentos de línea de comando
-  ad-hoc
+  (consistente con ADR-0003), transmitido por **stdin/stdout** entre los
+  procesos — no por archivo temporal ni por argumentos de línea de comando
+  ad-hoc. Resuelve el punto "a monitorear" que había quedado abierto en
+  ADR-0001 sobre el mecanismo de comunicación.
 
 ### AC-3: Propagación de errores legible
 - **Dado** que la toolchain del target falla (binario ausente, comando
@@ -65,18 +67,23 @@ que la sostenga.
 - **Entonces** se muestra al usuario en lenguaje claro, indicando qué falló
   y en qué paso, sin exponer un stacktrace crudo del proceso hijo
 
-### AC-4: Detección de dependencias externas faltantes
+### AC-4: Detección de dependencias externas faltantes o insuficientes
 - **Dado** que el adapter requiere un binario externo (Composer, PHP, Ruby,
-  etc.)
-- **Cuando** el usuario corre un comando de Fractal sin tenerlo instalado
+  etc.) y declara una versión mínima a través del contrato de adapter
+  (SPEC-0006)
+- **Cuando** el usuario corre un comando de Fractal sin ese binario
+  instalado, o con una versión por debajo de la que el adapter declaró
 - **Entonces** el CLI lo detecta antes de intentar ejecutar nada y muestra
-  instrucciones claras de instalación
+  instrucciones claras (qué falta, o qué versión mínima se necesita)
 
 ### AC-5: Timeout ante proceso colgado
 - **Dado** que la toolchain del target no responde
-- **Cuando** transcurre un tiempo máximo configurado
+- **Cuando** transcurre el tiempo máximo por defecto — fijo, sin requerir
+  configuración (Artículo IV)
 - **Entonces** el proceso hijo se corta, se reporta el timeout al usuario, y
   no queda un proceso huérfano corriendo
+- Existe una opción avanzada para configurar ese timeout; nunca es
+  obligatoria
 
 ### AC-6: Contrato documentado
 - **Dado** que el bridge está implementado
@@ -84,6 +91,21 @@ que la sostenga.
 - **Entonces** existe documentación del contrato (forma del payload de
   entrada, forma de la respuesta, códigos de error esperados) suficiente
   para implementar un adapter sin necesitar preguntar
+
+### AC-7: Ejecución concurrente sobre el mismo proyecto
+- **Dado** que un comando de Fractal ya está corriendo sobre un proyecto y
+  mantiene un lock `.fractal.lock` en la raíz con su PID
+- **Cuando** se intenta correr un segundo comando de Fractal sobre el mismo
+  proyecto
+- **Entonces** el segundo falla rápido con un mensaje claro ("ya hay un
+  comando de Fractal corriendo sobre este proyecto"), sin ejecutar nada
+
+### AC-8: Lock huérfano
+- **Dado** que un proceso de Fractal murió sin liberar su lock (crash,
+  `kill -9`)
+- **Cuando** un comando nuevo encuentra el lock `.fractal.lock`
+- **Entonces** verifica si el PID registrado sigue vivo; si no, trata el
+  lock como stale, lo libera, y continúa con normalidad
 
 ---
 
@@ -122,15 +144,24 @@ que la sostenga.
   Ruby/Bundler para Rails) queda declarada por cada adapter, no por el
   bridge
 
+**Concurrencia**
+- El lock `.fractal.lock` vive en la raíz del proyecto, no en el core ni en
+  el sistema — así un mismo proyecto queda protegido sin importar desde qué
+  máquina o sesión se invoque Fractal
+- La detección de lock huérfano (AC-8) usa el mismo mecanismo de verificar
+  procesos vivos que necesita el timeout de AC-5, no son dos sistemas
+  separados
+
 ---
 
 ## 8. Preguntas abiertas
 
-- [ ] ¿Comunicación por archivo temporal JSON o por stdin/stdout directo
-      entre los procesos? ADR-0001 lo dejó como "a monitorear" sin decidir.
-- [ ] ¿Qué pasa si dos comandos de Fractal corren en paralelo sobre el mismo
-      proyecto?
-- [ ] ¿El timeout de AC-5 es configurable por el usuario o fijo por el core?
+Ninguna pendiente. Las tres preguntas originales se resolvieron el
+2026-08-09:
+- Comunicación por stdin/stdout, no archivo temporal → AC-2
+- Ejecución concurrente → lock `.fractal.lock` con PID, AC-7 y AC-8
+- Timeout fijo por defecto, configurable para casos avanzados (Artículo IV)
+  → AC-5
 
 ---
 
