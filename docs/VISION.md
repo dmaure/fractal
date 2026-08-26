@@ -113,10 +113,23 @@ Los adapters exponen un contrato uniforme al core. El core no sabe qué hay del 
 
 | Capability | Descripción |
 |---|---|
-| `fractal new` | Genera el proyecto base para el target elegido |
+| `fractal new` | Genera el proyecto base para el target y la topología elegidos |
 | `fractal entity` | Genera entidad y CRUD completo en todas las capas |
 | `fractal deploy` | Provisiona servidor y publica en internet |
 | `fractal module` | Instala módulos opcionales |
+
+### Topologías de proyecto
+
+`fractal new` permite elegir cómo se organiza el repositorio del proyecto
+generado. Las tres comparten la misma arquitectura de frontend — React +
+Vite consumiendo una API REST con auth Sanctum Bearer (ADR-0005) — y solo
+difieren en la organización de repos (ADR-0010).
+
+| Topología | Organización | Estado |
+|---|---|---|
+| Monolito | Un repo, sin packages separados | Default |
+| Monorepo desacoplado | Un repo, packages `api/` y `web/` con Turborepo | Opcional |
+| Multirepo | Dos repos git, cada uno con su pipeline CI/CD | Opcional |
 
 ### Targets
 
@@ -151,9 +164,10 @@ el core estaba mal diseñado.
 | Arquitectura multi-target | Core agnóstico + adapters | ADR-0002 |
 | Definición de dominio | FDL como representación intermedia | ADR-0003 |
 | Base de datos | Multi-DB seleccionable | ADR-0004 |
-| Frontend Laravel | React + Inertia | ADR-0005 |
+| Frontend Laravel | React + Vite + API (Sanctum Bearer) | ADR-0005 |
 | Runtime de producción | Docker Compose | ADR-0006 |
-| CI/CD | GitHub Actions | ADR-0007 |
+| CI/CD | Capa agnóstica de proveedor (GitHub Actions + GitLab CI) | ADR-0007 |
+| Topología de proyecto generado | Monolito (default) / monorepo desacoplado / multirepo | ADR-0010 |
 
 ---
 
