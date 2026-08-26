@@ -1,11 +1,12 @@
 # SPEC-0003: Deploy inicial a VPS
 
-**Estado:** Draft
+**Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-01
-**Última revisión:** 2026-08-16 — agregado AC-13 (deploy multirepo) por
-ADR-0011; ampliado AC-1, AC-4, AC-8 y AC-13 por ADR-0012 (coordinación de
-dominios en el primer deploy) y ADR-0013 (runtime nginx-only para web/)
+**Última revisión:** 2026-08-26 — resueltas las 7 preguntas abiertas
+acumuladas (4 originales + 3 de ADR-0012/0013): AC-10 y AC-11 ampliados,
+AC-13 ampliado con `.gitignore` y `--reconfigure`, AC-14 nuevo (VPS con
+servicios preexistentes). Pasa de Draft a Aprobado.
 **Issue:** #
 
 ---
@@ -125,12 +126,18 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 - **Dado** que un deploy fue disparado
 - **Cuando** el healthcheck posterior falla
 - **Entonces** se restaura la versión anterior automáticamente y el workflow
-  reporta fallo sin haber dejado el sitio caído
+  reporta fallo sin haber dejado el sitio caído; el rollback se hace
+  revirtiendo al **tag de imagen versionado anterior** (no reiniciando el
+  contenedor previo, que puede ya no existir tras el `docker compose up`
+  del deploy fallido) — determinístico y coherente con el Artículo VII
 
 ### AC-11: Idempotencia
 - **Dado** que ya ejecuté `fractal deploy` con éxito
 - **Cuando** lo ejecuto nuevamente con los mismos parámetros
-- **Entonces** el resultado es idéntico, sin duplicar configuración ni romper el servicio
+- **Entonces** el resultado es idéntico, sin duplicar configuración ni
+  romper el servicio; el estado de qué pasos del provisioning ya se
+  aplicaron se guarda en un archivo en el propio VPS (no en el repositorio
+  — describe el servidor, no el código)
 
 ### AC-12: Agnosticismo de framework
 - **Dado** el código de `packages/deploy`
@@ -151,6 +158,25 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
   su manifiesto local `fractal.project.yml` como `resolved` (ADR-0012); las
   ejecuciones siguientes —incluidas las disparadas por merge vía CI/CD— no
   vuelven a preguntar nada, usan el valor ya guardado
+- El manifiesto `fractal.project.yml` va en `.gitignore`, mismo criterio que
+  `.env` — no viaja por el repositorio. Si se pierde (VPS reconstruido sin
+  el manifiesto local), `fractal deploy` simplemente vuelve a preguntar el
+  dato del hermano, degradación aceptable, no un bloqueo
+- `fractal deploy --reconfigure` fuerza volver a preguntar el dato del
+  hermano y reescribe la variable cruzada, para el caso en que el usuario
+  cambie de dominio después del primer deploy — sin esto, cambiar de
+  dominio quedaría como edición manual de un archivo interno que el
+  usuario no debería tocar a mano
+
+### AC-14: VPS con servicios preexistentes
+- **Dado** un VPS que ya tiene servicios corriendo en los puertos 80 o 443,
+  no gestionados por Fractal
+- **Cuando** ejecuto `fractal deploy` apuntando a ese VPS
+- **Entonces** el comando aborta con un mensaje claro identificando qué
+  proceso ocupa esos puertos, sin modificar nada — sin flag de override en
+  v1: sobrescribir un servidor de producción en uso es un riesgo mayor que
+  sobrescribir un directorio local (AC-8/AC-9 de SPEC-0001), y no se ofrece
+  ese atajo (Artículo VI)
 
 ---
 
@@ -173,6 +199,11 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 - Hosting estático de terceros (Vercel, Netlify, S3+CloudFront) para el
   repo `web/` en multirepo — evaluado y pospuesto en ADR-0013, se mantiene
   el mismo modelo de VPS + Docker Compose que el resto de Fractal
+- Múltiples entornos (staging + producción) en v1 — SPEC futuro
+- CDN dedicado para `web/` en multirepo — no se genera nada especial. El
+  usuario que elija Cloudflare como proveedor DNS (AC-5, ya soportado) ya
+  tiene disponible su proxy de CDN por su cuenta, sin que Fractal necesite
+  generar configuración adicional para eso
 
 ---
 
@@ -180,7 +211,7 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 
 | Depende de | Tipo | Estado |
 |---|---|---|
-| SPEC-0001 (comando `new`) | Bloqueante | Draft — reabierto por ADR-0010 |
+| SPEC-0001 (comando `new`) | Bloqueante | Aprobado |
 | SPEC-0002 (bridge Node → toolchain) | Bloqueante | Aprobado |
 | ADR-0006 (runtime de producción) | Bloqueante | Aceptado |
 | ADR-0007 (CI/CD para deploy por merge) | Bloqueante | Aceptado |
@@ -208,10 +239,7 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 
 ## 8. Preguntas abiertas
 
-- [ ] ¿Rollback por reinicio de contenedor anterior o por tag de imagen versionada?
-- [ ] ¿Dónde se almacena el estado del provisioning para garantizar idempotencia?
-- [ ] ¿Se soporta el escenario de múltiples entornos (staging + production) en v1?
-- [ ] ¿Qué hacer si el usuario ya tiene servicios corriendo en el VPS?
+Ninguna pendiente.
 
 Resuelto el 2026-08-16 (ADR-0011, ampliado por ADR-0012): multirepo se cubre
 con dos ejecuciones independientes de `fractal deploy`, una por repo, con la
@@ -219,17 +247,20 @@ primera ejecución de cada lado coordinando el dominio del hermano vía el
 manifiesto `fractal.project.yml` — ver AC-13. Resuelto también el runtime
 del lado `web/` (ADR-0013: Docker Compose con solo `nginx`) — ver AC-4.
 
-Nuevas preguntas abiertas por ADR-0012 y ADR-0013:
+Resuelto el 2026-08-26 (las cuatro preguntas originales y las tres que había
+dejado ADR-0012/0013):
 
-- [ ] ¿`fractal.project.yml` se commitea al repo (visible en el historial,
-  incluye el dominio de producción) o va en `.gitignore` como el `.env`?
-- [ ] Si el usuario cambia de dominio después del primer deploy, ¿hay un
-  flag (`fractal deploy --reconfigure`) para volver a pedir el dato del
-  hermano, o queda como edición manual del `.env`/secret?
-- [ ] El CDN queda fuera de alcance para `web/` en multirepo (ADR-0013) —
-  ¿vale la pena, igualmente, dejar Cloudflare como proxy delante del VPS
-  del lado `web/` para mitigar la falta de CDN, ya que AC-5/AC-6 de este
-  spec ya asumen Cloudflare como proveedor DNS soportado?
+- Rollback por tag de imagen versionado, no reinicio de contenedor → AC-10
+- Estado de idempotencia en un archivo en el propio VPS, no en el repo →
+  AC-11
+- Múltiples entornos (staging+producción): fuera de alcance v1 → sección 5
+- VPS con servicios preexistentes: aborta con mensaje claro, sin `--force`
+  → AC-14
+- `fractal.project.yml` en `.gitignore`, mismo criterio que `.env` → AC-13
+- `fractal deploy --reconfigure` para cambiar de dominio después del primer
+  deploy → AC-13
+- CDN dedicado para `web/`: no se genera nada especial, Cloudflare (AC-5) ya
+  cubre el caso → sección 5
 
 ---
 
