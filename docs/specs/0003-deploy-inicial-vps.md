@@ -3,6 +3,9 @@
 **Estado:** Draft
 **Autor:** Diego
 **Fecha:** 2026-08-01
+**Última revisión:** 2026-08-16 — agregado AC-13 (deploy multirepo) por
+ADR-0011; ampliado AC-1, AC-4, AC-8 y AC-13 por ADR-0012 (coordinación de
+dominios en el primer deploy) y ADR-0013 (runtime nginx-only para web/)
 **Issue:** #
 
 ---
@@ -45,6 +48,20 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 - **Cuando** el CLI arranca
 - **Entonces** se me solicitan: IP, usuario SSH, método de autenticación, dominio,
   proveedor DNS, repositorio Git y rama de producción
+- **Nota de topología (ADR-0012, reemplaza a ADR-0011):** en monolito y
+  monorepo desacoplado esto cubre todo el proyecto en una sola ejecución.
+  En multirepo, `fractal deploy` se ejecuta una vez dentro de cada repo
+  (`api/` y `web/`); cada ejecución es independiente, con su propio
+  VPS/hosting, dominio y pipeline — ver AC-13
+- **Nota de coordinación inicial (ADR-0012):** en multirepo, si el
+  manifiesto local `fractal.project.yml` (SPEC-0001 AC-11) todavía tiene
+  `orchestration_state: pending`, el CLI agrega dos preguntas a esta lista:
+  la URL git del repo hermano y el dominio donde vivirá. No se conecta a
+  ese repo — es información que el usuario ya tiene. Con esa respuesta
+  escribe la variable cruzada correspondiente (`API_URL` en `web/`,
+  `CORS_ALLOWED_ORIGIN`/dominio Sanctum en `api/`) y marca el manifiesto
+  como `resolved`. Deploys posteriores, incluidos los disparados por merge,
+  no repiten esta pregunta.
 
 ### AC-2: Validación previa
 - **Dado** que ingresé los datos del servidor
@@ -62,7 +79,12 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 - **Dado** que el sistema está endurecido
 - **Cuando** continúa el provisioning
 - **Entonces** quedan instalados y activos: Docker CE, Docker Compose plugin, Git,
-  y los contenedores app, nginx, db, redis, worker y scheduler corriendo
+  y los contenedores que correspondan según lo que declare el contrato del
+  adapter para lo que se está desplegando (SPEC-0006): `app`, `nginx`, `db`,
+  `redis`, `worker` y `scheduler` para un backend Laravel completo (monolito,
+  monorepo desacoplado, o el repo `api/` en multirepo); solo `nginx`
+  sirviendo el build estático de Vite cuando lo desplegado es el repo `web/`
+  en multirepo (ADR-0013)
 
 ### AC-5: DNS automatizado
 - **Dado** que elegí Cloudflare y proporcioné un API token
@@ -87,7 +109,11 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 - **Cuando** el CLI genera el workflow
 - **Entonces** se genera el workflow o pipeline correspondiente al proveedor
   de CI/CD elegido (GitHub Actions o GitLab CI, según ADR-0007), y se listan
-  los secrets exactos que debo cargar en ese proveedor
+  los secrets exactos que debo cargar en ese proveedor; en el primer deploy
+  de un proyecto multirepo, esa lista incluye además el secret con el valor
+  cruzado hacia el repo hermano (ADR-0012) — por ejemplo, al desplegar
+  `api/`, el CLI imprime también qué secret cargar en `web/` con la URL de
+  la API
 
 ### AC-9: Deploy por merge
 - **Dado** que los secrets están configurados
@@ -113,6 +139,19 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
   específico del target proviene del contrato del adapter (comando de build, comando
   de migración, puerto expuesto, ruta de healthcheck)
 
+### AC-13: Deploy independiente en multirepo, coordinado solo la primera vez
+- **Dado** un proyecto generado con topología multirepo (ADR-0010)
+- **Cuando** ejecuto `fractal deploy` dentro del repo `api/` y, por separado,
+  dentro del repo `web/`
+- **Entonces** cada ejecución corre el flujo completo (AC-1 a AC-12) de forma
+  independiente — ningún pipeline dispara ni coordina al otro (ADR-0012,
+  reemplaza a ADR-0011);
+  la **primera** ejecución de cada lado además pregunta la URL git y el
+  dominio del hermano, hornea la variable cruzada correspondiente, y marca
+  su manifiesto local `fractal.project.yml` como `resolved` (ADR-0012); las
+  ejecuciones siguientes —incluidas las disparadas por merge vía CI/CD— no
+  vuelven a preguntar nada, usan el valor ya guardado
+
 ---
 
 ## 5. Fuera de alcance
@@ -123,6 +162,17 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 - Balanceo de carga, múltiples servidores, alta disponibilidad
 - Backups automatizados (SPEC futuro)
 - Monitoreo y alertas (SPEC futuro)
+- Un comando único que despliegue ambos repos de multirepo a la vez, o
+  pipelines CI/CD que se disparen entre sí (repository_dispatch /
+  workflow_dispatch cruzado) — descartado explícitamente en ADR-0012, no
+  solo pospuesto: la coordinación ocurre a nivel de CLI interactivo en el
+  primer deploy, no a nivel de infraestructura de CI
+- Creación o escritura automática de secrets en el proveedor de CI/CD del
+  repo hermano — el CLI imprime qué cargar (AC-8), el usuario lo carga a
+  mano, igual que para los secrets propios de cada repo
+- Hosting estático de terceros (Vercel, Netlify, S3+CloudFront) para el
+  repo `web/` en multirepo — evaluado y pospuesto en ADR-0013, se mantiene
+  el mismo modelo de VPS + Docker Compose que el resto de Fractal
 
 ---
 
@@ -130,10 +180,13 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 
 | Depende de | Tipo | Estado |
 |---|---|---|
-| SPEC-0001 (comando `new`) | Bloqueante | Aprobado |
+| SPEC-0001 (comando `new`) | Bloqueante | Draft — reabierto por ADR-0010 |
 | SPEC-0002 (bridge Node → toolchain) | Bloqueante | Aprobado |
 | ADR-0006 (runtime de producción) | Bloqueante | Aceptado |
 | ADR-0007 (CI/CD para deploy por merge) | Bloqueante | Aceptado |
+| ADR-0010 (topología del proyecto generado) | Bloqueante | Aceptado |
+| ADR-0012 (deploy multirepo: coordinación en el primer deploy) | Bloqueante | Aceptado |
+| ADR-0013 (runtime nginx-only para web/ en multirepo) | Bloqueante | Aceptado |
 
 ---
 
@@ -159,6 +212,24 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 - [ ] ¿Dónde se almacena el estado del provisioning para garantizar idempotencia?
 - [ ] ¿Se soporta el escenario de múltiples entornos (staging + production) en v1?
 - [ ] ¿Qué hacer si el usuario ya tiene servicios corriendo en el VPS?
+
+Resuelto el 2026-08-16 (ADR-0011, ampliado por ADR-0012): multirepo se cubre
+con dos ejecuciones independientes de `fractal deploy`, una por repo, con la
+primera ejecución de cada lado coordinando el dominio del hermano vía el
+manifiesto `fractal.project.yml` — ver AC-13. Resuelto también el runtime
+del lado `web/` (ADR-0013: Docker Compose con solo `nginx`) — ver AC-4.
+
+Nuevas preguntas abiertas por ADR-0012 y ADR-0013:
+
+- [ ] ¿`fractal.project.yml` se commitea al repo (visible en el historial,
+  incluye el dominio de producción) o va en `.gitignore` como el `.env`?
+- [ ] Si el usuario cambia de dominio después del primer deploy, ¿hay un
+  flag (`fractal deploy --reconfigure`) para volver a pedir el dato del
+  hermano, o queda como edición manual del `.env`/secret?
+- [ ] El CDN queda fuera de alcance para `web/` en multirepo (ADR-0013) —
+  ¿vale la pena, igualmente, dejar Cloudflare como proxy delante del VPS
+  del lado `web/` para mitigar la falta de CDN, ya que AC-5/AC-6 de este
+  spec ya asumen Cloudflare como proveedor DNS soportado?
 
 ---
 
