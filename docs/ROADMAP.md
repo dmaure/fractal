@@ -57,7 +57,7 @@ invertir en generación de código.
 | SPEC-0008 | Entidad: migration, model, factory, seeder | ⬜ |
 | SPEC-0009 | Capas Repository y Service | ⬜ |
 | SPEC-0010 | API REST con validación y serialización | ⬜ |
-| SPEC-0011 | Frontend React + Inertia (Index, Show, Form) | ⬜ |
+| SPEC-0011 | Frontend React + Vite consumiendo la API (Index, Show, Form) — ADR-0005 | ⬜ |
 | SPEC-0012 | Generación de tests por entidad | ⬜ |
 | SPEC-0013 | Tests de snapshot de stubs | ⬜ |
 
