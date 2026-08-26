@@ -1,12 +1,11 @@
 # SPEC-0001: `fractal new` genera proyecto Laravel base
 
-**Estado:** Draft
+**Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-09
-**Última revisión:** 2026-08-16 — reabierto por ADR-0010 para incorporar
-selección de topología (AC-10, AC-11); AC-11 ampliado por ADR-0012 con el
-manifiesto `fractal.project.yml` para multirepo. Estaba Aprobado; vuelve a
-Draft hasta cubrir ambos.
+**Última revisión:** 2026-08-26 — resueltas las 3 preguntas abiertas que
+había dejado la reapertura del 2026-08-16 (ADR-0010: topología; ADR-0012:
+manifiesto multirepo). Vuelve a Aprobado.
 **Issue:** #
 
 ---
@@ -97,7 +96,10 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
 - **Dado** que el comando corre en condiciones normales de red
 - **Cuando** mido el tiempo entre invocación y finalización, sin contar el
   tiempo que el usuario tarda en responder los prompts
-- **Entonces** termina en menos de **5 minutos**
+- **Entonces** termina en menos de **5 minutos** en topología monolito, o
+  **7 minutos** en monorepo desacoplado o multirepo — el margen extra
+  compensa el `npm install` del SPA además del `composer install` del
+  backend (decidido 2026-08-26)
 
 ### AC-8: Directorio destino existente
 - **Dado** que el directorio destino ya existe
@@ -129,8 +131,10 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
     vive en `resources/js` y consume rutas bajo `/api` del mismo Laravel
     (ADR-0005, ADR-0010)
   - **Monorepo desacoplado:** un repo con `api/` (Laravel) y `web/` (SPA
-    Vite) como packages, `turbo.json` en la raíz, y scripts de raíz para
-    correr ambos en paralelo en desarrollo
+    Vite) como packages, `turbo.json` en la raíz, `turbo` instalado como
+    devDependency real del `package.json` raíz (no solo el archivo de
+    config — sin el paquete, `turbo run` no funciona), y scripts de raíz
+    para correr ambos en paralelo en desarrollo
   - **Multirepo:** dos carpetas de proyecto, `mi-proyecto-api/` y
     `mi-proyecto-web/`, cada una su propio repositorio git (AC-6); cada
     carpeta incluye además un manifiesto `fractal.project.yml` (`role: api`
@@ -195,30 +199,26 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
 
 ## 8. Preguntas abiertas
 
+Ninguna pendiente.
+
 Las tres preguntas originales se resolvieron el 2026-08-09 (tiempo de
 ejecución → AC-7, validación de PHP/Composer → delegada a SPEC-0002 +
 SPEC-0006, directorio destino existente → AC-8 y AC-9).
 
-Reabierto el 2026-08-16 por ADR-0010, con preguntas nuevas:
+Reabierto el 2026-08-16 por ADR-0010 con tres preguntas nuevas, resueltas
+el 2026-08-26:
 
-- [ ] En multirepo, ¿el CLI ofrece crear los remotos en GitHub/GitLab vía
-  token, o se limita a `git init` local y el usuario conecta el remoto a
-  mano? Definido como fuera de alcance por ahora (sección 5), pero afecta
-  el AC-7 de tiempo de ejecución si se agrega después.
-- [ ] En monorepo desacoplado, ¿Turborepo se instala como dependencia del
-  proyecto generado o el CLI genera `turbo.json` a mano sin depender del
-  paquete `turbo` en el `package.json` raíz?
-- [ ] ¿El AC-7 (5 minutos) sigue siendo realista para monorepo/multirepo,
-  que generan e instalan dependencias de dos proyectos (Laravel + SPA) en
-  vez de uno? Monolito genera un solo `composer install`; las otras dos
-  topologías suman `npm install` del SPA como paso adicional.
+- Creación de remotos en multirepo → confirmado fuera de alcance v1
+  (sección 5): solo `git init` local, sin crear remoto en GitHub/GitLab.
+- Turborepo → se instala como devDependency real del proyecto generado,
+  no solo el archivo `turbo.json` (ver AC-11).
+- AC-7 por topología → diferenciado: 5 min monolito, 7 min
+  monorepo/multirepo (ver AC-7).
 
-Resuelto el 2026-08-16 (ADR-0012): la coordinación entre repos en multirepo
-no requiere que `fractal new` cree remotos ni conozca URLs de git de
-antemano — el manifiesto `fractal.project.yml` se genera con placeholders y
-se completa recién en el primer `fractal deploy`, cuando el usuario ya
-sabe esos datos. La pregunta sobre creación automática de remotos
-(GitHub/GitLab) sigue abierta, pero ya no bloquea el diseño del manifiesto.
+La coordinación entre repos en multirepo (ADR-0012) tampoco requiere que
+`fractal new` cree remotos ni conozca URLs de git de antemano — el
+manifiesto `fractal.project.yml` se genera con placeholders y se completa
+recién en el primer `fractal deploy`.
 
 ---
 
