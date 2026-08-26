@@ -1,6 +1,6 @@
 # ADR-0008: Herramienta de monorepo
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 **Fecha:** 2026-08-10
 **Decisores:** Diego
 
@@ -116,13 +116,41 @@ dependencias, cache local y remoto, y un ecosistema de plugins por stack.
 
 ## Decisión
 
-Pendiente. Diego decide entre las opciones desarrolladas arriba.
+Elegimos la **Opción B: pnpm workspaces**. Ratifica lo que ya venía
+corriendo en la práctica: el PR de Cloud Agents de Cursor (#11, 2026-08-10)
+había asumido pnpm para preparar el entorno de desarrollo, adelantándose a
+esta decisión — con esto queda formalizada, no es una elección especulativa
+sin evidencia.
 
 ---
 
 ## Consecuencias
 
-Pendiente de la opción elegida.
+### Positivas
+- Instalación de dependencias más rápida y con menor uso de disco que npm.
+- `node_modules` estricto evita phantom dependencies — ayuda a detectar
+  temprano si `packages/core` importa algo que solo declaró
+  `adapter-laravel`, acoplamiento silencioso que el Artículo II quiere
+  evitar.
+- Ya validado en la práctica: el entorno de Cloud Agents de Cursor (PR #11)
+  corre sobre pnpm sin ajustes adicionales.
+- Sin capa de build system extra que aprender o mantener, coherente con el
+  volumen actual de paquetes (Artículo IV aplicado a las herramientas del
+  repo).
+
+### Negativas
+- Introduce un gestor de paquetes distinto al que cualquiera que clone el
+  repo esperando `npm install` asumiría por defecto — hay que documentarlo
+  claramente en el README y en `docs/AGENT_PLAYBOOK.md`.
+- Sin cache de tareas ni orquestación de orden de ejecución entre paquetes
+  (eso es lo que Turborepo hubiera agregado) — a scriptear a mano si hace
+  falta a medida que crezcan los paquetes.
+
+### Neutras / a monitorear
+- Si el número de paquetes o el costo de sus builds crece lo suficiente
+  (Rails en M4, módulos de M5) y la falta de cache de tareas empieza a
+  doler en CI, reevaluar Turborepo encima de pnpm workspaces — no se
+  descarta permanentemente, se pospone por falta de evidencia hoy.
 
 ---
 
