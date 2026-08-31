@@ -135,7 +135,40 @@ No estaba confirmado qué mueve el ticket de `AI WORKING` a `PR READY` y a `Done
 
 ---
 
-## 7. Referencias
+## 7. Primera ejecución real (2026-08-31)
+
+Se corrió el workflow por primera vez en producción, disparado por el chequeo
+periódico (no el webhook). Encontró y corrigió dos bugs adicionales,
+específicos de haber agregado el segundo disparador (Gap 1):
+
+- El nodo de filtro inicial (`¿Cambió a Ready for AI ahora?`) todavía
+  referenciaba datos exclusivos del webhook (`$('Linear Webhook')`), y
+  explotaba al disparar por schedule. Se reemplazó por un nodo `Evaluar Gate`
+  que detecta el origen (`$('Linear Webhook').isExecuted`) y solo aplica el
+  chequeo específico de transición cuando el disparo vino de un webhook real;
+  si vino del schedule, pasa directo.
+- Las dos mutaciones GraphQL de escritura (`Marcar como AI WORKING`,
+  `Comentar en Linear`) tenían una llave de más al final de la query,
+  typeado a mano — Linear las rechazaba con error de sintaxis antes de
+  aplicar nada. Corregido en ambas.
+
+**Con los bugs corregidos, la lógica funcionó de punta a punta contra datos
+reales:** el chequeo periódico (disparado automáticamente por n8n, no de
+forma manual) listó los 6 candidatos, descartó los bloqueados, eligió
+FRA-22 como único elegible, y lo marcó `AI WORKING` en Linear
+(`issueUpdate: success`).
+
+**Bloqueo real encontrado, no un bug del workflow:** el lanzamiento del
+agente falló con `usage_limit_exceeded` — la cuenta de Cursor no tiene
+pricing por uso habilitado ni un spend limit configurado para Background
+Agents (`cursor.com/dashboard?tab=settings`). Es una acción pendiente de
+Diego en el dashboard de Cursor, no algo resoluble desde el workflow.
+FRA-22 se devolvió a `READY FOR AI` para que el próximo chequeo lo retome
+solo una vez resuelto el billing.
+
+---
+
+## 8. Referencias
 
 - [`docs/AGENT_PLAYBOOK.md`](AGENT_PLAYBOOK.md) — reglas de comportamiento para Claude y para Cursor al implementar, schema de ticket
 - [`.cursor/rules/fractal.mdc`](../.cursor/rules/fractal.mdc) — versión resumida cargada automáticamente en Cursor
