@@ -159,12 +159,18 @@ FRA-22 como único elegible, y lo marcó `AI WORKING` en Linear
 (`issueUpdate: success`).
 
 **Bloqueo real encontrado, no un bug del workflow:** el lanzamiento del
-agente falló con `usage_limit_exceeded` — la cuenta de Cursor no tiene
+agente falló con `usage_limit_exceeded` — la cuenta de Cursor no tenía
 pricing por uso habilitado ni un spend limit configurado para Background
-Agents (`cursor.com/dashboard?tab=settings`). Es una acción pendiente de
-Diego en el dashboard de Cursor, no algo resoluble desde el workflow.
-FRA-22 se devolvió a `READY FOR AI` para que el próximo chequeo lo retome
-solo una vez resuelto el billing.
+Agents. Se repitió dos veces más (el gatekeeper reintentaba solo, sin
+intervención, cada vez que FRA-22 volvía a `READY FOR AI`) hasta que Diego
+configuró un Monthly Limit en Cursor → Spending → On-Demand Usage.
+
+**Confirmado funcionando de punta a punta con un agente real:** una vez
+resuelto el billing, el mismo mecanismo (sin ningún cambio de código)
+lanzó un Cursor Cloud Agent real sobre FRA-22 —
+[`bc-0f8588ac-d7b5-48ff-90b7-cb3dd1cb1356`](https://cursor.com/agents/bc-0f8588ac-d7b5-48ff-90b7-cb3dd1cb1356),
+estado `ACTIVE`— confirmando el circuito completo Linear → n8n → Cursor sin
+intervención manual más allá de la configuración de billing.
 
 ---
 
