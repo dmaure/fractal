@@ -67,4 +67,5 @@ Conventional Commits, en español. Scopes válidos: `core`, `adapter-laravel`,
 
 ## Referencias
 
-`docs/CONSTITUTION.md`, `docs/PROCESO.md`, `docs/AGENT_PLAYBOOK.md`.
+`docs/CONSTITUTION.md`, `docs/PROCESO.md`, `docs/AGENT_PLAYBOOK.md`,
+`docs/ARCHITECTURE_WORKFLOW.md`.
