@@ -1,0 +1,26 @@
+{
+  "name": "@fractal/core",
+  "version": "0.0.0",
+  "description": "CLI, FDL, orquestación. Framework-agnostic core.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "echo 'Build pendiente'",
+    "test": "echo 'Tests pendiente'"
+  },
+  "keywords": [
+    "fractal",
+    "core",
+    "cli",
+    "fdl"
+  ],
+  "author": "Fractal",
+  "license": "MIT"
+}

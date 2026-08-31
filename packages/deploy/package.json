@@ -1,0 +1,26 @@
+{
+  "name": "@fractal/deploy",
+  "version": "0.0.0",
+  "description": "Provisioning, Docker, Nginx, SSL, CI/CD. Framework-agnostic.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "echo 'Build pendiente'",
+    "test": "echo 'Tests pendiente'"
+  },
+  "keywords": [
+    "fractal",
+    "deploy",
+    "provisioning",
+    "docker"
+  ],
+  "author": "Fractal",
+  "license": "MIT"
+}
