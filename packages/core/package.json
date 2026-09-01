@@ -17,8 +17,14 @@
     "test:watch": "vitest",
     "lint": "echo 'TODO: agregar eslint'"
   },
-  "keywords": ["fractal", "generator", "cli"],
-  "author": "",
+  "keywords": [
+    "fractal",
+    "generator",
+    "core",
+    "cli",
+    "fdl"
+  ],
+  "author": "Fractal",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.0.0",

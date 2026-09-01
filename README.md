@@ -33,6 +33,38 @@ fractal entity Producto     # genera CRUD completo
 
 ---
 
+## Desarrollo
+
+### Requisitos
+
+- Node.js >= 20.0.0
+- pnpm 11.24.0 (gestionado vía `packageManager` en package.json)
+
+### Setup
+
+```bash
+# Instalar dependencias
+pnpm install
+
+# Lint de acoplamiento (Artículo II)
+pnpm lint:coupling
+```
+
+### Estructura del monorepo
+
+```
+packages/
+├── core/              CLI, FDL, orquestación. Agnóstico.
+├── adapter-laravel/   Todo el conocimiento de PHP/Laravel
+├── adapter-rails/     Todo el conocimiento de Ruby/Rails
+└── deploy/            Provisioning y CI/CD. Agnóstico.
+```
+
+**Artículo II:** `core` y `deploy` nunca contienen referencias a frameworks específicos.
+El lint de acoplamiento (`pnpm lint:coupling`) verifica esto en CI.
+
+---
+
 ## Documentación
 
 Toda la documentación del proyecto vive en [`docs/`](docs/).

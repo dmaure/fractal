@@ -1,16 +1,25 @@
 {
-  "name": "fractal-monorepo",
+  "name": "@fractal/monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Fractal - Generador de aplicaciones multi-framework",
+  "type": "module",
+  "description": "Generador de aplicaciones production-ready, multi-framework",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "test": "pnpm -r test",
-    "lint": "pnpm -r lint && ./scripts/lint-coupling.sh",
-    "lint:coupling": "./scripts/lint-coupling.sh",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint && node scripts/lint-coupling.js",
+    "lint:coupling": "node scripts/lint-coupling.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "fractal",
+    "generator",
+    "multi-framework"
+  ],
+  "author": "Fractal",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.0.0",
