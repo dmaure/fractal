@@ -1,0 +1,28 @@
+{
+  "name": "@fractal/core",
+  "version": "0.0.1",
+  "description": "Fractal core - CLI, FDL, orquestación (agnóstico)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo 'TODO: agregar eslint'"
+  },
+  "keywords": ["fractal", "generator", "cli"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
