@@ -145,18 +145,24 @@ eso no alcanza:**
 o por sintaxis específica en el PR (ej. `Fixes FRA-22`), no por mención
 libre del identificador. Ninguna de esas dos condiciones se cumplió acá.
 
-**Pendiente de decisión (Diego):**
-- Opción A — forzar que Cursor siempre use el `gitBranchName` exacto que
-  Linear genera para el ticket (configuración del agente o del prompt).
-- Opción B — no depender de la integración nativa: construir un paso
-  explícito en n8n disparado por webhook de GitHub (PR abierto → mover a
-  `PR READY`; PR mergeado → mover a `Done`), usando el link al PR en vez
-  del nombre de rama.
-- Opción C — probar la sintaxis exacta que la integración de Linear espera
-  en el cuerpo del PR (ej. `Fixes FRA-22`) antes de descartar la vía nativa.
+**Decisión (Diego, 2026-09-01): Opción A.** Se fuerza que Cursor use el
+`gitBranchName` exacto que Linear genera para el ticket, en vez de dejar
+que invente uno propio.
 
-Hasta que se resuelva, **el estado post-`AI WORKING` requiere intervención
-manual de Diego o de Claude** — no es automático todavía.
+**Implementado:** el nodo `List Ready for AI Candidates` ahora también trae
+el campo `branchName` de Linear, y el prompt que arma `Lanzar Cursor Cloud
+Agent` incluye una instrucción explícita: "creá tu rama de trabajo con este
+nombre EXACTO: `{branchName}`". No se implementó el mecanismo de la Opción B
+(no se descarta para el futuro si esto no alcanza) ni se probó la Opción C.
+
+**Sin validar todavía en un ciclo real completo** — depende de que Cursor
+efectivamente respete la instrucción del prompt (es una instrucción en
+texto, no un parámetro forzado por la API de Cursor, que no expone un
+campo de nombre de rama). Se confirma en el próximo ticket que se lance
+(FRA-23 o FRA-26, ambos desbloqueados desde que FRA-22 pasó a Done).
+
+Hasta confirmar que esto funciona de punta a punta, **el estado
+post-`AI WORKING` puede seguir requiriendo intervención manual**.
 
 ---
 
