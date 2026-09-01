@@ -95,10 +95,10 @@ El lugar donde una IA sí aporta es distinto: releer el plan completo (`docs/`) 
 | `Todo` | unstarted | Tarea definida pero requiere más análisis/documentación antes de ejecutarse (equivale a "Planned") |
 | `READY FOR AI` | unstarted | Suficientemente especificado para que Cursor lo ejecute sin preguntar |
 | `AI WORKING` | started | n8n ya marcó este ticket como el elegido; Cursor debería estar trabajando en él |
-| `PR READY` | started | Existe un PR — la transición exacta a este estado puntual depende del mapeo por defecto de la integración GitHub↔Linear, se confirma en la primera ejecución real |
+| `PR READY` | started | Existe un PR — **hoy no se mueve solo** (Gap 2, sección 6), requiere moverlo a mano hasta que se resuelva |
 | `HUMAN REVIEW` | started | Listo para que Diego revise |
 | `CHANGES REQUESTED` | started | La revisión encontró problemas, Cursor debe seguir |
-| `Done` | completed | PR aprobado y mergeado — Linear lo cierra solo vía la integración GitHub↔Linear |
+| `Done` | completed | PR aprobado y mergeado — **hoy no se mueve solo** (Gap 2, sección 6), requiere moverlo a mano hasta que se resuelva |
 
 ---
 
@@ -127,11 +127,36 @@ El workflow original disparaba solo cuando el **estado de un issue cambiaba a** 
 
 **Resuelto:** se agregó un segundo disparador por schedule (cada 15 min) que corre la misma lógica de selección, independiente del webhook. Implementado en el workflow de n8n, versión `f0cd693c` en adelante.
 
-### Gap 2 — resuelto (con una duda menor pendiente de confirmar en la práctica): transición de estados post-implementación
+### Gap 2 — reabierto: la transición automática de estados post-implementación NO funciona
 
-No estaba confirmado qué mueve el ticket de `AI WORKING` a `PR READY` y a `Done`.
+Se había marcado "resuelto" en base a que la integración GitHub↔Linear
+estaba activa y a que Cursor genera ramas con el nombre convención de
+Linear. **La primera ejecución real (FRA-22, 2026-09-01) demostró que
+eso no alcanza:**
 
-**Resuelto:** la integración GitHub↔Linear está confirmada activa en `dmaure/fractal` (Diego lo verificó en Settings → Integrations). Cursor ya crea la rama con el nombre exacto que Linear genera (`gitBranchName`, ej. `dmaure17/fra-22-...`), que es la convención que esa integración usa para reconocer el PR y linkearlo al ticket automáticamente, y cerrarlo al mergear. Queda una duda menor sin resolver: si el mapeo automático de "PR abierto" aterriza exactamente en el estado custom `PR READY` o en el default de Linear — se confirma con la primera ejecución real, no bloquea nada mientras tanto.
+- Cursor no usó el nombre de rama que Linear sugiere (`gitBranchName`:
+  `dmaure17/fra-22-...`) — usó uno propio (`cursor/monorepo-pnpm-y-lint-7647`).
+- El PR se creó mencionando "FRA-22" en el título y cuerpo, pero **Linear no
+  lo detectó ni lo adjuntó al ticket** — ni al abrirse, ni al mergearse.
+- Diego tuvo que mergear el PR a mano, y el ticket se movió a `Done`
+  manualmente (por mí, no por la integración).
+
+**Causa probable:** la integración GitHub↔Linear vincula por nombre de rama
+o por sintaxis específica en el PR (ej. `Fixes FRA-22`), no por mención
+libre del identificador. Ninguna de esas dos condiciones se cumplió acá.
+
+**Pendiente de decisión (Diego):**
+- Opción A — forzar que Cursor siempre use el `gitBranchName` exacto que
+  Linear genera para el ticket (configuración del agente o del prompt).
+- Opción B — no depender de la integración nativa: construir un paso
+  explícito en n8n disparado por webhook de GitHub (PR abierto → mover a
+  `PR READY`; PR mergeado → mover a `Done`), usando el link al PR en vez
+  del nombre de rama.
+- Opción C — probar la sintaxis exacta que la integración de Linear espera
+  en el cuerpo del PR (ej. `Fixes FRA-22`) antes de descartar la vía nativa.
+
+Hasta que se resuelva, **el estado post-`AI WORKING` requiere intervención
+manual de Diego o de Claude** — no es automático todavía.
 
 ---
 
@@ -171,6 +196,18 @@ lanzó un Cursor Cloud Agent real sobre FRA-22 —
 [`bc-0f8588ac-d7b5-48ff-90b7-cb3dd1cb1356`](https://cursor.com/agents/bc-0f8588ac-d7b5-48ff-90b7-cb3dd1cb1356),
 estado `ACTIVE`— confirmando el circuito completo Linear → n8n → Cursor sin
 intervención manual más allá de la configuración de billing.
+
+**El cierre del ciclo reabrió el Gap 2 (2026-09-01).** El agente terminó el
+código correctamente (branch `cursor/monorepo-pnpm-y-lint-7647`, commit
+`798b743`), pero no pudo abrir el PR — su token de sistema era de solo
+lectura. Diego configuró un Personal Access Token con permisos de
+escritura. Con el código ya terminado, el PR se abrió manualmente
+([#17](https://github.com/dmaure/fractal/pull/17), por Claude, ya que el
+intento de la sesión vieja del agente seguía sin el token nuevo) y Diego lo
+mergeó — pero como el PR no usaba el nombre de rama que Linear espera, la
+integración nunca lo linkeó: ni al abrirse ni al mergear. El ticket se
+cerró manualmente. Ver Gap 2 (sección 6) para las opciones de cómo cerrar
+esto de verdad.
 
 ---
 
