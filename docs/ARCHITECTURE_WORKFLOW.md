@@ -164,6 +164,54 @@ campo de nombre de rama). Se confirma en el próximo ticket que se lance
 Hasta confirmar que esto funciona de punta a punta, **el estado
 post-`AI WORKING` puede seguir requiriendo intervención manual**.
 
+### Gap 2 — actualización 2026-09-01: nombre de rama confirmado, creación de PR sigue fallando
+
+Se relanzó FRA-23 para probar la Opción A en un ciclo limpio
+([`bc-7b2b806d-d080-48ff-b7c2-4d54094b41fd`](https://cursor.com/agents/bc-7b2b806d-d080-48ff-b7c2-4d54094b41fd)).
+
+**Confirmado: la Opción A funciona.** El agente usó exactamente el nombre
+de rama forzado por el prompt (`cursor/protocolo-invocaci-n-adapter-daa0`,
+igual al `branchName` que trae Linear). Ya no depende de que Cursor invente
+un nombre propio.
+
+**Seguía sin poder crear el PR solo** — el resumen del agente terminó otra
+vez con "PR: Crear manualmente en `.../pull/new/<rama>`", igual que en
+FRA-22. Se auditaron los dos lugares donde Diego había cargado tokens para
+resolver esto, para descartar que sea un problema de configuración:
+
+- **GitHub App "Cursor"** (`github.com/settings/installations/151578181`):
+  instalada con `Read and write access` sobre `pull requests` (y sobre
+  `code`, `issues`, `actions`, `checks`, etc.), acceso a **All repositories**.
+  Es decir: los permisos y el alcance ya son correctos para que el propio
+  mecanismo de PR de Cursor funcione.
+- **Secrets del Environment de Cursor** (`dmaure/fractal`): hay dos —
+  `github` (scope Personal) y `Github` (scope Environment) — ambos
+  respaldados por el mismo Personal Access Token clásico
+  (`Cursor Cloud Agent - Fractal`, scopes `repo, workflow`). Ambos
+  figuran como **"Never used"** en `github.com/settings/tokens`. Esto
+  confirma que no son el mecanismo que Cursor usa para crear el PR — son
+  simples variables de entorno disponibles para los scripts de
+  install/build/start, no algo que el flujo de "abrir PR" consulte.
+
+**Conclusión: no es un gap de configuración de nuestro lado.** Con permisos
+completos en la GitHub App y un PAT válido disponible, la creación
+automática de PR sigue sin ocurrir. Al momento de esta prueba, Cursor
+mostraba un aviso propio de incidente ("Investigating service degradation"
+— degradación en Composer 2.5, afectando explícitamente "Cloud Agents"),
+que es una explicación plausible pero no confirmada — ya había fallado
+también en FRA-22, antes de que ese incidente existiera, así que puede ser
+una limitación estructural del feature (requiere click humano en "Create
+PR" dentro del propio Cursor) y no solo un problema transitorio.
+
+**Recomendación (pendiente de decisión de Diego):** dejar de depender de
+que el agente cree el PR y mover esa responsabilidad a n8n, que ya tiene
+todo lo necesario (el PAT, o mejor, una GitHub App propia de la
+automatización) para llamar directamente a `POST /repos/{owner}/{repo}/pulls`
+una vez que detecta que el agente terminó. Esto además **desacopla el
+workflow de Cursor específicamente** — si el día de mañana se cambia de
+agente de código, la creación del PR sigue viviendo en n8n y no hay que
+volver a resolver este problema por agente.
+
 ---
 
 ## 7. Primera ejecución real (2026-08-31)
