@@ -2,10 +2,38 @@
 
 Core de Fractal: CLI, FDL, orquestación. Agnóstico de framework (Artículo II).
 
+- **Agnóstico de framework** (Artículo II de CONSTITUTION.md)
+- No contiene referencias a frameworks específicos
+- Todo conocimiento de framework vive en `packages/adapter-*`
+
 ## Instalación
 
 ```bash
 pnpm install @fractal/core
+```
+
+## Comandos
+
+### `fractal new <project-name>`
+
+Genera un nuevo proyecto Fractal.
+
+**Opciones:**
+
+- `-t, --topology <topology>`: Topología del proyecto (`monolith`, `monorepo`, `multirepo`). Default: `monolith`
+- `-f, --force`: Fuerza la generación sobre un directorio no vacío
+
+**Ejemplos:**
+
+```bash
+# Crear proyecto con topología por defecto (monolito)
+fractal new mi-proyecto
+
+# Crear proyecto con topología específica
+fractal new mi-proyecto --topology=monorepo
+
+# Forzar creación sobre directorio existente
+fractal new mi-proyecto --force
 ```
 
 ## Uso del Bridge Node → Toolchain
@@ -134,15 +162,15 @@ process.stdin.on('data', (chunk) => {
 process.stdin.on('end', () => {
   try {
     const payload = JSON.parse(input);
-    
+
     // Tu lógica aquí
     const result = processAction(payload);
-    
+
     const response = {
       success: true,
       data: result
     };
-    
+
     console.log(JSON.stringify(response));
     process.exit(0);
   } catch (error) {
@@ -153,7 +181,7 @@ process.stdin.on('end', () => {
         step: 'ejecución'
       }
     };
-    
+
     console.log(JSON.stringify(response));
     process.exit(0);
   }
@@ -172,12 +200,12 @@ $payload = json_decode($input, true);
 try {
     // Tu lógica aquí
     $result = processAction($payload);
-    
+
     $response = [
         'success' => true,
         'data' => $result
     ];
-    
+
     echo json_encode($response);
     exit(0);
 } catch (Exception $e) {
@@ -188,32 +216,38 @@ try {
             'step' => 'ejecución'
         ]
     ];
-    
+
     echo json_encode($response);
     exit(0);
 }
 ```
 
-## Tests
+## Desarrollo
 
 ```bash
+# Compilar
+pnpm build
+
+# Ejecutar tests una vez
 pnpm test
+
+# Ejecutar tests en modo watch
+pnpm test:watch
 ```
 
 Los tests incluyen:
 
-- ✅ Happy path: invocación exitosa
-- ✅ Adapter reporta error (success: false)
-- ✅ Adapter termina con exit code != 0
-- ✅ Adapter devuelve JSON inválido
-- ✅ Adapter no devuelve nada
-- ✅ Adapter devuelve JSON sin campo success
-- ✅ Comando no existe
-- ✅ Payload no serializable
-- ✅ Timeout
+- ✅ Bridge: happy path, error del adapter (`success: false`), exit code != 0, JSON inválido, sin salida, sin campo `success`, comando inexistente, payload no serializable, timeout
+- ✅ `fractal new`: prompts, defaults, validación de directorio destino, topologías, `--force`
 
 ## Referencias
 
+- [SPEC-0001: fractal new genera proyecto Laravel base](../../docs/specs/0001-fractal-new-laravel-base.md)
 - [SPEC-0002: Bridge Node → toolchain del target](../../docs/specs/0002-bridge-node-toolchain.md)
 - [ADR-0001: CLI en Node.js con invocación de la toolchain del target](../../docs/adr/0001-cli-hibrido-node-toolchain.md)
+- [ADR-0010: Topología del proyecto generado](../../docs/adr/0010-topologia-proyecto-generado-sin-inertia.md)
 - [CONSTITUTION.md - Artículo II](../../docs/CONSTITUTION.md)
+
+## Estado
+
+M1 — Bridge Node→toolchain y comando `fractal new` (prompts, defaults, validación) implementados.
