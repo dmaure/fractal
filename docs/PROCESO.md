@@ -63,6 +63,38 @@ El número de la rama es el del spec que implementa.
 
 ---
 
+## Resolución de conflictos: rebase, nunca merge de la base hacia la rama
+
+Si una rama de ticket queda desactualizada respecto a su base (`master`) —
+porque otro PR se mergeó mientras esta seguía abierta — se actualiza con
+**`git rebase`**, nunca con `git merge master` hacia la rama del ticket.
+
+- La rama de un PR debe contener **únicamente** los commits del ticket que
+  implementa. Nunca un commit de "merge master" ni el historial de otro
+  ticket mezclado adentro.
+- Rebase reaplica los commits del ticket sobre la punta actual de la base,
+  sin generar un commit de merge — la rama queda como si el trabajo se
+  hubiera hecho directamente sobre el `master` de hoy.
+- Requiere `git push --force-with-lease` a la rama del ticket (nunca a
+  `master`, que no se toca). Es seguro porque son ramas de un solo ticket,
+  sin nadie más trabajando encima.
+- Después de resolver conflictos vía rebase, correr tests + build + lint de
+  acoplamiento antes de pushear — no alcanza con que `git` no marque
+  conflictos, el resultado tiene que compilar y pasar tests.
+
+**Por qué:** el 2026-09-05, una rama con conflictos reales se resolvió con
+`git merge master`, dejando un commit de merge visible en el historial de
+la rama y en el PR. Funcionaba (los tests pasaban y `master` quedaba limpio
+igual si el merge del PR usa squash), pero ensuciaba innecesariamente la
+rama y el PR mientras estaba en revisión. Regla adoptada a partir de ahí.
+
+**Nota:** el fix del bug de concurrencia (ver `ARCHITECTURE_WORKFLOW.md`,
+sección 6.1) debería evitar que esto haga falta seguido — una rama nueva ya
+no debería crearse mientras otro ticket sigue sin mergear. Esta regla es la
+red de seguridad para cuando sí haga falta, no el mecanismo principal.
+
+---
+
 ## Commits
 
 Conventional Commits:

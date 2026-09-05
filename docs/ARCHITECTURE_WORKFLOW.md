@@ -345,6 +345,34 @@ botella, subir `concurrencyLimit` es una opción — pero solo junto con
 alguna estrategia de rebase/actualización de rama antes de mergear, no
 solo.
 
+**Daño colateral del mismo bug, encontrado después:** mientras el bug
+estaba activo, el chequeo periódico también lanzó FRA-24 (18:15) y FRA-25
+(18:30) — cada uno mientras el anterior ya estaba en `PR READY` (no
+literalmente `AI WORKING`), así que el filtro roto los dejó pasar a los
+tres. Los tres PRs (#23, #25, #26) terminaron con conflictos reales entre
+sí en los mismos archivos compartidos de `packages/core`
+(`package.json`, `README.md`, `src/index.ts`, `tsconfig.json`,
+`vitest.config.ts`). Se resolvieron con rebase (ver `PROCESO.md`, sección
+"Resolución de conflictos"): #23 y #25 ya están limpios y confirmados
+(`MERGEABLE`, tests/build/lint verificados); #26 queda pendiente de
+rehacerse después de que #23 y/o #25 se mergeen, para no repetir el
+trabajo dos veces.
+
+**Segunda causa posible, sin confirmar:** FRA-24 y FRA-25 se lanzaron a
+las 18:15 y 18:30 respectivamente, pero sus ramas parten de un commit de
+`master` anterior al merge de FRA-23 (15:26) — más de 3 horas de
+diferencia. Esto no se explica solo por el bug de concurrencia (que
+explica *que* se lanzaran, no *desde qué punto* ramificaron). El ambiente
+de Cursor tiene un "Staleness Threshold" configurado en 24 horas
+(`Update Stale Builds`, en la configuración del Environment) — la
+hipótesis, no confirmada, es que el agente reusó una imagen/build cacheada
+de más de 3 horas de antigüedad en vez de partir del `master` real del
+momento. **Recomendación pendiente de que Diego la aplique:** bajar el
+Staleness Threshold a 0 en la configuración del Environment de Cursor, para
+que cada lanzamiento parta siempre del código fresco. Sin esto, incluso con
+el bug de concurrencia corregido, una rama podría seguir ramificando desde
+un punto viejo si el caché de build no se invalida a tiempo.
+
 ---
 
 ## 7. Primera ejecución real (2026-08-31)
