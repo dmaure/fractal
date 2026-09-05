@@ -48,8 +48,8 @@ async function* walkDir(dir) {
     for (const entry of entries) {
       const fullPath = join(dir, entry.name);
       
-      // Ignorar node_modules y dist
-      if (entry.name === 'node_modules' || entry.name === 'dist') {
+      // Ignorar node_modules, dist, y test
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'test') {
         continue;
       }
       
@@ -57,7 +57,15 @@ async function* walkDir(dir) {
         yield* walkDir(fullPath);
       } else if (entry.isFile()) {
         const ext = entry.name.substring(entry.name.lastIndexOf('.'));
-        if (TEXT_EXTENSIONS.includes(ext) && !ALLOWED_FILES.includes(entry.name)) {
+        // Excluir archivos de test
+        const isTestFile = entry.name.endsWith('.test.ts') || 
+                          entry.name.endsWith('.test.js') ||
+                          entry.name.endsWith('.spec.ts') ||
+                          entry.name.endsWith('.spec.js');
+        
+        if (TEXT_EXTENSIONS.includes(ext) && 
+            !ALLOWED_FILES.includes(entry.name) && 
+            !isTestFile) {
           yield fullPath;
         }
       }
