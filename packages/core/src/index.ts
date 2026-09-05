@@ -31,3 +31,10 @@ export {
   DEFAULT_TIMEOUT_MS,
   type TimeoutOptions,
 } from './bridge/timeout.js';
+
+export {
+  checkBinaryAvailable,
+  ensureBinaryAvailable,
+  BinaryNotAvailableError,
+  type BinaryCheckResult,
+} from './bridge/binary-check.js';

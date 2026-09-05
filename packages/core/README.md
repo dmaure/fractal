@@ -285,6 +285,47 @@ const child = spawn('comando', ['args']);
 await createTimeoutWrapper(child, { timeoutMs: 30000 });
 ```
 
+### Verificación de binario externo (`src/bridge/binary-check.ts`)
+
+Verifica que un binario externo requerido por un adapter (ej. Composer para Laravel) esté disponible en el PATH antes de invocarlo.
+
+**Implementa:** AC-4 de SPEC-0002
+
+**Características:**
+- Detección multiplataforma (`which`/`where`)
+- Mensaje claro de instalación cuando el binario falta
+- Sin demora perceptible cuando el binario está presente
+
+**Uso:**
+```typescript
+import { ensureBinaryAvailable, BinaryNotAvailableError } from '@fractal/core';
+
+// Antes de invocar el adapter:
+try {
+  ensureBinaryAvailable('composer', 'Instalá Composer: https://getcomposer.org');
+  // Continuar con la invocación del adapter
+} catch (error) {
+  if (error instanceof BinaryNotAvailableError) {
+    console.error(error.message);
+    process.exit(1);
+  }
+  throw error;
+}
+```
+
+API de bajo nivel, si solo necesitás verificar sin lanzar excepción:
+
+```typescript
+import { checkBinaryAvailable } from '@fractal/core';
+
+const result = checkBinaryAvailable('composer');
+if (!result.available) {
+  console.log('Binario no disponible');
+} else {
+  console.log('Binario encontrado en:', result.path);
+}
+```
+
 ## Desarrollo
 
 ```bash
@@ -304,6 +345,7 @@ Los tests incluyen:
 - ✅ `fractal new`: prompts, defaults, validación de directorio destino, topologías, `--force`
 - ✅ Lock Manager: locks activos, huérfanos, corruptos
 - ✅ Timeout: procesos rápidos, timeouts, kill signals, integración con procesos reales
+- ✅ Verificación de binario: PATH mockeado (binario presente/ausente)
 
 ## Referencias
 
@@ -315,4 +357,4 @@ Los tests incluyen:
 
 ## Estado
 
-M1 — Bridge Node→toolchain (con timeout y lock de concurrencia) y comando `fractal new` (prompts, defaults, validación) implementados.
+M1 — Bridge Node→toolchain (invocación, timeout, lock de concurrencia, verificación de binario externo) y comando `fractal new` (prompts, defaults, validación) implementados.
