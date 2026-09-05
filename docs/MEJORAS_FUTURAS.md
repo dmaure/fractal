@@ -31,3 +31,23 @@ mecanismo (¿detección automática de servicios existentes? ¿un modo "bring
 your own reverse proxy"? ¿plantillas de configuración separadas del
 provisioning del stack?). Falta más señal de uso real antes de diseñarlo.
 **Estado:** Idea, sin spec ni ADR.
+
+### Notificación activa de fallos en el workflow de n8n
+
+**Origen:** incidente real del 2026-09-05 (ver `ARCHITECTURE_WORKFLOW.md`,
+sección "Gap 2 — validación final"). El chequeo de PRs pendientes falló
+silenciosamente cada 5 minutos durante horas (bug de referencia + token
+mal configurado), bloqueando todo el pipeline por el límite de
+concurrencia, sin que nadie lo notara hasta que Diego preguntó por qué "no
+pasaba nada".
+**Contexto:** hoy el único lugar donde un fallo del workflow es visible es
+el historial de ejecuciones de n8n — nadie lo mira proactivamente. Un
+sistema desatendido necesita avisar cuando se rompe, no esperar a que
+alguien note la ausencia de progreso.
+**Por qué se pospone:** no es bloqueante para seguir usando el pipeline
+manualmente supervisado como está ahora; conviene resolverlo antes de
+confiar en el sistema para correr desatendido por períodos largos (ej.
+toda la noche).
+**Estado:** Idea, sin spec ni ADR. Candidatos obvios: nodo de notificación
+(Slack/email/Telegram) en el branch de error de cada HTTP Request node, o
+un `errorWorkflow` a nivel de todo el workflow de n8n.
