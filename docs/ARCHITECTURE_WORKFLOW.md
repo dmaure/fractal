@@ -239,10 +239,12 @@ un PR.
      existe, lo crea (`POST /repos/{owner}/{repo}/pulls`).
    - Actualiza la fila (`pr_created: true`, `pr_url`), mueve el ticket de
      Linear a `PR READY`, y comenta el link del PR.
-3. **Credencial:** se reutiliza el PAT clásico que ya existía
-   (`Cursor Cloud Agent - Fractal`, scopes `repo, workflow`) — antes sin
-   uso — cargado como credencial `GitHub API - Fractal Automation` en n8n.
-   Diego la creó a mano (Claude no puede tipear tokens en formularios).
+3. **Credencial:** un Personal Access Token de GitHub (en realidad
+   **fine-grained**, no clásico como se pensó en un principio — tiene
+   "Repository access" limitado a `dmaure/fractal` y permisos granulares
+   por categoría), cargado como credencial Header Auth
+   `GitHub API - Fractal Automation` en n8n. Diego la creó a mano (Claude
+   no puede tipear tokens en formularios).
 
 **Validado de punta a punta contra datos reales:** se insertó manualmente
 la fila de FRA-23 (su agente ya había terminado, `status: "IDLE"`, y ya
@@ -252,10 +254,43 @@ actualizó la Data Table, y — con efecto real, no simulado — movió FRA-23 a
 `PR READY` en Linear y dejó el comentario
 ["🔀 Pull Request: .../pull/20"](https://linear.app/fractalapp/issue/FRA-23).
 
-**Sin validar todavía:** la rama de "crear PR nuevo" (`Crear PR en GitHub`)
-no se ejercitó en esta prueba porque FRA-23 ya tenía PR — se ejercitó la
-rama de "reusar el existente". Se confirma con el próximo ticket que
-termine sin que nadie le haya creado el PR a mano.
+### Gap 2 — validación final (2026-09-05): rama de "crear PR nuevo"
+
+El pipeline levantó FRA-26 solo (sin intervención), el agente terminó, pero
+la creación automática del PR quedó **silenciosamente rota durante horas**
+— el chequeo de 5 minutos reintentaba y fallaba una y otra vez sin que
+nadie lo notara, hasta que Diego preguntó por qué "no pasaba nada". Se
+encontraron y corrigieron tres bugs reales, en cadena:
+
+1. **Bug de referencia en n8n:** el nodo `Crear PR en GitHub` leía
+   `$json.owner`/`$json.repo`/etc. asumiendo que traían los datos
+   combinados de `Combinar Datos` — pero en la rama "no existe todavía"
+   del IF, `$json` es la respuesta cruda de `Buscar PR Existente`
+   (`{total_count: 0, items: []}`), no los datos de la fila. Resultado:
+   URL `.../repos///pulls` (404). Corregido referenciando
+   `$('Combinar Datos').item.json` explícitamente.
+2. **Header de autenticación incompleto:** el Header Value de la
+   credencial no tenía el prefijo `Bearer `. GitHub devolvía
+   `401 Requires authentication` — indistinguible de "no hay credencial" a
+   simple vista.
+3. **Permiso insuficiente en el token:** una vez con el prefijo correcto,
+   GitHub devolvía `403 Resource not accessible by personal access token`.
+   El PAT (fine-grained) tenía el permiso "Pull requests" en **Read-only**
+   — alcanza para buscar PRs existentes pero no para crear uno. Corregido
+   cambiándolo a **Read and write**.
+
+**Con los tres bugs corregidos, se confirmó en vivo:** el chequeo creó
+[PR #23](https://github.com/dmaure/fractal/pull/23) para FRA-26 sin
+intervención humana, actualizó la Data Table, movió el ticket a
+`PR READY` y dejó el comentario — cerrando la única rama que faltaba
+validar. **Gap 2 queda resuelto y confirmado de punta a punta**, en las
+dos variantes (reusar PR existente y crear uno nuevo).
+
+**Lección para el futuro:** un fallo silencioso y recurrente (el mismo
+error cada 5 minutos, sin que nadie lo vea) es el peor tipo de bug en un
+sistema desatendido — bloqueó el pipeline completo (por el límite de
+concurrencia) durante horas sin ninguna señal visible para Diego. Falta
+notificación activa de fallos del workflow (ver `MEJORAS_FUTURAS.md`).
 
 **Esto no depende de Cursor.** Si mañana se cambia de agente de código, el
 único requisito para que esto siga funcionando es que el nuevo agente deje
