@@ -298,6 +298,53 @@ un `agent_id` consultable (o, más simple, que el paso de "detectar que
 terminó" se adapte a como sea que se consulte el estado de ese agente) — la
 lógica de buscar/crear el PR y avisarle a Linear no cambia.
 
+## 6.1 Bug nuevo encontrado (2026-09-05): el límite de concurrencia no contaba `PR READY`
+
+**Síntoma:** [PR #23](https://github.com/dmaure/fractal/pull/23) (FRA-26)
+llegó con conflictos reales contra `master` en 5 archivos de
+`packages/core`. Diego preguntó si el pipeline crea ramas desde una
+referencia desactualizada.
+
+**Diagnóstico:** no es un problema de referencia desactualizada en el
+sentido literal (Cursor sí arranca desde el `master` real al momento del
+lanzamiento) — es un bug de concurrencia que permite que dos tickets
+independientes estén "en vuelo" al mismo tiempo, y cuando eso pasa, el
+segundo inevitablemente pierde los cambios del primero si todavía no se
+mergeó.
+
+FRA-23 estuvo en estado `PR READY` (no mergeado) durante horas mientras
+Diego lo revisaba. En ese lapso, el chequeo periódico lanzó FRA-26 — un
+ticket no bloqueado por FRA-23, así que en principio correcto que avance —
+pero el gate de concurrencia debería haberlo impedido si ya había *algo*
+"en curso". No lo impidió: el nodo `Pick Top Candidate` contaba
+`inProgress` filtrando literalmente `state.name === 'AI WORKING'`, sin
+contar `PR READY`, `HUMAN REVIEW` ni `CHANGES REQUESTED` — aunque la
+query GraphQL que lo alimenta (`Count AI Working`) ya trae **todos** los
+issues con `state.type: "started"` (que incluye esos cuatro estados). El
+filtro de JS era más angosto que la query que lo alimentaba.
+
+Con el bug activo: FRA-23 en `PR READY` → contado como 0 en curso → FRA-26
+lanzado y ramificado desde el `master` de ese momento, que todavía no
+tenía el trabajo de FRA-23 (esperando el merge de Diego) → conflicto
+inevitable al mergear ambos, en cualquier orden.
+
+**Corregido:** `Pick Top Candidate` ahora usa
+`$json.data.issues.nodes.length` directamente — como la query ya filtra
+por `type: "started"`, cualquier issue que devuelva cuenta como "en
+curso", sin importar en cuál de los cuatro estados intermedios esté.
+
+**Efecto práctico de la corrección:** con `concurrencyLimit: 1`, ahora no
+se lanza ningún ticket nuevo mientras haya **cualquier otro** en un estado
+`started` (`AI WORKING`, `PR READY`, `HUMAN REVIEW` o
+`CHANGES REQUESTED`) — no solo mientras un agente esté activamente
+trabajando. Esto ralentiza el pipeline (un PR esperando review bloquea
+todo lo demás), pero es la única forma de evitar este tipo de conflicto
+mientras el mecanismo siga siendo "ramificar desde `master` al lanzar,
+mergear después". Si el ritmo de revisión de Diego se vuelve el cuello de
+botella, subir `concurrencyLimit` es una opción — pero solo junto con
+alguna estrategia de rebase/actualización de rama antes de mergear, no
+solo.
+
 ---
 
 ## 7. Primera ejecución real (2026-08-31)
