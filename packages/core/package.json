@@ -1,7 +1,7 @@
 {
   "name": "@fractal/core",
-  "version": "0.0.0",
-  "description": "CLI, FDL, orquestación. Framework-agnostic core.",
+  "version": "0.0.1",
+  "description": "Fractal core - CLI, FDL, orquestación (agnóstico)",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,15 +12,23 @@
     }
   },
   "scripts": {
-    "build": "echo 'Build pendiente'",
-    "test": "echo 'Tests pendiente'"
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo 'TODO: agregar eslint'"
   },
   "keywords": [
     "fractal",
+    "generator",
     "core",
     "cli",
     "fdl"
   ],
   "author": "Fractal",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
 }

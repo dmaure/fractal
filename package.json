@@ -5,11 +5,14 @@
   "type": "module",
   "description": "Generador de aplicaciones production-ready, multi-framework",
   "packageManager": "pnpm@11.24.0",
-  "scripts": {
-    "lint:coupling": "node scripts/lint-coupling.js"
-  },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "scripts": {
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint && node scripts/lint-coupling.js",
+    "lint:coupling": "node scripts/lint-coupling.js"
   },
   "keywords": [
     "fractal",
@@ -17,5 +20,10 @@
     "multi-framework"
   ],
   "author": "Fractal",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
 }
