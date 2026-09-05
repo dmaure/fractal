@@ -3,7 +3,7 @@
 > El mapa completo del sistema: quién es cada pieza, cómo se conectan, y en
 > qué estado quedó cada duda que se planteó al armarlo. Este documento
 > describe el sistema **tal como existe hoy** — no es una aspiración. Última
-> verificación: 2026-08-31.
+> verificación: 2026-09-05.
 >
 > Para las reglas de comportamiento de los agentes (qué puede y no puede
 > hacer Cursor al implementar, el schema de ticket), ver
@@ -95,10 +95,10 @@ El lugar donde una IA sí aporta es distinto: releer el plan completo (`docs/`) 
 | `Todo` | unstarted | Tarea definida pero requiere más análisis/documentación antes de ejecutarse (equivale a "Planned") |
 | `READY FOR AI` | unstarted | Suficientemente especificado para que Cursor lo ejecute sin preguntar |
 | `AI WORKING` | started | n8n ya marcó este ticket como el elegido; Cursor debería estar trabajando en él |
-| `PR READY` | started | Existe un PR — **hoy no se mueve solo** (Gap 2, sección 6), requiere moverlo a mano hasta que se resuelva |
+| `PR READY` | started | Existe un PR — n8n lo mueve solo (Gap 2, sección 6), sin intervención manual |
 | `HUMAN REVIEW` | started | Listo para que Diego revise |
 | `CHANGES REQUESTED` | started | La revisión encontró problemas, Cursor debe seguir |
-| `Done` | completed | PR aprobado y mergeado — **hoy no se mueve solo** (Gap 2, sección 6), requiere moverlo a mano hasta que se resuelva |
+| `Done` | completed | PR aprobado y mergeado — **hoy no se mueve solo**, requiere moverlo a mano (el cierre del ciclo tras el merge sigue sin resolver, ver Gap 2) |
 
 ---
 
@@ -211,6 +211,57 @@ una vez que detecta que el agente terminó. Esto además **desacopla el
 workflow de Cursor específicamente** — si el día de mañana se cambia de
 agente de código, la creación del PR sigue viviendo en n8n y no hay que
 volver a resolver este problema por agente.
+
+### Gap 2 — resuelto (2026-09-05): n8n crea el PR, no el agente
+
+Diego aprobó la recomendación anterior. Se implementó en el mismo workflow
+de n8n, sin depender de que Cursor (o cualquier agente futuro) sepa abrir
+un PR.
+
+**Mecanismo:**
+
+1. **Data Table `cursor_agent_runs`** (nueva, nativa de n8n): cada vez que
+   `Lanzar Cursor Cloud Agent` lanza un agente, el nodo `Registrar Agente en
+   Data Table` guarda una fila con el ticket de Linear, el `agent_id` de
+   Cursor, la rama, el repo y `pr_created: false`.
+2. **Nuevo disparador `Chequeo de PRs Pendientes (cada 5 min)`**, corre en
+   paralelo al resto del workflow:
+   - Lee las filas con `pr_created = false`.
+   - Para cada una, consulta `GET /v1/agents/{id}` de Cursor. El campo a
+     mirar es `status`: pasa de `"ACTIVE"` a `"IDLE"` cuando el agente
+     termina (confirmado contra el agente real de FRA-23). Si no terminó,
+     no hace nada — se reintenta en el próximo ciclo de 5 minutos.
+   - Si terminó, busca si ya existe un PR para esa rama
+     (`GET /search/issues?q=is:pr repo:{owner}/{repo} head:{branch}` — la
+     API de búsqueda, no el listado plano de PRs, para evitar la
+     ambigüedad de que un array vacío no genera ningún item en n8n).
+   - Si ya existe (caso típico hoy: alguien lo creó a mano), lo reusa. Si no
+     existe, lo crea (`POST /repos/{owner}/{repo}/pulls`).
+   - Actualiza la fila (`pr_created: true`, `pr_url`), mueve el ticket de
+     Linear a `PR READY`, y comenta el link del PR.
+3. **Credencial:** se reutiliza el PAT clásico que ya existía
+   (`Cursor Cloud Agent - Fractal`, scopes `repo, workflow`) — antes sin
+   uso — cargado como credencial `GitHub API - Fractal Automation` en n8n.
+   Diego la creó a mano (Claude no puede tipear tokens en formularios).
+
+**Validado de punta a punta contra datos reales:** se insertó manualmente
+la fila de FRA-23 (su agente ya había terminado, `status: "IDLE"`, y ya
+tenía el PR #20 abierto a mano) y se corrió el chequeo real. Encontró el
+agente terminado, encontró el PR #20 existente (no creó uno duplicado),
+actualizó la Data Table, y — con efecto real, no simulado — movió FRA-23 a
+`PR READY` en Linear y dejó el comentario
+["🔀 Pull Request: .../pull/20"](https://linear.app/fractalapp/issue/FRA-23).
+
+**Sin validar todavía:** la rama de "crear PR nuevo" (`Crear PR en GitHub`)
+no se ejercitó en esta prueba porque FRA-23 ya tenía PR — se ejercitó la
+rama de "reusar el existente". Se confirma con el próximo ticket que
+termine sin que nadie le haya creado el PR a mano.
+
+**Esto no depende de Cursor.** Si mañana se cambia de agente de código, el
+único requisito para que esto siga funcionando es que el nuevo agente deje
+un `agent_id` consultable (o, más simple, que el paso de "detectar que
+terminó" se adapte a como sea que se consulte el estado de ese agente) — la
+lógica de buscar/crear el PR y avisarle a Linear no cambia.
 
 ---
 
