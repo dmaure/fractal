@@ -222,6 +222,69 @@ try {
 }
 ```
 
+## Módulos
+
+### Lock Manager (`src/lock/lock-manager.ts`)
+
+Gestiona el lock de concurrencia `.fractal.lock` para prevenir ejecuciones simultáneas de Fractal sobre el mismo proyecto.
+
+**Implementa:** AC-7 y AC-8 de SPEC-0002
+
+**Características:**
+- Crea un lock con el PID del proceso actual
+- Detecta locks huérfanos (PID inexistente) y los libera automáticamente
+- Falla rápido si hay otro proceso de Fractal corriendo
+- Helper `withLock()` para uso automático con try/finally
+
+**Uso:**
+```typescript
+import { LockManager, withLock } from '@fractal/core';
+
+// Uso manual
+const lock = new LockManager('/ruta/al/proyecto');
+try {
+  lock.acquire();
+  // ... tu código
+} finally {
+  lock.release();
+}
+
+// Uso con helper
+await withLock('/ruta/al/proyecto', async () => {
+  // ... tu código
+});
+```
+
+### Timeout (`src/bridge/timeout.ts`)
+
+Gestiona timeouts para invocaciones del bridge Node → toolchain, evitando procesos colgados.
+
+**Implementa:** AC-5 de SPEC-0002
+
+**Características:**
+- Timeout por defecto de 5 minutos (configurable, nunca obligatorio)
+- Mata el proceso hijo si excede el timeout (SIGTERM, luego SIGKILL)
+- Evita procesos huérfanos
+- Helper `createTimeoutWrapper()` para procesos hijo
+
+**Uso:**
+```typescript
+import { withTimeout, createTimeoutWrapper } from '@fractal/core';
+
+// Uso con función personalizada
+const result = await withTimeout(
+  () => ({
+    promise: miOperacion(),
+    childProcess: miProceso,
+  }),
+  { timeoutMs: 10000 } // Opcional, por defecto 5 minutos
+);
+
+// Uso simple con proceso hijo
+const child = spawn('comando', ['args']);
+await createTimeoutWrapper(child, { timeoutMs: 30000 });
+```
+
 ## Desarrollo
 
 ```bash
@@ -239,6 +302,8 @@ Los tests incluyen:
 
 - ✅ Bridge: happy path, error del adapter (`success: false`), exit code != 0, JSON inválido, sin salida, sin campo `success`, comando inexistente, payload no serializable, timeout
 - ✅ `fractal new`: prompts, defaults, validación de directorio destino, topologías, `--force`
+- ✅ Lock Manager: locks activos, huérfanos, corruptos
+- ✅ Timeout: procesos rápidos, timeouts, kill signals, integración con procesos reales
 
 ## Referencias
 
@@ -250,4 +315,4 @@ Los tests incluyen:
 
 ## Estado
 
-M1 — Bridge Node→toolchain y comando `fractal new` (prompts, defaults, validación) implementados.
+M1 — Bridge Node→toolchain (con timeout y lock de concurrencia) y comando `fractal new` (prompts, defaults, validación) implementados.
