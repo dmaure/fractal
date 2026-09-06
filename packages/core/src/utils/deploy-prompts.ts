@@ -32,6 +32,13 @@ const SSH_AUTH_OPTIONS = [
   },
 ];
 
+interface UnknownHostPromptInfo {
+  host: string;
+  port: number;
+  keyType: string;
+  fingerprint: string;
+}
+
 /**
  * Recolecta todos los datos necesarios para el deploy vía prompts interactivos.
  */
@@ -187,5 +194,34 @@ export async function confirmDeploy(params: DeployParams): Promise<boolean> {
   return await confirm({
     message: '¿Proceder con la validación del servidor?',
     default: true,
+  });
+}
+
+/**
+ * Texto de advertencia TOFU para un host SSH desconocido.
+ */
+export function formatUnknownHostWarning(info: UnknownHostPromptInfo): string {
+  const hostLabel =
+    info.port === 22 ? `'${info.host}'` : `'${info.host}:${info.port}'`;
+
+  return [
+    `La autenticidad del host ${hostLabel} no pudo establecerse.`,
+    `Huella ${info.keyType}: ${info.fingerprint}`,
+    'Verificá esta huella con la consola del proveedor del VPS antes de continuar.',
+  ].join('\n');
+}
+
+/**
+ * Confirmación interactiva de una clave de host desconocida (TOFU).
+ * Default false: hay que aceptar explícitamente, como `yes` en OpenSSH.
+ */
+export async function confirmUnknownHost(
+  info: UnknownHostPromptInfo
+): Promise<boolean> {
+  console.log(`\n${formatUnknownHostWarning(info)}\n`);
+
+  return await confirm({
+    message: '¿Confiar en este host y guardar la clave en known_hosts?',
+    default: false,
   });
 }

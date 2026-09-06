@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
-import { promptDeployParams, confirmDeploy } from '../utils/deploy-prompts.js';
+import { promptDeployParams, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
 import { SshClient, ServerValidator } from '@fractal/deploy';
 
 /**
@@ -32,12 +32,15 @@ export async function deployCommand(
   
   console.log(chalk.blue('\n🔍 Validando servidor...\n'));
   
-  // AC-2: Validación previa — conectividad SSH
+  // AC-2: Validación previa — conectividad SSH (con verificación de host)
   const sshClient = new SshClient({
     host: params.serverIp,
     username: params.sshUser,
     password: params.authMethod === 'password' ? params.sshPassword : undefined,
     privateKeyPath: params.authMethod === 'key' ? params.sshKeyPath : undefined,
+    // El handshake espera la confirmación TOFU interactiva si el host es nuevo.
+    timeout: 120_000,
+    onUnknownHost: (info) => confirmUnknownHost(info),
   });
   
   console.log(chalk.dim('→ Probando conectividad SSH...'));
@@ -52,6 +55,7 @@ export async function deployCommand(
     console.log(chalk.dim('  • El servidor esté encendido y accesible'));
     console.log(chalk.dim('  • Las credenciales SSH sean válidas'));
     console.log(chalk.dim('  • El firewall permita conexiones SSH (puerto 22)'));
+    console.log(chalk.dim('  • La clave del host coincida con known_hosts (o sea un VPS nuevo)'));
     process.exit(1);
   }
   

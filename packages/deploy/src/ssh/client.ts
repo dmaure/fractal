@@ -1,8 +1,9 @@
-import { Client } from 'ssh2';
+import { Client, type ConnectConfig } from 'ssh2';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { SshConfig, SshCommandResult } from './types.js';
+import { verifyHostKeyAgainstKnownHosts } from './host-key.js';
 
 /**
  * Cliente SSH para conexión y ejecución de comandos remotos.
@@ -10,13 +11,22 @@ import type { SshConfig, SshCommandResult } from './types.js';
  */
 export class SshClient {
   private config: SshConfig;
+  private hostKeyError?: string;
   
   constructor(config: SshConfig) {
     this.config = {
       ...config,
       port: config.port || 22,
       timeout: config.timeout || 10000,
+      knownHostsPath:
+        config.knownHostsPath || join(homedir(), '.ssh', 'known_hosts'),
     };
+  }
+
+  private consumeHostKeyError(): string | undefined {
+    const error = this.hostKeyError;
+    this.hostKeyError = undefined;
+    return error;
   }
 
   /**
@@ -46,17 +56,19 @@ export class SshClient {
 
       client.on('error', (err) => {
         clearTimeout(timeout);
+        const hostKeyError = this.consumeHostKeyError();
         resolve({
           success: false,
-          error: `Error de conexión SSH: ${err.message}`,
+          error: hostKeyError ?? `Error de conexión SSH: ${err.message}`,
         });
       });
 
       this.connect(client).catch((err) => {
         clearTimeout(timeout);
+        const hostKeyError = this.consumeHostKeyError();
         resolve({
           success: false,
-          error: `Error al establecer conexión: ${err.message}`,
+          error: hostKeyError ?? `Error al establecer conexión: ${err.message}`,
         });
       });
     });
@@ -108,22 +120,24 @@ export class SshClient {
       });
 
       client.on('error', (err) => {
+        const hostKeyError = this.consumeHostKeyError();
         resolve({
           success: false,
           stdout: '',
           stderr: '',
           exitCode: null,
-          error: `Error de conexión: ${err.message}`,
+          error: hostKeyError ?? `Error de conexión: ${err.message}`,
         });
       });
 
       this.connect(client).catch((err) => {
+        const hostKeyError = this.consumeHostKeyError();
         resolve({
           success: false,
           stdout: '',
           stderr: '',
           exitCode: null,
-          error: `Error al conectar: ${err.message}`,
+          error: hostKeyError ?? `Error al conectar: ${err.message}`,
         });
       });
     });
@@ -131,13 +145,17 @@ export class SshClient {
 
   /**
    * Establece la conexión SSH con las credenciales configuradas.
+   * Siempre verifica la clave del host: ssh2 auto-acepta si hostVerifier falta.
    */
   private async connect(client: Client): Promise<void> {
-    const connectConfig: any = {
+    const connectConfig: ConnectConfig = {
       host: this.config.host,
       port: this.config.port,
       username: this.config.username,
       readyTimeout: this.config.timeout,
+      hostVerifier: (key: Buffer, verify: (valid: boolean) => void) => {
+        void this.verifyHostKey(key).then(verify, () => verify(false));
+      },
     };
 
     if (this.config.password) {
@@ -149,13 +167,37 @@ export class SshClient {
       
       try {
         connectConfig.privateKey = await readFile(keyPath, 'utf8');
-      } catch (err: any) {
-        throw new Error(`No se pudo leer la clave privada en ${keyPath}: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`No se pudo leer la clave privada en ${keyPath}: ${message}`);
       }
     } else {
       throw new Error('Se requiere contraseña o ruta a clave privada');
     }
 
     client.connect(connectConfig);
+  }
+
+  private async verifyHostKey(key: Buffer): Promise<boolean> {
+    try {
+      const result = await verifyHostKeyAgainstKnownHosts({
+        key,
+        host: this.config.host,
+        port: this.config.port ?? 22,
+        knownHostsPath: this.config.knownHostsPath ?? join(homedir(), '.ssh', 'known_hosts'),
+        onUnknownHost: this.config.onUnknownHost,
+      });
+
+      if (!result.accepted) {
+        this.hostKeyError = result.error;
+      }
+
+      return result.accepted;
+    } catch (err) {
+      this.hostKeyError =
+        `Error al verificar la clave del host: ` +
+        (err instanceof Error ? err.message : String(err));
+      return false;
+    }
   }
 }

@@ -38,6 +38,22 @@ describe('SshClient', () => {
       expect(config.port).toBe(2222);
       expect(config.timeout).toBe(5000);
     });
+
+    it('debe soportar verificación de clave de host contra known_hosts', () => {
+      const config: SshConfig = {
+        host: '192.168.1.1',
+        username: 'root',
+        password: 'test123',
+        knownHostsPath: '/tmp/known_hosts',
+        onUnknownHost: async (info) => {
+          expect(info.fingerprint.startsWith('SHA256:')).toBe(true);
+          return false;
+        },
+      };
+
+      expect(config.knownHostsPath).toBe('/tmp/known_hosts');
+      expect(config.onUnknownHost).toBeTypeOf('function');
+    });
   });
 
   // Nota: Los tests de integración reales con SSH se ejecutan

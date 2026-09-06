@@ -3,10 +3,13 @@
 **Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-01
-**Última revisión:** 2026-08-26 — resueltas las 7 preguntas abiertas
-acumuladas (4 originales + 3 de ADR-0012/0013): AC-10 y AC-11 ampliados,
-AC-13 ampliado con `.gitignore` y `--reconfigure`, AC-14 nuevo (VPS con
-servicios preexistentes). Pasa de Draft a Aprobado.
+**Última revisión:** 2026-09-06 — AC-2 y consideraciones de seguridad:
+las conexiones SSH verifican la clave del host contra `known_hosts`
+(TOFU interactivo; mismatch aborta). Revisión previa 2026-08-26:
+resueltas las 7 preguntas abiertas acumuladas (4 originales + 3 de
+ADR-0012/0013): AC-10 y AC-11 ampliados, AC-13 ampliado con
+`.gitignore` y `--reconfigure`, AC-14 nuevo (VPS con servicios
+preexistentes). Pasa de Draft a Aprobado.
 **Issue:** #
 
 ---
@@ -67,8 +70,11 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 ### AC-2: Validación previa
 - **Dado** que ingresé los datos del servidor
 - **Cuando** el CLI intenta conectarse
-- **Entonces** verifica conectividad SSH, distribución compatible (Ubuntu LTS),
-  recursos mínimos (1 vCPU, 2 GB RAM, 20 GB disco) y aborta con mensaje claro si algo falla
+- **Entonces** verifica conectividad SSH (incluyendo la clave del host
+  contra `known_hosts`: un host desconocido pide confirmación de
+  fingerprint; un cambio de clave aborta), distribución compatible
+  (Ubuntu LTS), recursos mínimos (1 vCPU, 2 GB RAM, 20 GB disco) y
+  aborta con mensaje claro si algo falla
 
 ### AC-3: Hardening del sistema
 - **Dado** que la conexión SSH es exitosa
@@ -225,6 +231,10 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 
 **Seguridad**
 - Las credenciales SSH nunca se persisten en disco en texto plano
+- Las conexiones SSH verifican la clave del host contra `known_hosts`.
+  Un host desconocido pide confirmación de fingerprint (TOFU) antes de
+  enviar credenciales; un cambio de clave aborta (protección MITM).
+  ssh2 no se usa con su default de auto-aceptar la clave del servidor.
 - El `.env` de producción se genera en el servidor, nunca viaja por el repositorio
 - `APP_KEY` se genera en el servidor en el primer provisioning
 
