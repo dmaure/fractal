@@ -473,9 +473,60 @@ esto de verdad.
 
 ---
 
-## 8. Referencias
+## 8. Extracción a `fractal-workflow` (2026-09-06): el pipeline ya no depende de Cursor por diseño
+
+Con los tres gaps resueltos (creación de PR, cierre automático, bug de
+concurrencia) y el ciclo completo corriendo sin intervención manual, se
+extrajo el patrón a un proyecto separado y agnóstico de agente:
+[`dmaure/fractal-workflow`](https://github.com/dmaure/fractal-workflow)
+(repo privado). La motivación: todo lo que se construyó acá —selección
+determinística de tickets, creación de PR, cierre automático— no tiene
+nada de específico de Fractal ni de Cursor, y vale la pena poder
+reusarlo en proyectos futuros sin volver a pelear los mismos bugs.
+
+**El workflow de n8n de este repo se refactorizó en el proceso** (sigue
+siendo el mismo workflow en producción, `sF5SIIrRWKyvQ2HI` — no se creó uno
+nuevo) para que las dos operaciones específicas de agente (lanzar, y
+consultar si terminó) sean configuración en el nodo `Config`
+(`agentAdapter*`) en vez de estar hardcodeadas contra la API de Cursor.
+El resto del pipeline (selección de tickets, creación de PR, cierre) ya
+era agnóstico y no cambió.
+
+**Bug real encontrado al implementar esto:** un placeholder tipo
+`{{RUN_ID}}` dentro de una URL resuelta con una expresión nativa de n8n
+(`={{ ... .replace('{{RUN_ID}}', ...) }}`) rompe el parseo — n8n interpreta
+cualquier `{{ }}` que aparece *dentro* de la expresión como una expresión
+anidada, incluido el placeholder mismo. Se resolvió moviendo ese reemplazo
+a un nodo Code (`Render Poll URL`), donde el placeholder es solo un string
+literal en JS puro, no algo que n8n intente parsear.
+
+**Otra decisión de diseño, no obvia:** la rama de polling de PRs pendientes
+necesita los mismos valores de `agentAdapter` que la rama de lanzamiento
+(URL de polling, mapeo de estados) — pero **no puede simplemente
+conectarse al mismo nodo `Config`**. Si dos triggers de propósito distinto
+comparten un nodo, disparar cualquiera de los dos ejecuta *todas* las
+ramas conectadas a ese nodo, no solo la del trigger que disparó. Se
+resolvió con un segundo nodo, `Adapter Config (poll)`, con los mismos
+valores duplicados — una violación menor de DRY a cambio de no cruzar
+lógica entre triggers que no deberían tocarse.
+
+**Validado sin gastar en un lanzamiento real:** la rama de polling se
+probó con una fila real apuntando a un agente ya terminado y una rama de
+GitHub inexistente a propósito — confirmó el camino completo hasta fallar
+de forma segura (branch inválida) sin tocar Linear. La rama de lanzamiento
+(el render del body con placeholders) se validó por separado, fuera de
+n8n, con casos límite de escape (comillas, backslashes, saltos de línea).
+
+**Sin validar todavía:** el contrato de adapter en sí — solo existe un
+adapter real (Cursor). La primera prioridad de `fractal-workflow` es
+validarlo contra un segundo agente cuando exista la oportunidad.
+
+---
+
+## 9. Referencias
 
 - [`docs/AGENT_PLAYBOOK.md`](AGENT_PLAYBOOK.md) — reglas de comportamiento para Claude y para Cursor al implementar, schema de ticket
 - [`.cursor/rules/fractal.mdc`](../.cursor/rules/fractal.mdc) — versión resumida cargada automáticamente en Cursor
 - [`docs/PROCESO.md`](PROCESO.md) — ciclo de trabajo, numeración, branches, commits
 - Workflow de n8n: [Linear (Ready for AI) → Cursor Cloud Agent v2](https://n8n.universofractal.dev/workflow/sF5SIIrRWKyvQ2HI) — el detalle técnico (queries GraphQL, nombres de nodos) vive ahí, con su propio historial de versiones, no se duplica acá
+- [`dmaure/fractal-workflow`](https://github.com/dmaure/fractal-workflow) — el patrón extraído, agnóstico de proyecto y de agente de código
