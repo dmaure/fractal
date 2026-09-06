@@ -3,7 +3,7 @@
 > El mapa completo del sistema: quién es cada pieza, cómo se conectan, y en
 > qué estado quedó cada duda que se planteó al armarlo. Este documento
 > describe el sistema **tal como existe hoy** — no es una aspiración. Última
-> verificación: 2026-09-05.
+> verificación: 2026-09-06.
 >
 > Para las reglas de comportamiento de los agentes (qué puede y no puede
 > hacer Cursor al implementar, el schema de ticket), ver
@@ -98,7 +98,7 @@ El lugar donde una IA sí aporta es distinto: releer el plan completo (`docs/`) 
 | `PR READY` | started | Existe un PR — n8n lo mueve solo (Gap 2, sección 6), sin intervención manual |
 | `HUMAN REVIEW` | started | Listo para que Diego revise |
 | `CHANGES REQUESTED` | started | La revisión encontró problemas, Cursor debe seguir |
-| `Done` | completed | PR aprobado y mergeado — **hoy no se mueve solo**, requiere moverlo a mano (el cierre del ciclo tras el merge sigue sin resolver, ver Gap 2) |
+| `Done` | completed | PR aprobado y mergeado — n8n lo mueve solo (Gap 3, sección 6.2), sin intervención manual |
 
 ---
 
@@ -372,6 +372,53 @@ Staleness Threshold a 0 en la configuración del Environment de Cursor, para
 que cada lanzamiento parta siempre del código fresco. Sin esto, incluso con
 el bug de concurrencia corregido, una rama podría seguir ramificando desde
 un punto viejo si el caché de build no se invalida a tiempo.
+
+**Confirmado en la práctica (2026-09-05/06):** FRA-27 (dependiente de
+FRA-26) ramificó desde el commit original de FRA-26 *antes* de su rebase —
+un ancestro que dejó de existir en `master` una vez reescrito el historial.
+Se resolvió con `git rebase --onto origin/master <ancestro-viejo>` (en vez
+de un rebase simple), que descarta el commit ya incluido y solo reaplica el
+trabajo propio del ticket. Mismo mecanismo que la sección anterior, un caso
+más de la misma familia de problema.
+
+## 6.2 Gap 3 — resuelto (2026-09-06): `Done` se mueve solo tras el merge
+
+Después de resolver Gap 2, cada PR que se mergeaba dejaba el ticket
+encallado en `PR READY` — nada lo movía a `Done`. Como el fix de
+concurrencia (sección 6.1) cuenta *cualquier* estado `started` como "en
+curso", un ticket encallado en `PR READY` bloqueaba el lanzamiento de todo
+lo demás indefinidamente hasta que alguien lo moviera a mano. Esto se
+descubrió en vivo: el pipeline había levantado FRA-27 solo, generado su PR
+solo, pero después de mergearlo no pasó nada durante horas — hasta que se
+marcaron a mano los tickets anteriores como `Done`.
+
+**Mecanismo implementado:** nuevo disparador `Chequeo de PRs Mergeados
+(cada 10 min)`, en el mismo workflow de n8n:
+
+- Lee de la Data Table `cursor_agent_runs` las filas con `pr_created: true`
+  y `closed` distinto de `true` (condición `neq`, no `isFalse` — esta
+  última no matchea valores `null`, que es el estado inicial de una
+  columna booleana recién creada en filas ya existentes).
+- Para cada una, consulta `GET /repos/{owner}/{repo}/pulls/{number}` de
+  GitHub (número de PR extraído de `pr_url`) y mira el campo `merged`.
+- Si `merged: true`: mueve el ticket de Linear a `Done`, comenta
+  confirmando el cierre, y marca `closed: true` en la fila — para no
+  volver a consultarla en el próximo ciclo.
+- Si todavía no se mergeó: no hace nada, se reintenta en el próximo ciclo.
+
+**Validado contra datos reales:** al correrlo por primera vez, encontró las
+5 filas existentes (FRA-23, 24, 25, 26, 27 — todas con PR ya mergeado en
+GitHub) y cerró las 5 de una — movió cada ticket a `Done`, dejó el
+comentario de cierre, y marcó `closed: true` en la Data Table. Confirmado
+con una lectura posterior de la tabla: las 5 filas quedaron en
+`closed: true`.
+
+**Con Gap 2 y Gap 3 resueltos, el ciclo completo queda cerrado de punta a
+punta sin intervención manual:** Linear (Ready for AI) → n8n elige →
+Cursor implementa → n8n crea el PR → Diego revisa y mergea → n8n cierra el
+ticket → el pipeline queda libre para el siguiente. La única intervención
+humana que sigue siendo necesaria es la revisión y el merge del PR — que es
+exactamente el punto de control que se quiere mantener.
 
 ---
 
