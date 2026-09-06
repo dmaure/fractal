@@ -90,7 +90,7 @@ export class SystemHardening {
           error: 'No se pudo endurecer la configuración de SSH',
         };
       }
-      steps.push('SSH endurecido: PermitRootLogin y PasswordAuthentication deshabilitados');
+      steps.push('SSH endurecido: root, password y keyboard-interactive deshabilitados');
 
       // 4. Configurar firewall UFW
       const allowedPorts = config.allowedPorts || [22, 80, 443];
@@ -183,10 +183,21 @@ export class SystemHardening {
   }
 
   /**
-   * Endurece la configuración de sshd: deshabilita root login y password auth.
+   * Endurece sshd de forma efectiva en Ubuntu LTS.
+   *
+   * OpenSSH es first-match-wins y el `sshd_config` de Ubuntu empieza con
+   * `Include /etc/ssh/sshd_config.d/*.conf`, así que un drop-in de
+   * cloud-init (p. ej. `50-cloud-init.conf`) gana sobre un `sed` al archivo
+   * principal. Se escribe un drop-in `00-*` (orden léxico previo), se
+   * garantiza que el Include sea la primera directiva activa, y se verifica
+   * la config efectiva con `sshd -T` — `sshd -t` solo valida sintaxis.
+   * También se deshabilita keyboard-interactive/PAM, que puede seguir
+   * aceptando contraseña aunque `PasswordAuthentication` sea `no`.
    */
   private async hardenSshd(): Promise<boolean> {
-    // Verificar que el archivo sshd_config existe
+    const dropInPath = '/etc/ssh/sshd_config.d/00-fractal-hardening.conf';
+    const includeLine = 'Include /etc/ssh/sshd_config.d/*.conf';
+
     const checkConfig = await this.sshClient.executeCommand(
       'test -f /etc/ssh/sshd_config && echo "exists"'
     );
@@ -195,7 +206,6 @@ export class SystemHardening {
       return false;
     }
 
-    // Backup del archivo original
     const backupResult = await this.sshClient.executeCommand(
       'sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup'
     );
@@ -204,47 +214,73 @@ export class SystemHardening {
       return false;
     }
 
-    // Deshabilitar PermitRootLogin
-    const disableRoot = await this.sshClient.executeCommand(
-      `sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && ` +
-      `grep -q '^PermitRootLogin no' /etc/ssh/sshd_config || ` +
-      `echo 'PermitRootLogin no' | sudo tee -a /etc/ssh/sshd_config > /dev/null`
+    const writeDropIn = await this.sshClient.executeCommand(
+      `sudo mkdir -p /etc/ssh/sshd_config.d && ` +
+      `printf '%s\\n' 'PermitRootLogin no' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no' | ` +
+      `sudo tee ${dropInPath} > /dev/null`
     );
 
-    if (!disableRoot.success) {
+    if (!writeDropIn.success) {
       return false;
     }
 
-    // Deshabilitar PasswordAuthentication
-    const disablePassword = await this.sshClient.executeCommand(
-      `sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && ` +
-      `grep -q '^PasswordAuthentication no' /etc/ssh/sshd_config || ` +
-      `echo 'PasswordAuthentication no' | sudo tee -a /etc/ssh/sshd_config > /dev/null`
+    // Si Include no es la primera directiva activa, se antepone para que
+    // el drop-in 00-* gane contra 50-cloud-init.conf y contra settings
+    // que algunos images dejan antes del Include.
+    const ensureInclude = await this.sshClient.executeCommand(
+      `first=$(sudo grep -E '^[^#[:space:]]' /etc/ssh/sshd_config | head -1); ` +
+      `if [ "$first" != '${includeLine}' ]; then ` +
+      `printf '%s\\n' '${includeLine}' | sudo cat - /etc/ssh/sshd_config | ` +
+      `sudo tee /etc/ssh/sshd_config.fractal-tmp > /dev/null && ` +
+      `sudo mv /etc/ssh/sshd_config.fractal-tmp /etc/ssh/sshd_config; ` +
+      `fi`
     );
 
-    if (!disablePassword.success) {
+    if (!ensureInclude.success) {
+      await this.restoreSshdConfig(dropInPath);
       return false;
     }
 
-    // Validar configuración antes de recargar
-    const validateResult = await this.sshClient.executeCommand(
-      'sudo sshd -t'
-    );
+    const validateResult = await this.sshClient.executeCommand('sudo sshd -t');
 
     if (!validateResult.success) {
-      // Restaurar backup si la validación falla
-      await this.sshClient.executeCommand(
-        'sudo cp /etc/ssh/sshd_config.backup /etc/ssh/sshd_config'
-      );
+      await this.restoreSshdConfig(dropInPath);
       return false;
     }
 
-    // Recargar configuración de SSH (sin reiniciar el servicio completamente)
+    const effectiveResult = await this.sshClient.executeCommand(
+      'effective=$(sudo sshd -T) && ' +
+      'echo "$effective" | grep -qx "permitrootlogin no" && ' +
+      'echo "$effective" | grep -qx "passwordauthentication no" && ' +
+      'echo "$effective" | grep -qx "kbdinteractiveauthentication no"'
+    );
+
+    if (!effectiveResult.success) {
+      await this.restoreSshdConfig(dropInPath);
+      return false;
+    }
+
     const reloadResult = await this.sshClient.executeCommand(
       'sudo systemctl reload sshd || sudo systemctl reload ssh'
     );
 
-    return reloadResult.success;
+    if (!reloadResult.success) {
+      await this.restoreSshdConfig(dropInPath);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Restaura sshd_config y elimina el drop-in de Fractal si el
+   * endurecimiento no quedó efectivo.
+   */
+  private async restoreSshdConfig(dropInPath: string): Promise<void> {
+    await this.sshClient.executeCommand(
+      `sudo cp /etc/ssh/sshd_config.backup /etc/ssh/sshd_config && ` +
+      `sudo rm -f ${dropInPath}`
+    );
   }
 
   /**

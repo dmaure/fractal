@@ -227,6 +227,15 @@ describe('SystemHardening', () => {
       expect(result.steps[2]).toContain('SSH endurecido');
       expect(result.steps[3]).toContain('Firewall UFW configurado');
       expect(result.error).toBeUndefined();
+
+      const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
+      expect(sshCommands.some((cmd: string) =>
+        cmd.includes('/etc/ssh/sshd_config.d/00-fractal-hardening.conf') &&
+        cmd.includes('PermitRootLogin no') &&
+        cmd.includes('PasswordAuthentication no') &&
+        cmd.includes('KbdInteractiveAuthentication no')
+      )).toBe(true);
+      expect(sshCommands.some((cmd: string) => cmd.includes('sshd -T'))).toBe(true);
     });
 
     it('debe fallar si no se puede crear el usuario deploy', async () => {
@@ -373,9 +382,17 @@ describe('SystemHardening', () => {
 
     it('debe fallar si la configuración de sshd es inválida', async () => {
       executeCommandMock.mockImplementation(async (cmd: string) => {
-        // Primeros pasos ok
-        if (cmd.includes('id deploy') || 
-            cmd.includes('useradd') || 
+        if (cmd.includes('test -f /etc/ssh/sshd_config')) {
+          return {
+            success: true,
+            stdout: 'exists',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('id deploy') ||
+            cmd.includes('useradd') ||
             cmd.includes('usermod') ||
             cmd.includes('mkdir') ||
             cmd.includes('echo') ||
@@ -388,19 +405,8 @@ describe('SystemHardening', () => {
             exitCode: 0,
           } as SshCommandResult;
         }
-        
-        // sshd_config existe
-        if (cmd.includes('test -f /etc/ssh/sshd_config')) {
-          return {
-            success: true,
-            stdout: 'exists',
-            stderr: '',
-            exitCode: 0,
-          } as SshCommandResult;
-        }
-        
-        // Backup y modificaciones ok
-        if (cmd.includes('cp') || cmd.includes('sed')) {
+
+        if (cmd.includes('cp') || cmd.includes('sed') || cmd.includes('printf') || cmd.includes('tee')) {
           return {
             success: true,
             stdout: '',
@@ -408,9 +414,8 @@ describe('SystemHardening', () => {
             exitCode: 0,
           } as SshCommandResult;
         }
-        
-        // Validación de sshd falla
-        if (cmd.includes('sshd -t')) {
+
+        if (cmd.includes('sshd -t') && !cmd.includes('sshd -T')) {
           return {
             success: false,
             stdout: '',
@@ -778,6 +783,112 @@ describe('SystemHardening', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Network error');
+    });
+
+    it('debe fallar si sshd -T sigue permitiendo password o root login', async () => {
+      executeCommandMock.mockImplementation(async (cmd: string) => {
+        if (cmd.includes('id deploy') && cmd.includes('not_found')) {
+          return {
+            success: true,
+            stdout: 'not_found',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('test -f /etc/ssh/sshd_config')) {
+          return {
+            success: true,
+            stdout: 'exists',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('sshd -t') && !cmd.includes('sshd -T')) {
+          return {
+            success: true,
+            stdout: '',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        // Sintaxis válida, pero un drop-in previo deja password/root activos
+        if (cmd.includes('sshd -T')) {
+          return {
+            success: false,
+            stdout: 'permitrootlogin yes\npasswordauthentication yes\nkbdinteractiveauthentication yes',
+            stderr: '',
+            exitCode: 1,
+          } as SshCommandResult;
+        }
+
+        return {
+          success: true,
+          stdout: 'success',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult;
+      });
+
+      const result = await systemHardening.harden(validConfig);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('No se pudo endurecer la configuración de SSH');
+      expect(result.steps).toHaveLength(2);
+
+      const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
+      expect(sshCommands.some((cmd: string) =>
+        cmd.includes('sshd_config.backup') &&
+        cmd.includes('00-fractal-hardening.conf')
+      )).toBe(true);
+    });
+
+    it('debe anteponer Include para que el drop-in gane el first-match de OpenSSH', async () => {
+      executeCommandMock.mockImplementation(async (cmd: string) => {
+        if (cmd.includes('id deploy') && cmd.includes('not_found')) {
+          return {
+            success: true,
+            stdout: 'not_found',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('test -f')) {
+          return {
+            success: true,
+            stdout: 'exists',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('grep -q') || cmd.includes('command -v ufw')) {
+          return {
+            success: true,
+            stdout: cmd.includes('command -v ufw') ? 'installed' : '',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        return {
+          success: true,
+          stdout: 'success',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult;
+      });
+
+      const result = await systemHardening.harden(validConfig);
+
+      expect(result.success).toBe(true);
+      const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
+      expect(sshCommands.some((cmd: string) =>
+        cmd.includes('Include /etc/ssh/sshd_config.d/*.conf')
+      )).toBe(true);
     });
   });
 });
