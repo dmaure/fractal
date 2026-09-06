@@ -2,7 +2,9 @@
 
 import { Command } from 'commander';
 import { newCommand } from './commands/new.js';
+import { deployCommand } from './commands/deploy.js';
 import type { NewCommandOptions } from './types/new-command.js';
+import type { DeployCommandOptions } from './types/deploy-command.js';
 
 const program = new Command();
 
@@ -25,6 +27,22 @@ program
   .action(async (projectName: string, options: NewCommandOptions) => {
     try {
       await newCommand(projectName, options);
+    } catch (error) {
+      console.error('Error:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('deploy')
+  .description('Despliega la aplicación en un VPS')
+  .option(
+    '--reconfigure',
+    'Reconfigura las variables cruzadas en multirepo'
+  )
+  .action(async (options: DeployCommandOptions) => {
+    try {
+      await deployCommand(options);
     } catch (error) {
       console.error('Error:', error);
       process.exit(1);
