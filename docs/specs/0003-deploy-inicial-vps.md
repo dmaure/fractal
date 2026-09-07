@@ -3,9 +3,12 @@
 **Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-01
-**Última revisión:** 2026-09-06 — AC-2 y consideraciones de seguridad:
-las conexiones SSH verifican la clave del host contra `known_hosts`
-(TOFU interactivo; mismatch aborta). Revisión previa 2026-08-26:
+**Última revisión:** 2026-09-06 — hardening SSH efectivo: drop-in
+`sshd_config.d` + verificación con `sshd -T` (password, root y
+keyboard-interactive). Revisión previa el mismo día: AC-2 y
+consideraciones de seguridad: las conexiones SSH verifican la clave
+del host contra `known_hosts` (TOFU interactivo; mismatch aborta).
+Revisión previa 2026-08-26:
 resueltas las 7 preguntas abiertas acumuladas (4 originales + 3 de
 ADR-0012/0013): AC-10 y AC-11 ampliados, AC-13 ampliado con
 `.gitignore` y `--reconfigure`, AC-14 nuevo (VPS con servicios
@@ -237,6 +240,12 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
   ssh2 no se usa con su default de auto-aceptar la clave del servidor.
 - El `.env` de producción se genera en el servidor, nunca viaja por el repositorio
 - `APP_KEY` se genera en el servidor en el primer provisioning
+- El hardening de SSH (AC-3) debe quedar **efectivo**: se verifica con
+  `sshd -T` que root login, autenticación por contraseña y
+  keyboard-interactive/PAM queden en `no`. En Ubuntu LTS el
+  `Include /etc/ssh/sshd_config.d/*.conf` aplica drop-ins (p. ej.
+  cloud-init) con first-match-wins; editar solo `sshd_config` no basta.
+  `sshd -t` solo valida sintaxis.
 
 **Rendimiento**
 - El provisioning completo debe terminar en menos de 15 minutos

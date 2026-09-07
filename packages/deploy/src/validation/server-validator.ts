@@ -169,33 +169,4 @@ export class ServerValidator {
     });
   }
 
-  /**
-   * Valida que los puertos requeridos (80, 443) estén disponibles.
-   * Cumple AC-14: detecta servicios preexistentes.
-   */
-  async validatePorts(): Promise<{ available: boolean; occupiedPorts: string[] }> {
-    const portsToCheck = [80, 443];
-    const occupiedPorts: string[] = [];
-
-    for (const port of portsToCheck) {
-      const result = await this.sshClient.executeCommand(
-        `ss -tuln | grep -E ':${port}\\s' || true`
-      );
-
-      if (result.success && result.stdout.trim()) {
-        // Puerto ocupado - intentar identificar el proceso
-        const processResult = await this.sshClient.executeCommand(
-          `sudo lsof -i :${port} -P -n | tail -n +2 | awk '{print $1}' | head -1 || echo 'unknown'`
-        );
-        
-        const processName = processResult.success ? processResult.stdout.trim() : 'unknown';
-        occupiedPorts.push(`${port} (${processName})`);
-      }
-    }
-
-    return {
-      available: occupiedPorts.length === 0,
-      occupiedPorts,
-    };
-  }
 }
