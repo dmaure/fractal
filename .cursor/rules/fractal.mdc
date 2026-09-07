@@ -57,6 +57,11 @@ revisado en el PR.
 Conventional Commits, en español. Scopes válidos: `core`, `adapter-laravel`,
 `adapter-rails`, `deploy`, `docs`, `ci`, `e2e`.
 
+Un commit por paso lógico de trabajo (ej. setup, implementación de cada
+función/módulo, tests, docs, fix de lint) — nunca un único commit con todo
+el diff del ticket al final. El PR tiene que poder leerse commit por commit,
+no solo como un diff total.
+
 ## Antes de abrir PR
 
 - Lint de acoplamiento pasa (sin términos de framework fuera de
