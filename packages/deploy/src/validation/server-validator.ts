@@ -3,6 +3,7 @@ import type {
   ServerValidationResult,
   ServerInfo,
   ServerRequirements,
+  PortValidationResult,
 } from './types.js';
 import { DEFAULT_REQUIREMENTS } from './types.js';
 
@@ -169,4 +170,37 @@ export class ServerValidator {
     });
   }
 
+  /**
+   * Valida que los puertos requeridos (80, 443) estén disponibles.
+   * Implementa AC-14 del SPEC-0003: detecta servicios preexistentes.
+   */
+  async validatePorts(): Promise<PortValidationResult> {
+    const portsToCheck = [80, 443];
+    const occupiedPorts: string[] = [];
+
+    for (const port of portsToCheck) {
+      // Verificar si el puerto está en uso
+      const result = await this.sshClient.executeCommand(
+        `ss -tuln | grep -E ':${port}\\s' || true`
+      );
+
+      if (result.success && result.stdout.trim()) {
+        // Puerto ocupado - intentar identificar el proceso
+        const processResult = await this.sshClient.executeCommand(
+          `sudo lsof -i :${port} -P -n | tail -n +2 | awk '{print $1}' | head -1 || echo 'unknown'`
+        );
+        
+        const processName = processResult.success 
+          ? processResult.stdout.trim() 
+          : 'unknown';
+        
+        occupiedPorts.push(`${port} (proceso: ${processName})`);
+      }
+    }
+
+    return {
+      available: occupiedPorts.length === 0,
+      occupiedPorts,
+    };
+  }
 }

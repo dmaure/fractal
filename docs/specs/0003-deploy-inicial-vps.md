@@ -290,3 +290,35 @@ dejado ADR-0012/0013):
 - [ ] Documentación de usuario escrita
 - [ ] ADR-0006 y ADR-0007 creados y aceptados
 - [ ] Spec marcado como Implementado
+
+---
+
+## 10. Notas de implementación
+
+### AC-4 implementado (2026-09-07)
+
+El AC-4 (Runtime) fue implementado en `packages/deploy/src/runtime` con:
+
+- **`DockerInstaller`**: Instala Docker CE y el plugin de Docker Compose de forma
+  idempotente. Detecta instalaciones previas y las reutiliza. Configura el
+  servicio Docker para que inicie automáticamente.
+
+- **`ComposeGenerator`**: Genera `docker-compose.yml` según el tipo de target:
+  - `backend-full`: seis contenedores (`app`, `nginx`, `db`, `redis`, `worker`,
+    `scheduler`) para un backend completo
+  - `frontend-static`: solo `nginx` sirviendo el build estático de `dist/`
+
+- **`RuntimeManager`**: Orquesta la instalación de Docker y la generación del
+  archivo compose.
+
+**Set de contenedores hardcodeado**: Como se indica en los Implementation Notes
+del ticket FRA-29, el set de contenedores para cada tipo de target está
+explícitamente codificado en `packages/deploy/src/runtime/types.ts` (constantes
+`BACKEND_FULL_SERVICES` y `FRONTEND_STATIC_SERVICES`). Cuando SPEC-0006
+(contrato del adapter) se resuelva y formalice cómo un adapter declara sus
+requisitos de runtime, este mecanismo se generalizará en un ticket aparte, sin
+romper esta implementación.
+
+**Cumplimiento del Artículo II**: El módulo `runtime` no contiene ninguna
+referencia a frameworks específicos (Laravel, Rails, etc.). Todos los términos
+prohibidos fueron verificados en los tests de framework-agnostic compliance.

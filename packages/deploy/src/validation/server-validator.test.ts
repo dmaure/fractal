@@ -245,4 +245,116 @@ describe('ServerValidator', () => {
     });
   });
 
+  describe('validatePorts', () => {
+    it('debe aprobar cuando los puertos 80 y 443 están disponibles', async () => {
+      vi.spyOn(mockClient, 'executeCommand')
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '', // Puerto 80 libre
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '', // Puerto 443 libre
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult);
+
+      const result = await validator.validatePorts();
+
+      expect(result.available).toBe(true);
+      expect(result.occupiedPorts).toHaveLength(0);
+    });
+
+    it('debe rechazar cuando el puerto 80 está ocupado', async () => {
+      vi.spyOn(mockClient, 'executeCommand')
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'tcp   LISTEN 0      511                  *:80', // Puerto 80 ocupado
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'nginx', // Proceso que ocupa el puerto
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '', // Puerto 443 libre
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult);
+
+      const result = await validator.validatePorts();
+
+      expect(result.available).toBe(false);
+      expect(result.occupiedPorts).toContain('80 (proceso: nginx)');
+    });
+
+    it('debe rechazar cuando ambos puertos están ocupados', async () => {
+      vi.spyOn(mockClient, 'executeCommand')
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'tcp   LISTEN 0      511                  *:80',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'nginx',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'tcp   LISTEN 0      511                  *:443',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'nginx',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult);
+
+      const result = await validator.validatePorts();
+
+      expect(result.available).toBe(false);
+      expect(result.occupiedPorts).toHaveLength(2);
+      expect(result.occupiedPorts).toContain('80 (proceso: nginx)');
+      expect(result.occupiedPorts).toContain('443 (proceso: nginx)');
+    });
+
+    it('debe reportar proceso desconocido si no se puede identificar', async () => {
+      vi.spyOn(mockClient, 'executeCommand')
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'tcp   LISTEN 0      511                  *:80',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: false, // Error al identificar proceso
+          stdout: '',
+          stderr: 'Permission denied',
+          exitCode: 1,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult);
+
+      const result = await validator.validatePorts();
+
+      expect(result.available).toBe(false);
+      expect(result.occupiedPorts).toContain('80 (proceso: unknown)');
+    });
+  });
+
 });

@@ -67,3 +67,15 @@ export const DEFAULT_REQUIREMENTS: ServerRequirements = {
     'Ubuntu 24.04',
   ],
 };
+
+/**
+ * Resultado de validación de puertos.
+ * Implementa AC-14 del SPEC-0003.
+ */
+export interface PortValidationResult {
+  /** Indica si los puertos requeridos están disponibles */
+  available: boolean;
+  
+  /** Lista de puertos ocupados con información del proceso */
+  occupiedPorts: string[];
+}
