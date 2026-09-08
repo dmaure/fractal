@@ -49,6 +49,15 @@ export interface DeployParams {
   
   /** Rama de producción */
   productionBranch: string;
+  
+  /** Información del hermano (solo en multirepo con orchestration_state: pending o --reconfigure) */
+  siblingInfo?: {
+    /** URL del repositorio git del hermano */
+    gitUrl: string;
+    
+    /** Dominio donde vivirá el hermano */
+    domain: string;
+  };
 }
 
 /**
