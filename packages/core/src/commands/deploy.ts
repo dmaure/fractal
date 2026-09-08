@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
 import { promptDeployParams, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
-import { SshClient, ServerValidator } from '@fractal/deploy';
+import { SshClient, ServerValidator, ManifestManager } from '@fractal/deploy';
 
 /**
  * Comando `fractal deploy`.
@@ -10,7 +10,7 @@ import { SshClient, ServerValidator } from '@fractal/deploy';
  * Recolecta datos del servidor, valida conectividad SSH,
  * distribución compatible y recursos mínimos.
  * 
- * Cumple SPEC-0003 AC-1 y AC-2.
+ * Cumple SPEC-0003 AC-1, AC-2 y AC-13 (coordinación multirepo).
  */
 export async function deployCommand(
   options: DeployCommandOptions
@@ -19,8 +19,32 @@ export async function deployCommand(
   
   const projectDir = resolve(process.cwd());
   
+  // AC-13: Verificar si hay manifiesto de multirepo
+  const manifestManager = new ManifestManager(projectDir);
+  const manifestResult = manifestManager.read();
+  
+  let askSiblingInfo = false;
+  let currentRole: 'api' | 'web' | undefined;
+  
+  if (manifestResult.exists && manifestResult.manifest) {
+    currentRole = manifestResult.manifest.role;
+    
+    // Preguntar info del hermano si:
+    // - El estado es pending (primer deploy), O
+    // - El flag --reconfigure está presente
+    if (manifestResult.manifest.orchestration_state === 'pending') {
+      askSiblingInfo = true;
+      console.log(chalk.yellow('📝 Primer deploy en multirepo detectado'));
+      console.log(chalk.dim('   Se solicitará información del repositorio hermano para configurar variables cruzadas.\n'));
+    } else if (options.reconfigure) {
+      askSiblingInfo = true;
+      console.log(chalk.yellow('🔄 Modo reconfiguración activado'));
+      console.log(chalk.dim('   Se solicitará nuevamente la información del repositorio hermano.\n'));
+    }
+  }
+  
   // AC-1: Recolección de datos
-  const params = await promptDeployParams();
+  const params = await promptDeployParams(askSiblingInfo, currentRole);
   
   // Confirmación antes de proceder
   const confirmed = await confirmDeploy(params);
@@ -28,6 +52,24 @@ export async function deployCommand(
   if (!confirmed) {
     console.log(chalk.yellow('\n⚠️  Deploy cancelado por el usuario'));
     process.exit(0);
+  }
+  
+  // AC-13: Actualizar manifiesto si se recolectó info del hermano
+  if (manifestResult.exists && manifestResult.manifest && params.siblingInfo) {
+    console.log(chalk.dim('\n→ Actualizando manifiesto de coordinación multirepo...'));
+    
+    const updateResult = manifestManager.updateWithSiblingInfo({
+      gitUrl: params.siblingInfo.gitUrl,
+      domain: params.siblingInfo.domain,
+    });
+    
+    if (!updateResult.success) {
+      console.error(chalk.red(`\n❌ Error al actualizar el manifiesto: ${updateResult.error}`));
+      process.exit(1);
+    }
+    
+    console.log(chalk.green('✓ Manifiesto actualizado con información del hermano'));
+    console.log(chalk.dim(`   Estado: resolved (deploys posteriores no volverán a preguntar)`));
   }
   
   console.log(chalk.blue('\n🔍 Validando servidor...\n'));
