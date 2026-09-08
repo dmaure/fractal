@@ -285,7 +285,7 @@ dejado ADR-0012/0013):
 
 ## 9. Definition of Done
 
-- [ ] Todos los criterios de aceptación tienen test automatizado
+- [x] Todos los criterios de aceptación tienen test automatizado
 - [ ] Test end-to-end contra un VPS efímero real pasa en CI
 - [ ] Documentación de usuario escrita
 - [ ] ADR-0006 y ADR-0007 creados y aceptados
@@ -294,6 +294,34 @@ dejado ADR-0012/0013):
 ---
 
 ## 10. Notas de implementación
+
+### AC-13 implementado (2026-09-08)
+
+La coordinación multirepo en el primer deploy fue implementada en
+`packages/deploy/src/manifest` y `packages/core/src/commands/deploy.ts`:
+
+- **`ManifestManager`**: Lee y escribe `fractal.project.yml` con
+  `orchestration_state` (pending|resolved) y la información del hermano
+  (`sibling.git_url`, `sibling.domain`).
+
+- **Detección automática**: El comando `fractal deploy` detecta si el
+  manifiesto existe y si `orchestration_state` es `pending`, preguntando
+  automáticamente por la URL git y el dominio del repositorio hermano.
+
+- **`--reconfigure`**: El flag permite reescribir las variables cruzadas
+  incluso si `orchestration_state` ya es `resolved`, para casos donde el
+  usuario cambia de dominio después del primer deploy.
+
+- **Actualización del manifiesto**: Después de recolectar la información del
+  hermano, el manifiesto se actualiza automáticamente a
+  `orchestration_state: resolved` para que deploys posteriores no vuelvan a
+  preguntar.
+
+**Cumplimiento del Artículo II**: El módulo `manifest` no contiene ninguna
+referencia a frameworks específicos. Todos los términos prohibidos fueron
+verificados en los tests de framework-agnostic compliance.
+
+---
 
 ### AC-4 implementado (2026-09-07)
 
