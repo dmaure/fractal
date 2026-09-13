@@ -41,8 +41,14 @@ interface UnknownHostPromptInfo {
 
 /**
  * Recolecta todos los datos necesarios para el deploy vía prompts interactivos.
+ * 
+ * @param askSiblingInfo Si debe preguntar por el repositorio hermano (multirepo con orchestration_state: pending o --reconfigure)
+ * @param currentRole Rol del repositorio actual (api o web), si existe
  */
-export async function promptDeployParams(): Promise<DeployParams> {
+export async function promptDeployParams(
+  askSiblingInfo = false,
+  currentRole?: 'api' | 'web'
+): Promise<DeployParams> {
   console.log('Configuración del servidor VPS\n');
   
   const serverIp = await input({
@@ -165,6 +171,44 @@ export async function promptDeployParams(): Promise<DeployParams> {
     },
   });
 
+  let siblingInfo: { gitUrl: string; domain: string } | undefined;
+
+  if (askSiblingInfo && currentRole) {
+    const siblingRole = currentRole === 'api' ? 'web' : 'api';
+    
+    console.log(`\nConfiguración del repositorio hermano (${siblingRole})\n`);
+    console.log(`En multirepo, cada lado necesita conocer la URL del otro para configurar`);
+    console.log(`variables cruzadas (API_URL en web/, CORS_ALLOWED_ORIGIN en api/).\n`);
+
+    const siblingGitUrl = await input({
+      message: `URL del repositorio git del ${siblingRole}:`,
+      validate: (value) => {
+        if (!value.trim()) return 'La URL del repositorio hermano es requerida';
+        if (!value.includes('.git') && !value.includes('github.com') && !value.includes('gitlab.com')) {
+          return 'La URL debe ser una URL de repositorio Git válida';
+        }
+        return true;
+      },
+    });
+
+    const siblingDomain = await input({
+      message: `Dominio donde vivirá el ${siblingRole}:`,
+      validate: (value) => {
+        if (!value.trim()) return 'El dominio del hermano es requerido';
+        const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i;
+        if (!domainRegex.test(value.trim())) {
+          return 'Formato de dominio inválido (ej: api.example.com)';
+        }
+        return true;
+      },
+    });
+
+    siblingInfo = {
+      gitUrl: siblingGitUrl.trim(),
+      domain: siblingDomain.trim().toLowerCase(),
+    };
+  }
+
   return {
     serverIp: serverIp.trim(),
     sshUser: sshUser.trim(),
@@ -176,6 +220,7 @@ export async function promptDeployParams(): Promise<DeployParams> {
     dnsApiToken,
     gitRepository: gitRepository.trim(),
     productionBranch: productionBranch.trim(),
+    siblingInfo,
   };
 }
 
@@ -189,6 +234,12 @@ export async function confirmDeploy(params: DeployParams): Promise<boolean> {
   console.log(`   DNS: ${params.dnsProvider}`);
   console.log(`   Repositorio: ${params.gitRepository}`);
   console.log(`   Rama: ${params.productionBranch}`);
+  
+  if (params.siblingInfo) {
+    console.log(`\n   Repositorio hermano: ${params.siblingInfo.gitUrl}`);
+    console.log(`   Dominio hermano: ${params.siblingInfo.domain}`);
+  }
+  
   console.log();
 
   return await confirm({
