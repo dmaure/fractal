@@ -285,7 +285,8 @@ dejado ADR-0012/0013):
 
 ## 9. Definition of Done
 
-- [x] Todos los criterios de aceptación tienen test automatizado
+- [x] AC-13 (coordinación multirepo) tiene test automatizado completo
+- [ ] Todos los demás criterios de aceptación tienen test automatizado
 - [ ] Test end-to-end contra un VPS efímero real pasa en CI
 - [ ] Documentación de usuario escrita
 - [ ] ADR-0006 y ADR-0007 creados y aceptados

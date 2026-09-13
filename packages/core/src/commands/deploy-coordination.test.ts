@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { ManifestManager, CrossVarWriter } from '@fractal/deploy';
 
 const TEST_DIR = join(process.cwd(), 'test-deploy-coordination');
 
@@ -39,15 +40,21 @@ describe('Deploy coordination (multirepo)', () => {
     it('detecta manifiesto en estado pending', () => {
       createManifest(TEST_DIR, 'pending', 'api');
       
-      const manifestPath = join(TEST_DIR, 'fractal.project.yml');
-      expect(existsSync(manifestPath)).toBe(true);
+      const manager = new ManifestManager(TEST_DIR);
+      const result = manager.read();
+      
+      expect(result.exists).toBe(true);
+      expect(result.manifest?.orchestration_state).toBe('pending');
     });
 
     it('detecta manifiesto en estado resolved', () => {
       createManifest(TEST_DIR, 'resolved', 'web');
       
-      const manifestPath = join(TEST_DIR, 'fractal.project.yml');
-      expect(existsSync(manifestPath)).toBe(true);
+      const manager = new ManifestManager(TEST_DIR);
+      const result = manager.read();
+      
+      expect(result.exists).toBe(true);
+      expect(result.manifest?.orchestration_state).toBe('resolved');
     });
   });
 
@@ -55,17 +62,43 @@ describe('Deploy coordination (multirepo)', () => {
     it('debe preguntar info del hermano cuando orchestration_state es pending', () => {
       createManifest(TEST_DIR, 'pending', 'api');
       
+      const manager = new ManifestManager(TEST_DIR);
+      const result = manager.read();
+      
       // El deploy command detectará pending y establecerá askSiblingInfo = true
-      // Esta prueba documenta el comportamiento esperado
-      expect(true).toBe(true);
+      expect(result.manifest?.orchestration_state).toBe('pending');
+      expect(result.manifest?.sibling.git_url).toBeNull();
+      expect(result.manifest?.sibling.domain).toBeNull();
     });
 
     it('no debe preguntar info del hermano cuando orchestration_state es resolved', () => {
       createManifest(TEST_DIR, 'resolved', 'web');
       
+      const manager = new ManifestManager(TEST_DIR);
+      const result = manager.read();
+      
       // El deploy command detectará resolved y NO preguntará info del hermano
       // (a menos que se pase --reconfigure)
-      expect(true).toBe(true);
+      expect(result.manifest?.orchestration_state).toBe('resolved');
+      expect(result.manifest?.sibling.git_url).not.toBeNull();
+      expect(result.manifest?.sibling.domain).not.toBeNull();
+    });
+    
+    it('actualiza el manifiesto a resolved después de recolectar', () => {
+      createManifest(TEST_DIR, 'pending', 'api');
+      
+      const manager = new ManifestManager(TEST_DIR);
+      const updateResult = manager.updateWithSiblingInfo({
+        gitUrl: 'https://github.com/user/web.git',
+        domain: 'web.example.com',
+      });
+      
+      expect(updateResult.success).toBe(true);
+      
+      const readResult = manager.read();
+      expect(readResult.manifest?.orchestration_state).toBe('resolved');
+      expect(readResult.manifest?.sibling.git_url).toBe('https://github.com/user/web.git');
+      expect(readResult.manifest?.sibling.domain).toBe('web.example.com');
     });
   });
 
@@ -73,34 +106,83 @@ describe('Deploy coordination (multirepo)', () => {
     it('debe forzar preguntar info del hermano aunque orchestration_state sea resolved', () => {
       createManifest(TEST_DIR, 'resolved', 'api');
       
+      const manager = new ManifestManager(TEST_DIR);
+      const initialRead = manager.read();
+      expect(initialRead.manifest?.orchestration_state).toBe('resolved');
+      
       // Con --reconfigure, el deploy command establecerá askSiblingInfo = true
-      // incluso si el estado es resolved
-      expect(true).toBe(true);
-    });
-  });
-
-  describe('Actualización del manifiesto', () => {
-    it('debe marcar el manifiesto como resolved después de recolectar la info', () => {
-      // Este comportamiento está cubierto por los tests de ManifestManager
-      // y la integración en el deploy command
-      expect(true).toBe(true);
+      // incluso si el estado es resolved, y luego actualizará con nuevos valores
+      const updateResult = manager.updateWithSiblingInfo({
+        gitUrl: 'https://github.com/user/web-new.git',
+        domain: 'web-new.example.com',
+      });
+      
+      expect(updateResult.success).toBe(true);
+      
+      const finalRead = manager.read();
+      expect(finalRead.manifest?.sibling.git_url).toBe('https://github.com/user/web-new.git');
+      expect(finalRead.manifest?.sibling.domain).toBe('web-new.example.com');
     });
   });
 
   describe('Variables cruzadas según ADR-0012', () => {
-    it('debe configurar API_URL en el repo web con el dominio del api', () => {
-      // Cuando se despliegue web/ con info del hermano api/, se configurará:
-      // API_URL=https://api.example.com
-      createManifest(TEST_DIR, 'pending', 'web');
-      expect(true).toBe(true);
+    it('debe configurar VITE_API_URL en el repo web con el dominio del api', () => {
+      const writer = new CrossVarWriter();
+      
+      const result = writer.write({
+        role: 'web',
+        currentDomain: 'web.example.com',
+        siblingDomain: 'api.example.com',
+      });
+      
+      expect(result.writtenVars).toEqual({
+        VITE_API_URL: 'https://api.example.com',
+      });
     });
 
     it('debe configurar CORS_ALLOWED_ORIGIN en el repo api con el dominio del web', () => {
-      // Cuando se despliegue api/ con info del hermano web/, se configurará:
-      // CORS_ALLOWED_ORIGIN=https://web.example.com
-      // SANCTUM_STATEFUL_DOMAINS=web.example.com
-      createManifest(TEST_DIR, 'pending', 'api');
-      expect(true).toBe(true);
+      const writer = new CrossVarWriter();
+      
+      const result = writer.write({
+        role: 'api',
+        currentDomain: 'api.example.com',
+        siblingDomain: 'web.example.com',
+      });
+      
+      expect(result.writtenVars).toEqual({
+        CORS_ALLOWED_ORIGIN: 'https://web.example.com',
+        SANCTUM_STATEFUL_DOMAINS: 'web.example.com',
+      });
+    });
+    
+    it('genera instrucciones para el repo hermano con variables inversas', () => {
+      const writer = new CrossVarWriter();
+      
+      const result = writer.write({
+        role: 'api',
+        currentDomain: 'api.example.com',
+        siblingDomain: 'web.example.com',
+      });
+      
+      expect(result.siblingInstructions).toBeDefined();
+      expect(result.siblingInstructions?.siblingRole).toBe('web');
+      expect(result.siblingInstructions?.varsToSet).toEqual({
+        VITE_API_URL: 'https://api.example.com',
+      });
+    });
+  });
+  
+  describe('Lost-manifest behavior', () => {
+    it('manifiesto faltante permite re-preguntar (degradación aceptable)', () => {
+      // Simular un VPS reconstruido donde el manifiesto se perdió
+      const manager = new ManifestManager(TEST_DIR);
+      const result = manager.read();
+      
+      expect(result.exists).toBe(false);
+      
+      // El deploy command puede detectar esto y tratar de recrear el manifiesto
+      // o continuar con el flujo normal si no es multirepo
+      // Esta es una degradación aceptable según AC-13
     });
   });
 });

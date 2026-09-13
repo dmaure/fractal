@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
 import { promptDeployParams, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
-import { SshClient, ServerValidator, ManifestManager } from '@fractal/deploy';
+import { SshClient, ServerValidator, ManifestManager, CrossVarWriter } from '@fractal/deploy';
 
 /**
  * Comando `fractal deploy`.
@@ -70,6 +70,35 @@ export async function deployCommand(
     
     console.log(chalk.green('✓ Manifiesto actualizado con información del hermano'));
     console.log(chalk.dim(`   Estado: resolved (deploys posteriores no volverán a preguntar)`));
+    
+    // Escribir variables cruzadas (ADR-0012 y AC-13)
+    console.log(chalk.dim('\n→ Configurando variables cruzadas para comunicación entre repos...'));
+    
+    const crossVarWriter = new CrossVarWriter();
+    const crossVarResult = crossVarWriter.write({
+      role: manifestResult.manifest.role,
+      currentDomain: params.domain,
+      siblingDomain: params.siblingInfo.domain,
+    });
+    
+    if (!crossVarResult.success) {
+      console.error(chalk.red(`\n❌ Error al configurar variables cruzadas: ${crossVarResult.error}`));
+      process.exit(1);
+    }
+    
+    console.log(chalk.green('✓ Variables cruzadas configuradas'));
+    
+    if (crossVarResult.writtenVars) {
+      console.log(chalk.blue('\n📝 Variables configuradas para este repositorio:'));
+      for (const [key, value] of Object.entries(crossVarResult.writtenVars)) {
+        console.log(chalk.dim(`   ${key}=${value}`));
+      }
+    }
+    
+    // Mostrar instrucciones para el repo hermano (AC-8 extensión)
+    if (crossVarResult.siblingInstructions) {
+      console.log(chalk.yellow(crossVarResult.siblingInstructions.message));
+    }
   }
   
   console.log(chalk.blue('\n🔍 Validando servidor...\n'));
