@@ -180,6 +180,9 @@ describe('Workflow Snapshots', () => {
       expect(content).toContain('Healthcheck');
       expect(content).toContain('Rolling back');
       expect(content).toContain('IMAGE_TAG');
+      expect(content).toContain('SSH_KNOWN_HOSTS');
+      expect(content).toContain('StrictHostKeyChecking=yes');
+      expect(content).not.toContain('StrictHostKeyChecking=no');
     });
 
     it('GitLab CI pipeline should contain key deploy steps', () => {
@@ -202,6 +205,9 @@ describe('Workflow Snapshots', () => {
       expect(content).toContain('php artisan cache:clear');
       expect(content).toContain('Healthcheck');
       expect(content).toContain('Rolling back');
+      expect(content).toContain('SSH_KNOWN_HOSTS');
+      expect(content).toContain('StrictHostKeyChecking=yes');
+      expect(content).not.toContain('ssh-keyscan');
     });
 
     it('frontend-static workflow should not contain migration steps', () => {
@@ -220,6 +226,7 @@ describe('Workflow Snapshots', () => {
       expect(content).not.toContain('migrate');
       expect(content).not.toContain('cache:clear');
       expect(content).toContain('Healthcheck');
+      expect(content).toContain('StrictHostKeyChecking=yes');
     });
   });
 });

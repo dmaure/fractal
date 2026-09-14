@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { CicdManager } from './cicd-manager.js';
 import type { DeployConfig } from './types.js';
 
-describe('CicdManager', () => {
+describe('CicdManager', async () => {
   const manager = new CicdManager();
 
-  describe('getSupportedProviders', () => {
-    it('should return list of supported providers', () => {
+  describe('getSupportedProviders', async () => {
+    it('should return list of supported providers', async () => {
       const providers = manager.getSupportedProviders();
       
       expect(providers).toContain('github-actions');
@@ -15,14 +15,14 @@ describe('CicdManager', () => {
     });
   });
 
-  describe('validateConfig', () => {
-    it('should reject missing provider', () => {
+  describe('validateConfig', async () => {
+    it('should reject missing provider', async () => {
       const config = {
         targetType: 'backend-full',
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/deploy.yml',
+        outputPath: '/tmp/test-cicd-manager-' + Math.random() + '.yml',
       } as any;
 
       const result = manager.validateConfig(config);
@@ -31,14 +31,14 @@ describe('CicdManager', () => {
       expect(result.error).toContain('proveedor de CI/CD');
     });
 
-    it('should reject unsupported provider', () => {
+    it('should reject unsupported provider', async () => {
       const config: DeployConfig = {
         provider: 'jenkins' as any,
         targetType: 'backend-full',
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/deploy.yml',
+        outputPath: '/tmp/test-cicd-manager-' + Math.random() + '.yml',
       };
 
       const result = manager.validateConfig(config);
@@ -47,14 +47,14 @@ describe('CicdManager', () => {
       expect(result.error).toContain('no soportado');
     });
 
-    it('should validate GitHub Actions config', () => {
+    it('should validate GitHub Actions config', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/.github/workflows/deploy.yml',
+        outputPath: '/tmp/test-manager-gh-' + Math.random() + '.yml',
       };
 
       const result = manager.validateConfig(config);
@@ -63,14 +63,14 @@ describe('CicdManager', () => {
       expect(result.error).toBeUndefined();
     });
 
-    it('should validate GitLab CI config', () => {
+    it('should validate GitLab CI config', async () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/.gitlab-ci.yml',
+        outputPath: '/tmp/test-manager-gl-' + Math.random() + '.yml',
       };
 
       const result = manager.validateConfig(config);
@@ -80,70 +80,74 @@ describe('CicdManager', () => {
     });
   });
 
-  describe('generate', () => {
-    it('should generate GitHub Actions workflow', () => {
+  describe('generate', async () => {
+    it('should generate GitHub Actions workflow', async () => {
+      const outputPath = '/tmp/test-manager-gh-' + Math.random() + '.yml';
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/.github/workflows/deploy.yml',
+        outputPath,
       };
 
-      const result = manager.generate(config);
+      const result = await manager.generate(config);
       
       expect(result.success).toBe(true);
-      expect(result.filePath).toBe('/tmp/.github/workflows/deploy.yml');
+      expect(result.filePath).toBe(outputPath);
+      expect(result.content).toBeDefined();
       expect(result.secrets).toBeDefined();
       expect(result.secrets.length).toBeGreaterThan(0);
     });
 
-    it('should generate GitLab CI pipeline', () => {
+    it('should generate GitLab CI pipeline', async () => {
+      const outputPath = '/tmp/test-manager-gl-' + Math.random() + '.yml';
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/.gitlab-ci.yml',
+        outputPath,
       };
 
-      const result = manager.generate(config);
+      const result = await manager.generate(config);
       
       expect(result.success).toBe(true);
-      expect(result.filePath).toBe('/tmp/.gitlab-ci.yml');
+      expect(result.filePath).toBe(outputPath);
+      expect(result.content).toBeDefined();
       expect(result.secrets).toBeDefined();
       expect(result.secrets.length).toBeGreaterThan(0);
     });
 
-    it('should fail for unsupported provider', () => {
+    it('should fail for unsupported provider', async () => {
       const config: DeployConfig = {
         provider: 'circleci' as any,
         targetType: 'backend-full',
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/config.yml',
+        outputPath: '/tmp/test-manager-config-' + Math.random() + '.yml',
       };
 
-      const result = manager.generate(config);
+      const result = await manager.generate(config);
       
       expect(result.success).toBe(false);
       expect(result.error).toContain('no soportado');
     });
 
-    it('should generate correct secrets for frontend-static', () => {
+    it('should generate correct secrets for frontend-static', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'frontend-static',
         projectName: 'test-web',
         productionBranch: 'main',
         domain: 'app.example.com',
-        outputPath: '/tmp/.github/workflows/deploy.yml',
+        outputPath: '/tmp/test-manager-gh-' + Math.random() + '.yml',
       };
 
-      const result = manager.generate(config);
+      const result = await manager.generate(config);
       
       expect(result.success).toBe(true);
       
@@ -152,14 +156,14 @@ describe('CicdManager', () => {
       expect(secretNames).not.toContain('DB_PASSWORD');
     });
 
-    it('should handle multirepo configuration', () => {
+    it('should handle multirepo configuration', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/.github/workflows/deploy.yml',
+        outputPath: '/tmp/test-manager-gh-' + Math.random() + '.yml',
         multiRepo: {
           role: 'api',
           siblingGitUrl: 'https://github.com/example/web.git',
@@ -167,7 +171,7 @@ describe('CicdManager', () => {
         },
       };
 
-      const result = manager.generate(config);
+      const result = await manager.generate(config);
       
       expect(result.success).toBe(true);
       expect(result.crossRepoSecrets).toBeDefined();
@@ -175,18 +179,18 @@ describe('CicdManager', () => {
     });
   });
 
-  describe('framework-agnostic compliance', () => {
-    it('should not contain Laravel-specific terms', () => {
+  describe('framework-agnostic compliance', async () => {
+    it('should not contain Laravel-specific terms', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/.github/workflows/deploy.yml',
+        outputPath: '/tmp/test-manager-compliance-1.yml',
       };
 
-      const result = manager.generate(config);
+      const result = await manager.generate(config);
       
       const prohibitedTerms = [
         'laravel',
@@ -194,24 +198,25 @@ describe('CicdManager', () => {
         'blade',
       ];
 
-      const resultJson = JSON.stringify(result).toLowerCase();
+      // Check secrets and content, not filePath (which is just a test artifact)
+      const checkContent = JSON.stringify({ secrets: result.secrets, content: result.content }).toLowerCase();
       
       prohibitedTerms.forEach((term) => {
-        expect(resultJson).not.toContain(term);
+        expect(checkContent).not.toContain(term);
       });
     });
 
-    it('should not contain Rails-specific terms', () => {
+    it('should not contain Rails-specific terms', async () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
-        outputPath: '/tmp/.gitlab-ci.yml',
+        outputPath: '/tmp/test-manager-compliance-2.yml',
       };
 
-      const result = manager.generate(config);
+      const result = await manager.generate(config);
       
       const prohibitedTerms = [
         'rails',
@@ -221,10 +226,11 @@ describe('CicdManager', () => {
         'erb',
       ];
 
-      const resultJson = JSON.stringify(result).toLowerCase();
+      // Check secrets and content, not filePath (which is just a test artifact)
+      const checkContent = JSON.stringify({ secrets: result.secrets, content: result.content }).toLowerCase();
       
       prohibitedTerms.forEach((term) => {
-        expect(resultJson).not.toContain(term);
+        expect(checkContent).not.toContain(term);
       });
     });
   });

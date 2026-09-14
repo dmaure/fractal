@@ -54,12 +54,19 @@ jobs:
           SSH_HOST: \${{ secrets.SSH_HOST }}
           SSH_USER: \${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: \${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: \${{ secrets.SSH_KNOWN_HOSTS }}
+          IMAGE_TAG: \${GITHUB_SHA:0:7}
         run: |
+          # Configurar SSH con host key verification
           echo "$SSH_PRIVATE_KEY" > deploy_key
           chmod 600 deploy_key
           
-          # Configurar SSH
-          ssh -o StrictHostKeyChecking=no -i deploy_key $SSH_USER@$SSH_HOST << 'ENDSSH'
+          mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+          # Deploy al servidor (IMAGE_TAG ya está en env)
+          ssh -o StrictHostKeyChecking=yes -i deploy_key $SSH_USER@$SSH_HOST << ENDSSH
             set -e
             
             cd /var/www/myapi
@@ -69,7 +76,7 @@ jobs:
             echo "Current image: $CURRENT_IMAGE"
             
             # Actualizar compose con nueva imagen
-            export IMAGE_TAG=\${GITHUB_SHA:0:7}
+            export IMAGE_TAG=$IMAGE_TAG
             docker compose pull
             docker compose up -d --no-build
             
@@ -106,7 +113,7 @@ jobs:
               echo "Rolling back to previous image..."
               docker compose down
               # Restaurar imagen anterior (requiere tag versionado previo)
-              PREVIOUS_TAG=$(docker images \${{ env.IMAGE_NAME }} --format "{{.Tag}}" | grep -v latest | head -n 1)
+              PREVIOUS_TAG=$(docker images ghcr.io/\${{ github.repository }}/myapi --format "{{.Tag}}" | grep -v latest | head -n 1)
               if [ -n "$PREVIOUS_TAG" ]; then
                 export IMAGE_TAG=$PREVIOUS_TAG
                 docker compose up -d
@@ -115,7 +122,7 @@ jobs:
             fi
             
             exit 1
-          ENDSSH
+ENDSSH
           
           rm -f deploy_key
 
@@ -184,12 +191,19 @@ jobs:
           SSH_HOST: \${{ secrets.SSH_HOST }}
           SSH_USER: \${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: \${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: \${{ secrets.SSH_KNOWN_HOSTS }}
+          IMAGE_TAG: \${GITHUB_SHA:0:7}
         run: |
+          # Configurar SSH con host key verification
           echo "$SSH_PRIVATE_KEY" > deploy_key
           chmod 600 deploy_key
           
-          # Configurar SSH
-          ssh -o StrictHostKeyChecking=no -i deploy_key $SSH_USER@$SSH_HOST << 'ENDSSH'
+          mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+          # Deploy al servidor (IMAGE_TAG ya está en env)
+          ssh -o StrictHostKeyChecking=yes -i deploy_key $SSH_USER@$SSH_HOST << ENDSSH
             set -e
             
             cd /var/www/myweb
@@ -199,7 +213,7 @@ jobs:
             echo "Current image: $CURRENT_IMAGE"
             
             # Actualizar compose con nueva imagen
-            export IMAGE_TAG=\${GITHUB_SHA:0:7}
+            export IMAGE_TAG=$IMAGE_TAG
             docker compose pull
             docker compose up -d --no-build
             
@@ -227,7 +241,7 @@ jobs:
               echo "Rolling back to previous image..."
               docker compose down
               # Restaurar imagen anterior (requiere tag versionado previo)
-              PREVIOUS_TAG=$(docker images \${{ env.IMAGE_NAME }} --format "{{.Tag}}" | grep -v latest | head -n 1)
+              PREVIOUS_TAG=$(docker images ghcr.io/\${{ github.repository }}/myweb --format "{{.Tag}}" | grep -v latest | head -n 1)
               if [ -n "$PREVIOUS_TAG" ]; then
                 export IMAGE_TAG=$PREVIOUS_TAG
                 docker compose up -d
@@ -236,7 +250,7 @@ jobs:
             fi
             
             exit 1
-          ENDSSH
+ENDSSH
           
           rm -f deploy_key
 
@@ -305,12 +319,19 @@ jobs:
           SSH_HOST: \${{ secrets.SSH_HOST }}
           SSH_USER: \${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: \${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: \${{ secrets.SSH_KNOWN_HOSTS }}
+          IMAGE_TAG: \${GITHUB_SHA:0:7}
         run: |
+          # Configurar SSH con host key verification
           echo "$SSH_PRIVATE_KEY" > deploy_key
           chmod 600 deploy_key
           
-          # Configurar SSH
-          ssh -o StrictHostKeyChecking=no -i deploy_key $SSH_USER@$SSH_HOST << 'ENDSSH'
+          mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+          # Deploy al servidor (IMAGE_TAG ya está en env)
+          ssh -o StrictHostKeyChecking=yes -i deploy_key $SSH_USER@$SSH_HOST << ENDSSH
             set -e
             
             cd /var/www/myapi
@@ -320,7 +341,7 @@ jobs:
             echo "Current image: $CURRENT_IMAGE"
             
             # Actualizar compose con nueva imagen
-            export IMAGE_TAG=\${GITHUB_SHA:0:7}
+            export IMAGE_TAG=$IMAGE_TAG
             docker compose pull
             docker compose up -d --no-build
             
@@ -357,7 +378,7 @@ jobs:
               echo "Rolling back to previous image..."
               docker compose down
               # Restaurar imagen anterior (requiere tag versionado previo)
-              PREVIOUS_TAG=$(docker images \${{ env.IMAGE_NAME }} --format "{{.Tag}}" | grep -v latest | head -n 1)
+              PREVIOUS_TAG=$(docker images ghcr.io/\${{ github.repository }}/myapi --format "{{.Tag}}" | grep -v latest | head -n 1)
               if [ -n "$PREVIOUS_TAG" ]; then
                 export IMAGE_TAG=$PREVIOUS_TAG
                 docker compose up -d
@@ -366,7 +387,7 @@ jobs:
             fi
             
             exit 1
-          ENDSSH
+ENDSSH
           
           rm -f deploy_key
 
@@ -435,12 +456,19 @@ jobs:
           SSH_HOST: \${{ secrets.SSH_HOST }}
           SSH_USER: \${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: \${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: \${{ secrets.SSH_KNOWN_HOSTS }}
+          IMAGE_TAG: \${GITHUB_SHA:0:7}
         run: |
+          # Configurar SSH con host key verification
           echo "$SSH_PRIVATE_KEY" > deploy_key
           chmod 600 deploy_key
           
-          # Configurar SSH
-          ssh -o StrictHostKeyChecking=no -i deploy_key $SSH_USER@$SSH_HOST << 'ENDSSH'
+          mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+          # Deploy al servidor (IMAGE_TAG ya está en env)
+          ssh -o StrictHostKeyChecking=yes -i deploy_key $SSH_USER@$SSH_HOST << ENDSSH
             set -e
             
             cd /var/www/myweb
@@ -450,7 +478,7 @@ jobs:
             echo "Current image: $CURRENT_IMAGE"
             
             # Actualizar compose con nueva imagen
-            export IMAGE_TAG=\${GITHUB_SHA:0:7}
+            export IMAGE_TAG=$IMAGE_TAG
             docker compose pull
             docker compose up -d --no-build
             
@@ -478,7 +506,7 @@ jobs:
               echo "Rolling back to previous image..."
               docker compose down
               # Restaurar imagen anterior (requiere tag versionado previo)
-              PREVIOUS_TAG=$(docker images \${{ env.IMAGE_NAME }} --format "{{.Tag}}" | grep -v latest | head -n 1)
+              PREVIOUS_TAG=$(docker images ghcr.io/\${{ github.repository }}/myweb --format "{{.Tag}}" | grep -v latest | head -n 1)
               if [ -n "$PREVIOUS_TAG" ]; then
                 export IMAGE_TAG=$PREVIOUS_TAG
                 docker compose up -d
@@ -487,7 +515,7 @@ jobs:
             fi
             
             exit 1
-          ENDSSH
+ENDSSH
           
           rm -f deploy_key
 
@@ -544,10 +572,11 @@ deploy:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan $SSH_HOST >> ~/.ssh/known_hosts
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh $SSH_USER@$SSH_HOST << 'ENDSSH'
+      ssh -o StrictHostKeyChecking=yes $SSH_USER@$SSH_HOST << ENDSSH
         set -e
         
         cd /var/www/myapi
@@ -556,7 +585,7 @@ deploy:
         CURRENT_IMAGE=$(docker compose images -q app 2>/dev/null || echo "none")
         echo "Current image: $CURRENT_IMAGE"
         
-        # Actualizar compose con nueva imagen
+        # Actualizar compose con nueva imagen (IMAGE_TAG pasa desde CI)
         export IMAGE_TAG=$CI_COMMIT_SHORT_SHA
         docker compose pull
         docker compose up -d --no-build
@@ -594,7 +623,7 @@ deploy:
           echo "Rolling back to previous image..."
           docker compose down
           # Restaurar imagen anterior (requiere tag versionado previo)
-          PREVIOUS_TAG=$(docker images $IMAGE_NAME --format "{{.Tag}}" | grep -v latest | head -n 1)
+          PREVIOUS_TAG=$(docker images $CI_REGISTRY_IMAGE/myapi --format "{{.Tag}}" | grep -v latest | head -n 1)
           if [ -n "$PREVIOUS_TAG" ]; then
             export IMAGE_TAG=$PREVIOUS_TAG
             docker compose up -d
@@ -603,7 +632,7 @@ deploy:
         fi
         
         exit 1
-      ENDSSH
+ENDSSH
   after_script:
     - |
       if [ $CI_JOB_STATUS == 'success' ]; then
@@ -656,10 +685,11 @@ deploy:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan $SSH_HOST >> ~/.ssh/known_hosts
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh $SSH_USER@$SSH_HOST << 'ENDSSH'
+      ssh -o StrictHostKeyChecking=yes $SSH_USER@$SSH_HOST << ENDSSH
         set -e
         
         cd /var/www/myweb
@@ -668,7 +698,7 @@ deploy:
         CURRENT_IMAGE=$(docker compose images -q app 2>/dev/null || echo "none")
         echo "Current image: $CURRENT_IMAGE"
         
-        # Actualizar compose con nueva imagen
+        # Actualizar compose con nueva imagen (IMAGE_TAG pasa desde CI)
         export IMAGE_TAG=$CI_COMMIT_SHORT_SHA
         docker compose pull
         docker compose up -d --no-build
@@ -697,7 +727,7 @@ deploy:
           echo "Rolling back to previous image..."
           docker compose down
           # Restaurar imagen anterior (requiere tag versionado previo)
-          PREVIOUS_TAG=$(docker images $IMAGE_NAME --format "{{.Tag}}" | grep -v latest | head -n 1)
+          PREVIOUS_TAG=$(docker images $CI_REGISTRY_IMAGE/myweb --format "{{.Tag}}" | grep -v latest | head -n 1)
           if [ -n "$PREVIOUS_TAG" ]; then
             export IMAGE_TAG=$PREVIOUS_TAG
             docker compose up -d
@@ -706,7 +736,7 @@ deploy:
         fi
         
         exit 1
-      ENDSSH
+ENDSSH
   after_script:
     - |
       if [ $CI_JOB_STATUS == 'success' ]; then
@@ -759,10 +789,11 @@ deploy:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan $SSH_HOST >> ~/.ssh/known_hosts
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh $SSH_USER@$SSH_HOST << 'ENDSSH'
+      ssh -o StrictHostKeyChecking=yes $SSH_USER@$SSH_HOST << ENDSSH
         set -e
         
         cd /var/www/myapi
@@ -771,7 +802,7 @@ deploy:
         CURRENT_IMAGE=$(docker compose images -q app 2>/dev/null || echo "none")
         echo "Current image: $CURRENT_IMAGE"
         
-        # Actualizar compose con nueva imagen
+        # Actualizar compose con nueva imagen (IMAGE_TAG pasa desde CI)
         export IMAGE_TAG=$CI_COMMIT_SHORT_SHA
         docker compose pull
         docker compose up -d --no-build
@@ -809,7 +840,7 @@ deploy:
           echo "Rolling back to previous image..."
           docker compose down
           # Restaurar imagen anterior (requiere tag versionado previo)
-          PREVIOUS_TAG=$(docker images $IMAGE_NAME --format "{{.Tag}}" | grep -v latest | head -n 1)
+          PREVIOUS_TAG=$(docker images $CI_REGISTRY_IMAGE/myapi --format "{{.Tag}}" | grep -v latest | head -n 1)
           if [ -n "$PREVIOUS_TAG" ]; then
             export IMAGE_TAG=$PREVIOUS_TAG
             docker compose up -d
@@ -818,7 +849,7 @@ deploy:
         fi
         
         exit 1
-      ENDSSH
+ENDSSH
   after_script:
     - |
       if [ $CI_JOB_STATUS == 'success' ]; then
@@ -871,10 +902,11 @@ deploy:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan $SSH_HOST >> ~/.ssh/known_hosts
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh $SSH_USER@$SSH_HOST << 'ENDSSH'
+      ssh -o StrictHostKeyChecking=yes $SSH_USER@$SSH_HOST << ENDSSH
         set -e
         
         cd /var/www/myweb
@@ -883,7 +915,7 @@ deploy:
         CURRENT_IMAGE=$(docker compose images -q app 2>/dev/null || echo "none")
         echo "Current image: $CURRENT_IMAGE"
         
-        # Actualizar compose con nueva imagen
+        # Actualizar compose con nueva imagen (IMAGE_TAG pasa desde CI)
         export IMAGE_TAG=$CI_COMMIT_SHORT_SHA
         docker compose pull
         docker compose up -d --no-build
@@ -912,7 +944,7 @@ deploy:
           echo "Rolling back to previous image..."
           docker compose down
           # Restaurar imagen anterior (requiere tag versionado previo)
-          PREVIOUS_TAG=$(docker images $IMAGE_NAME --format "{{.Tag}}" | grep -v latest | head -n 1)
+          PREVIOUS_TAG=$(docker images $CI_REGISTRY_IMAGE/myweb --format "{{.Tag}}" | grep -v latest | head -n 1)
           if [ -n "$PREVIOUS_TAG" ]; then
             export IMAGE_TAG=$PREVIOUS_TAG
             docker compose up -d
@@ -921,7 +953,7 @@ deploy:
         fi
         
         exit 1
-      ENDSSH
+ENDSSH
   after_script:
     - |
       if [ $CI_JOB_STATUS == 'success' ]; then

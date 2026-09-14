@@ -3,11 +3,14 @@
  * Framework-agnostic según Artículo II de CONSTITUTION.md.
  */
 
+import { writeFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import type { 
   DeployConfig, 
   WorkflowGenerationResult, 
   SecretConfig,
-  DeployCommands 
+  DeployCommands,
+  TargetType 
 } from './types.js';
 
 export class GitHubActionsGenerator {
@@ -41,7 +44,7 @@ export class GitHubActionsGenerator {
   /**
    * Genera el workflow de GitHub Actions.
    */
-  generate(config: DeployConfig): WorkflowGenerationResult {
+  async generate(config: DeployConfig): Promise<WorkflowGenerationResult> {
     const validation = this.validateConfig(config);
     if (!validation.valid) {
       return {
@@ -53,13 +56,26 @@ export class GitHubActionsGenerator {
 
     const secrets = this.getRequiredSecrets(config);
     const crossRepoSecrets = this.getCrossRepoSecrets(config);
+    const content = this.generateWorkflowContent(config);
 
-    return {
-      success: true,
-      filePath: config.outputPath,
-      secrets,
-      crossRepoSecrets,
-    };
+    try {
+      await mkdir(dirname(config.outputPath), { recursive: true });
+      await writeFile(config.outputPath, content, 'utf-8');
+
+      return {
+        success: true,
+        filePath: config.outputPath,
+        content,
+        secrets,
+        crossRepoSecrets,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        secrets,
+        error: `Failed to write workflow: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
   }
 
   /**
@@ -117,6 +133,10 @@ export class GitHubActionsGenerator {
       {
         name: 'SSH_PRIVATE_KEY',
         description: 'Clave privada SSH para autenticación en el servidor',
+      },
+      {
+        name: 'SSH_KNOWN_HOSTS',
+        description: 'Host key del servidor (output de ssh-keyscan durante provisioning). Formato: "[host]:port ssh-ed25519 AAAA..."',
       },
       {
         name: 'DOCKER_REGISTRY_USER',
@@ -206,9 +226,7 @@ export class GitHubActionsGenerator {
    */
   private generateWorkflow(config: DeployConfig, commands: DeployCommands): string {
     const timestamp = new Date().toISOString();
-    const gitSha = '${{ github.sha }}';
-    const shortSha = '${GITHUB_SHA:0:7}';
-    const imageTag = `\${GITHUB_SHA:0:7}`;
+    const imageTagExpr = '\${GITHUB_SHA:0:7}';
 
     let workflow = `# Workflow de deploy generado por Fractal
 # Generado: ${timestamp}
@@ -253,7 +271,7 @@ jobs:
           context: .
           push: true
           tags: |
-            \${{ env.IMAGE_NAME }}:${imageTag}
+            \${{ env.IMAGE_NAME }}:${imageTagExpr}
             \${{ env.IMAGE_NAME }}:latest
           cache-from: type=registry,ref=\${{ env.IMAGE_NAME }}:latest
           cache-to: type=inline
@@ -263,12 +281,19 @@ jobs:
           SSH_HOST: \${{ secrets.SSH_HOST }}
           SSH_USER: \${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: \${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: \${{ secrets.SSH_KNOWN_HOSTS }}
+          IMAGE_TAG: ${imageTagExpr}
         run: |
+          # Configurar SSH con host key verification
           echo "\$SSH_PRIVATE_KEY" > deploy_key
           chmod 600 deploy_key
           
-          # Configurar SSH
-          ssh -o StrictHostKeyChecking=no -i deploy_key \$SSH_USER@\$SSH_HOST << 'ENDSSH'
+          mkdir -p ~/.ssh
+          echo "\$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          
+          # Deploy al servidor (IMAGE_TAG ya está en env)
+          ssh -o StrictHostKeyChecking=yes -i deploy_key \$SSH_USER@\$SSH_HOST << ENDSSH
             set -e
             
             cd /var/www/${config.projectName}
@@ -278,7 +303,7 @@ jobs:
             echo "Current image: \$CURRENT_IMAGE"
             
             # Actualizar compose con nueva imagen
-            export IMAGE_TAG=${imageTag}
+            export IMAGE_TAG=\$IMAGE_TAG
             docker compose pull
             docker compose up -d --no-build
             
@@ -320,7 +345,7 @@ jobs:
               echo "Rolling back to previous image..."
               docker compose down
               # Restaurar imagen anterior (requiere tag versionado previo)
-              PREVIOUS_TAG=\$(docker images \${{ env.IMAGE_NAME }} --format "{{.Tag}}" | grep -v latest | head -n 1)
+              PREVIOUS_TAG=\$(docker images ghcr.io/\${{ github.repository }}/${config.projectName} --format "{{.Tag}}" | grep -v latest | head -n 1)
               if [ -n "\$PREVIOUS_TAG" ]; then
                 export IMAGE_TAG=\$PREVIOUS_TAG
                 docker compose up -d
@@ -329,7 +354,7 @@ jobs:
             fi
             
             exit 1
-          ENDSSH
+ENDSSH
           
           rm -f deploy_key
 

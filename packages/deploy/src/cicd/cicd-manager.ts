@@ -19,12 +19,12 @@ export class CicdManager {
   /**
    * Genera el workflow o pipeline según el proveedor configurado.
    */
-  generate(config: DeployConfig): WorkflowGenerationResult {
+  async generate(config: DeployConfig): Promise<WorkflowGenerationResult> {
     switch (config.provider) {
       case 'github-actions':
-        return this.githubGenerator.generate(config);
+        return await this.githubGenerator.generate(config);
       case 'gitlab-ci':
-        return this.gitlabGenerator.generate(config);
+        return await this.gitlabGenerator.generate(config);
       default:
         return {
           success: false,

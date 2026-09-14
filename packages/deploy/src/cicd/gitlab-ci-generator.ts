@@ -3,11 +3,14 @@
  * Framework-agnostic según Artículo II de CONSTITUTION.md.
  */
 
+import { writeFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import type { 
   DeployConfig, 
   WorkflowGenerationResult, 
   SecretConfig,
-  DeployCommands 
+  DeployCommands,
+  TargetType 
 } from './types.js';
 
 export class GitLabCiGenerator {
@@ -41,7 +44,7 @@ export class GitLabCiGenerator {
   /**
    * Genera el pipeline de GitLab CI.
    */
-  generate(config: DeployConfig): WorkflowGenerationResult {
+  async generate(config: DeployConfig): Promise<WorkflowGenerationResult> {
     const validation = this.validateConfig(config);
     if (!validation.valid) {
       return {
@@ -53,13 +56,26 @@ export class GitLabCiGenerator {
 
     const secrets = this.getRequiredSecrets(config);
     const crossRepoSecrets = this.getCrossRepoSecrets(config);
+    const content = this.generatePipelineContent(config);
 
-    return {
-      success: true,
-      filePath: config.outputPath,
-      secrets,
-      crossRepoSecrets,
-    };
+    try {
+      await mkdir(dirname(config.outputPath), { recursive: true });
+      await writeFile(config.outputPath, content, 'utf-8');
+
+      return {
+        success: true,
+        filePath: config.outputPath,
+        content,
+        secrets,
+        crossRepoSecrets,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        secrets,
+        error: `Failed to write pipeline: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
   }
 
   /**
@@ -118,6 +134,10 @@ export class GitLabCiGenerator {
       {
         name: 'SSH_PRIVATE_KEY',
         description: 'Clave privada SSH para autenticación en el servidor',
+      },
+      {
+        name: 'SSH_KNOWN_HOSTS',
+        description: 'Host key del servidor (output de ssh-keyscan durante provisioning). Formato: "[host]:port ssh-ed25519 AAAA..."',
       },
       {
         name: 'DOCKER_REGISTRY_USER',
@@ -207,7 +227,6 @@ export class GitLabCiGenerator {
    */
   private generatePipeline(config: DeployConfig, commands: DeployCommands): string {
     const timestamp = new Date().toISOString();
-    const imageTag = '$CI_COMMIT_SHORT_SHA';
 
     let pipeline = `# Pipeline de deploy generado por Fractal
 # Generado: ${timestamp}
@@ -234,8 +253,8 @@ build:
   before_script:
     - docker login -u $DOCKER_REGISTRY_USER -p $DOCKER_REGISTRY_TOKEN $CI_REGISTRY
   script:
-    - docker build -t $IMAGE_NAME:${imageTag} -t $IMAGE_NAME:latest .
-    - docker push $IMAGE_NAME:${imageTag}
+    - docker build -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA -t $IMAGE_NAME:latest .
+    - docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
     - docker push $IMAGE_NAME:latest
 
 deploy:
@@ -250,20 +269,21 @@ deploy:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan $SSH_HOST >> ~/.ssh/known_hosts
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh $SSH_USER@$SSH_HOST << 'ENDSSH'
+      ssh -o StrictHostKeyChecking=yes $SSH_USER@$SSH_HOST << ENDSSH
         set -e
         
         cd /var/www/${config.projectName}
         
         # Guardar imagen actual para rollback
-        CURRENT_IMAGE=$(docker compose images -q app 2>/dev/null || echo "none")
-        echo "Current image: $CURRENT_IMAGE"
+        CURRENT_IMAGE=\$(docker compose images -q app 2>/dev/null || echo "none")
+        echo "Current image: \$CURRENT_IMAGE"
         
-        # Actualizar compose con nueva imagen
-        export IMAGE_TAG=${imageTag}
+        # Actualizar compose con nueva imagen (IMAGE_TAG pasa desde CI)
+        export IMAGE_TAG=$CI_COMMIT_SHORT_SHA
         docker compose pull
         docker compose up -d --no-build
         
@@ -286,35 +306,35 @@ deploy:
     pipeline += `        
         # Healthcheck
         HEALTH_URL="https://${config.domain}${commands.healthcheckPath}"
-        echo "Checking health at $HEALTH_URL"
+        echo "Checking health at \$HEALTH_URL"
         
-        for i in $(seq 1 30); do
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" $HEALTH_URL || echo "000")
-          if [ "$HTTP_CODE" = "200" ]; then
+        for i in \$(seq 1 30); do
+          HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \$HEALTH_URL || echo "000")
+          if [ "\$HTTP_CODE" = "200" ]; then
             echo "✓ Healthcheck passed"
             exit 0
           fi
-          echo "Attempt $i/30: HTTP $HTTP_CODE, retrying..."
+          echo "Attempt \$i/30: HTTP \$HTTP_CODE, retrying..."
           sleep 2
         done
         
         echo "✗ Healthcheck failed after 30 attempts"
         
         # Rollback a la imagen anterior
-        if [ "$CURRENT_IMAGE" != "none" ]; then
+        if [ "\$CURRENT_IMAGE" != "none" ]; then
           echo "Rolling back to previous image..."
           docker compose down
           # Restaurar imagen anterior (requiere tag versionado previo)
-          PREVIOUS_TAG=$(docker images $IMAGE_NAME --format "{{.Tag}}" | grep -v latest | head -n 1)
-          if [ -n "$PREVIOUS_TAG" ]; then
-            export IMAGE_TAG=$PREVIOUS_TAG
+          PREVIOUS_TAG=\$(docker images $CI_REGISTRY_IMAGE/${config.projectName} --format "{{.Tag}}" | grep -v latest | head -n 1)
+          if [ -n "\$PREVIOUS_TAG" ]; then
+            export IMAGE_TAG=\$PREVIOUS_TAG
             docker compose up -d
-            echo "Rolled back to $PREVIOUS_TAG"
+            echo "Rolled back to \$PREVIOUS_TAG"
           fi
         fi
         
         exit 1
-      ENDSSH
+ENDSSH
   after_script:
     - |
       if [ $CI_JOB_STATUS == 'success' ]; then

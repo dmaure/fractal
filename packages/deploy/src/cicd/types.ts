@@ -78,6 +78,9 @@ export interface WorkflowGenerationResult {
   /** Path del archivo generado */
   filePath?: string;
   
+  /** Contenido YAML del workflow generado */
+  content?: string;
+  
   /** Secrets requeridos para este repo */
   secrets: SecretConfig[];
   
