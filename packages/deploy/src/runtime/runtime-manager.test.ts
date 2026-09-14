@@ -16,20 +16,47 @@ describe('RuntimeManager', () => {
 
   describe('setup', () => {
     it('should complete full setup successfully', async () => {
-      // Mock Docker already installed
+      // Mock shouldRerunStep: readState
       vi.mocked(mockSshClient.executeCommand)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{}',
+          stderr: '',
+          exitCode: 0,
+        })
+        // Mock markStep (pending): readState + mkdir + write
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{}',
+          stderr: '',
+          exitCode: 0,
+        })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        // Mock Docker already installed
         .mockResolvedValueOnce({
           success: true,
           stdout: 'Docker version 24.0.7, build...',
           stderr: '',
+          exitCode: 0,
         })
         .mockResolvedValueOnce({
           success: true,
           stdout: 'Docker Compose version v2.24.5',
           stderr: '',
+          exitCode: 0,
         })
         // writeComposeFile mock
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' });
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        // Mock markStep (completed): readState + mkdir + write
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{"version":"1.0.0","provisioning":{},"deployHistory":[]}',
+          stderr: '',
+          exitCode: 0,
+        })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 });
 
       const config: RuntimeConfig = {
         compose: {
@@ -69,18 +96,45 @@ describe('RuntimeManager', () => {
     });
 
     it('should fail if compose config is invalid', async () => {
-      // Mock Docker installed
+      // Mock shouldRerunStep: readState
       vi.mocked(mockSshClient.executeCommand)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{}',
+          stderr: '',
+          exitCode: 0,
+        })
+        // Mock markStep (pending): readState + mkdir + write
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{}',
+          stderr: '',
+          exitCode: 0,
+        })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        // Mock Docker installed
         .mockResolvedValueOnce({
           success: true,
           stdout: 'Docker version 24.0.7',
           stderr: '',
+          exitCode: 0,
         })
         .mockResolvedValueOnce({
           success: true,
           stdout: 'Docker Compose version v2.24.5',
           stderr: '',
-        });
+          exitCode: 0,
+        })
+        // Mock markStep (failed): readState + mkdir + write
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{"version":"1.0.0","provisioning":{},"deployHistory":[]}',
+          stderr: '',
+          exitCode: 0,
+        })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 });
 
       const config: RuntimeConfig = {
         compose: {

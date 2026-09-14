@@ -4,14 +4,19 @@ import type {
   HardeningResult,
   PortCheckResult,
 } from './types.js';
+import { StateManager } from '../state/state-manager.js';
 
 /**
  * Manejador de hardening del sistema.
- * Implementa AC-3 y AC-14 del SPEC-0003.
+ * Implementa AC-3, AC-11 (Idempotencia) y AC-14 del SPEC-0003.
  * Framework-agnostic: usa comandos estándar de Linux.
  */
 export class SystemHardening {
-  constructor(private sshClient: SshClient) {}
+  private stateManager: StateManager;
+
+  constructor(private sshClient: SshClient) {
+    this.stateManager = new StateManager(sshClient);
+  }
 
   /**
    * Valida que los puertos requeridos (80, 443) estén disponibles.
@@ -50,15 +55,39 @@ export class SystemHardening {
   /**
    * Ejecuta el hardening completo del sistema.
    * Implementa AC-3: usuario deploy, SSH hardening, firewall.
+   * Implementa AC-11: chequea el estado antes de ejecutar y es idempotente.
    * Solo debe ejecutarse después de verificar que los puertos están libres.
    */
   async harden(config: HardeningConfig): Promise<HardeningResult> {
     const steps: string[] = [];
 
     try {
+      // Generar hash de configuración para detectar cambios
+      const configHash = StateManager.generateConfigHash(config);
+
+      // Verificar si el hardening ya fue aplicado con esta configuración
+      const shouldRerun = await this.stateManager.shouldRerunStep('hardening', configHash);
+
+      if (!shouldRerun) {
+        // El hardening ya fue aplicado y no cambió la configuración
+        return {
+          success: true,
+          steps: ['Hardening ya aplicado (idempotencia)'],
+        };
+      }
+
+      // Marcar como en progreso
+      await this.stateManager.markStep('hardening', 'pending', configHash);
+
       // 1. Crear usuario deploy
       const userCreated = await this.createDeployUser(config.deployUser);
       if (!userCreated) {
+        await this.stateManager.markStep(
+          'hardening',
+          'failed',
+          configHash,
+          `No se pudo crear el usuario ${config.deployUser}`
+        );
         return {
           success: false,
           steps,
@@ -73,6 +102,12 @@ export class SystemHardening {
         config.sshPublicKey
       );
       if (!sshConfigured) {
+        await this.stateManager.markStep(
+          'hardening',
+          'failed',
+          configHash,
+          `No se pudo configurar SSH para ${config.deployUser}`
+        );
         return {
           success: false,
           steps,
@@ -84,6 +119,12 @@ export class SystemHardening {
       // 3. Hardening de SSH: deshabilitar root login y password auth
       const sshHardened = await this.hardenSshd();
       if (!sshHardened) {
+        await this.stateManager.markStep(
+          'hardening',
+          'failed',
+          configHash,
+          'No se pudo endurecer la configuración de SSH'
+        );
         return {
           success: false,
           steps,
@@ -96,6 +137,12 @@ export class SystemHardening {
       const allowedPorts = config.allowedPorts || [22, 80, 443];
       const firewallConfigured = await this.configureFirewall(allowedPorts);
       if (!firewallConfigured) {
+        await this.stateManager.markStep(
+          'hardening',
+          'failed',
+          configHash,
+          'No se pudo configurar el firewall UFW'
+        );
         return {
           success: false,
           steps,
@@ -104,11 +151,21 @@ export class SystemHardening {
       }
       steps.push(`Firewall UFW configurado (puertos: ${allowedPorts.join(', ')})`); 
 
+      // Marcar como completado
+      await this.stateManager.markStep('hardening', 'completed', configHash);
+
       return {
         success: true,
         steps,
       };
     } catch (error) {
+      const configHash = StateManager.generateConfigHash(config);
+      await this.stateManager.markStep(
+        'hardening',
+        'failed',
+        configHash,
+        error instanceof Error ? error.message : 'Error desconocido'
+      );
       return {
         success: false,
         steps,
