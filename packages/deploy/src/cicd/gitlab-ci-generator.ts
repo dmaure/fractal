@@ -282,7 +282,12 @@ deploy:
         STATE_FILE="/etc/fractal/state.json"
         PREVIOUS_TAG=""
         if [ -f "\$STATE_FILE" ]; then
-          PREVIOUS_TAG=\$(sudo cat \$STATE_FILE | grep -o '"lastSuccessfulImageTag":"[^"]*"' | cut -d'"' -f4 || echo "")
+          # Usar jq si está disponible, sino python con json.load (robusto contra pretty-print)
+          if command -v jq &> /dev/null; then
+            PREVIOUS_TAG=\$(sudo cat \$STATE_FILE | jq -r '.lastSuccessfulImageTag // ""')
+          else
+            PREVIOUS_TAG=\$(sudo cat \$STATE_FILE | python3 -c "import sys, json; print(json.load(sys.stdin).get('lastSuccessfulImageTag', ''))")
+          fi
           echo "Previous successful tag: \$PREVIOUS_TAG"
         fi
         
@@ -374,8 +379,25 @@ print(json.dumps(state, indent=2))
           if [ -n "\$PREVIOUS_TAG" ]; then
             echo "Rolling back to previous successful tag: \$PREVIOUS_TAG"
             export IMAGE_TAG=\$PREVIOUS_TAG
+            
+            # Asegurar que la imagen anterior esté disponible
+            docker compose pull || echo "⚠ Pull failed, using local image"
+            
             docker compose up -d
             echo "✓ Rolled back to \$PREVIOUS_TAG"
+            
+            # Post-rollback healthcheck
+            echo "Verifying rollback with healthcheck..."
+            sleep 5
+            for i in \$(seq 1 10); do
+              HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \$HEALTH_URL || echo "000")
+              if [ "\$HTTP_CODE" = "200" ]; then
+                echo "✓ Post-rollback healthcheck passed"
+                break
+              fi
+              echo "Post-rollback attempt \$i/10: HTTP \$HTTP_CODE, retrying..."
+              sleep 2
+            done
           else
             echo "⚠ No previous successful tag found for rollback"
           fi
