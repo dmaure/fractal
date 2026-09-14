@@ -3,18 +3,17 @@
  * Framework-agnostic según Artículo II de CONSTITUTION.md.
  */
 
+import type { TargetType } from '../runtime/types.js';
+
 /**
  * Proveedor de CI/CD soportado.
  */
 export type CicdProvider = 'github-actions' | 'gitlab-ci';
 
 /**
- * Tipo de target desplegable.
- * Determina los comandos de build, migración y cache.
+ * Re-export TargetType from runtime for convenience.
  */
-export type TargetType = 
-  | 'backend-full'
-  | 'frontend-static';
+export type { TargetType };
 
 /**
  * Configuración de un secret requerido.
