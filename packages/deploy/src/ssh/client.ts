@@ -144,6 +144,44 @@ export class SshClient {
   }
 
   /**
+   * Lee el contenido de un archivo remoto.
+   */
+  async readFile(remotePath: string): Promise<{ success: boolean; content?: string; error?: string }> {
+    const result = await this.executeCommand(`cat ${remotePath}`);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || result.stderr || 'Error al leer archivo',
+      };
+    }
+
+    return {
+      success: true,
+      content: result.stdout,
+    };
+  }
+
+  /**
+   * Escribe contenido en un archivo remoto.
+   */
+  async writeFile(remotePath: string, content: string): Promise<{ success: boolean; error?: string }> {
+    // Escapar el contenido para que sea seguro en el comando
+    const escapedContent = content.replace(/'/g, "'\\''");
+    
+    const result = await this.executeCommand(`echo '${escapedContent}' > ${remotePath}`);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || result.stderr || 'Error al escribir archivo',
+      };
+    }
+
+    return { success: true };
+  }
+
+  /**
    * Establece la conexión SSH con las credenciales configuradas.
    * Siempre verifica la clave del host: ssh2 auto-acepta si hostVerifier falta.
    */
