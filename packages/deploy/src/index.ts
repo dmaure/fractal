@@ -6,4 +6,5 @@ export * from './dns/index.js';
 export * from './manifest/index.js';
 export * from './cross-vars/index.js';
 export * from './ssl/index.js';
+export * from './state/index.js';
 export * from './cicd/index.js';

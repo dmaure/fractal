@@ -777,7 +777,33 @@ describe('SystemHardening', () => {
     });
 
     it('debe manejar errores inesperados', async () => {
-      executeCommandMock.mockRejectedValue(new Error('Network error'));
+      // Mock StateManager calls (shouldRerunStep + markStep)
+      executeCommandMock
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{}',
+          stderr: '',
+          exitCode: 0,
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{}',
+          stderr: '',
+          exitCode: 0,
+        })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        // Actual error in harden process
+        .mockRejectedValueOnce(new Error('Network error'))
+        // Mock StateManager markStep (failed)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: '{}',
+          stderr: '',
+          exitCode: 0,
+        })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 });
 
       const result = await systemHardening.harden(validConfig);
 
