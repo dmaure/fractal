@@ -298,9 +298,13 @@ jobs:
             
             cd /var/www/${config.projectName}
             
-            # Guardar imagen actual para rollback
-            CURRENT_IMAGE=\$(docker compose images -q app 2>/dev/null || echo "none")
-            echo "Current image: \$CURRENT_IMAGE"
+            # Leer estado del servidor para obtener tag anterior para rollback
+            STATE_FILE="/etc/fractal/state.json"
+            PREVIOUS_TAG=""
+            if [ -f "\$STATE_FILE" ]; then
+              PREVIOUS_TAG=\$(sudo cat \$STATE_FILE | grep -o '"lastSuccessfulImageTag":"[^"]*"' | cut -d'"' -f4 || echo "")
+              echo "Previous successful tag: \$PREVIOUS_TAG"
+            fi
             
             # Actualizar compose con nueva imagen
             export IMAGE_TAG=\$IMAGE_TAG
@@ -328,32 +332,76 @@ jobs:
             HEALTH_URL="https://${config.domain}${commands.healthcheckPath}"
             echo "Checking health at \$HEALTH_URL"
             
+            HEALTHCHECK_PASSED=false
             for i in {1..30}; do
               HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \$HEALTH_URL || echo "000")
               if [ "\$HTTP_CODE" = "200" ]; then
                 echo "✓ Healthcheck passed"
-                exit 0
+                HEALTHCHECK_PASSED=true
+                break
               fi
               echo "Attempt \$i/30: HTTP \$HTTP_CODE, retrying..."
               sleep 2
             done
             
-            echo "✗ Healthcheck failed after 30 attempts"
-            
-            # Rollback a la imagen anterior
-            if [ "\$CURRENT_IMAGE" != "none" ]; then
-              echo "Rolling back to previous image..."
-              docker compose down
-              # Restaurar imagen anterior (requiere tag versionado previo)
-              PREVIOUS_TAG=\$(docker images ghcr.io/\${{ github.repository }}/${config.projectName} --format "{{.Tag}}" | grep -v latest | head -n 1)
+            # Registrar el deploy en el estado del servidor
+            TIMESTAMP=\$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+            if [ "\$HEALTHCHECK_PASSED" = true ]; then
+              # Deploy exitoso - actualizar estado
+              sudo mkdir -p \$(dirname \$STATE_FILE)
+              if [ -f "\$STATE_FILE" ]; then
+                # Leer estado actual
+                CURRENT_STATE=\$(sudo cat \$STATE_FILE)
+              else
+                # Crear estado inicial
+                CURRENT_STATE='{"version":"1.0.0","createdAt":"'\$TIMESTAMP'","provisioning":{},"deployHistory":[]}'
+              fi
+              
+              # Agregar entrada al historial
+              NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"passed","commitSha":"'\${GITHUB_SHA}'","branch":"'\${GITHUB_REF_NAME}'"}'
+              UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "
+import sys, json
+state = json.load(sys.stdin)
+state['updatedAt'] = '\$TIMESTAMP'
+state['currentImageTag'] = '\$IMAGE_TAG'
+state['lastSuccessfulImageTag'] = '\$IMAGE_TAG'
+state['deployHistory'].insert(0, \$NEW_ENTRY)
+state['deployHistory'] = state['deployHistory'][:10]
+print(json.dumps(state, indent=2))
+")
+              echo "\$UPDATED_STATE" | sudo tee \$STATE_FILE > /dev/null
+              echo "✓ Deploy state updated"
+              exit 0
+            else
+              echo "✗ Healthcheck failed after 30 attempts"
+              
+              # Registrar deploy fallido en el estado
+              if [ -f "\$STATE_FILE" ]; then
+                CURRENT_STATE=\$(sudo cat \$STATE_FILE)
+                NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"failed","commitSha":"'\${GITHUB_SHA}'","branch":"'\${GITHUB_REF_NAME}'"}'
+                UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "
+import sys, json
+state = json.load(sys.stdin)
+state['updatedAt'] = '\$TIMESTAMP'
+state['deployHistory'].insert(0, \$NEW_ENTRY)
+state['deployHistory'] = state['deployHistory'][:10]
+print(json.dumps(state, indent=2))
+")
+                echo "\$UPDATED_STATE" | sudo tee \$STATE_FILE > /dev/null
+              fi
+              
+              # Rollback a la imagen anterior (AC-10: usar tag versionado, no contenedor previo)
               if [ -n "\$PREVIOUS_TAG" ]; then
+                echo "Rolling back to previous successful tag: \$PREVIOUS_TAG"
                 export IMAGE_TAG=\$PREVIOUS_TAG
                 docker compose up -d
-                echo "Rolled back to \$PREVIOUS_TAG"
+                echo "✓ Rolled back to \$PREVIOUS_TAG"
+              else
+                echo "⚠ No previous successful tag found for rollback"
               fi
+              
+              exit 1
             fi
-            
-            exit 1
 ENDSSH
           
           rm -f deploy_key
