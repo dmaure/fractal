@@ -197,6 +197,16 @@ export async function deployCommand(
     process.exit(0);
   }
   
+  // Decisión de producto #4: Abortar si Route53 (antes de hacer cualquier trabajo)
+  if (params.dnsProvider === 'route53') {
+    console.error(chalk.red('\n❌ Error: Route53 no está soportado en esta versión'));
+    console.log(chalk.yellow('\nProveedores DNS soportados:'));
+    console.log(chalk.dim('  • Cloudflare (automatizado)'));
+    console.log(chalk.dim('  • Manual (configuración manual)'));
+    console.log(chalk.yellow('\nPor favor, ejecuta nuevamente el comando y selecciona un proveedor soportado.'));
+    process.exit(1);
+  }
+  
   // AC-13: Actualizar manifiesto si se recolectó info del hermano
   let crossVarResult: Awaited<ReturnType<CrossVarWriter['write']>> | undefined;
   
@@ -354,6 +364,7 @@ export async function deployCommand(
   
   // Decisión de producto #1: Derivar clave pública o solicitarla
   let sshPublicKey: string | null = null;
+  let deployPrivateKeyPath: string | undefined;
   
   if (params.authMethod === 'key' && params.sshKeyPath) {
     console.log(chalk.dim('→ Derivando clave pública SSH...'));
@@ -366,11 +377,15 @@ export async function deployCommand(
       console.log(chalk.dim('  • La clave privada tenga el formato correcto'));
       process.exit(1);
     }
+    
+    // Usar la misma clave privada para reconectar como deploy
+    deployPrivateKeyPath = params.sshKeyPath;
   } else if (params.authMethod === 'password') {
-    // Solicitar clave pública para el usuario deploy
+    // Solicitar clave pública y clave privada para el usuario deploy
     const { input } = await import('@inquirer/prompts');
     console.log(chalk.yellow('\n⚠️  Autenticación por contraseña detectada'));
-    console.log(chalk.dim('   Se necesita una clave pública SSH para el usuario deploy\n'));
+    console.log(chalk.dim('   Después del hardening, la autenticación por contraseña se deshabilitará.'));
+    console.log(chalk.dim('   Se necesita un par de claves SSH para el usuario deploy.\n'));
     
     sshPublicKey = await input({
       message: 'Clave pública SSH para el usuario deploy:',
@@ -380,10 +395,24 @@ export async function deployCommand(
         return true;
       },
     });
+    
+    deployPrivateKeyPath = await input({
+      message: 'Ruta a la clave privada SSH correspondiente (para reconectar como deploy):',
+      default: '~/.ssh/id_rsa',
+      validate: (value) => {
+        if (!value.trim()) return 'La ruta a la clave privada es requerida';
+        return true;
+      },
+    });
   }
   
   if (!sshPublicKey) {
     console.error(chalk.red('\n❌ Error: No se pudo obtener la clave pública SSH'));
+    process.exit(1);
+  }
+  
+  if (!deployPrivateKeyPath) {
+    console.error(chalk.red('\n❌ Error: No se pudo obtener la ruta a la clave privada para reconexión'));
     process.exit(1);
   }
   
@@ -417,7 +446,7 @@ export async function deployCommand(
   const deployClient = new SshClient({
     host: params.serverIp,
     username: 'deploy',
-    privateKeyPath: params.authMethod === 'key' ? params.sshKeyPath : undefined,
+    privateKeyPath: deployPrivateKeyPath,
     timeout: 120_000,
     onUnknownHost: (info) => confirmUnknownHost(info),
   });
@@ -498,16 +527,6 @@ export async function deployCommand(
   
   // AC-5 y AC-6: DNS setup
   console.log(chalk.blue('\n🌐 Configurando DNS...\n'));
-  
-  // Decisión de producto #4: Abortar si Route53
-  if (params.dnsProvider === 'route53') {
-    console.error(chalk.red('\n❌ Error: Route53 no está soportado en esta versión'));
-    console.log(chalk.yellow('\nProveedores DNS soportados:'));
-    console.log(chalk.dim('  • Cloudflare (automatizado)'));
-    console.log(chalk.dim('  • Manual (configuración manual)'));
-    console.log(chalk.yellow('\nPor favor, ejecuta nuevamente el comando y selecciona un proveedor soportado.'));
-    process.exit(1);
-  }
   
   // Decisión de producto #7: Wrap DNS con StateManager
   const dnsStateManager = new StateManager(deployClient);
@@ -622,3 +641,11 @@ export async function deployCommand(
   console.log(chalk.dim(`\n   Tu aplicación estará disponible en: https://${params.domain}`));
   console.log(chalk.dim('   (Una vez que el DNS propague y configures SSL en un paso futuro)\n'));
 }
+
+// Exportar funciones helper para testing
+export {
+  deriveSshPublicKey,
+  determineProjectName,
+  determineTargetType,
+  writeCrossVarsToDisk,
+};
