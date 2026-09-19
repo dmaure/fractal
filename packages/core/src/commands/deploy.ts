@@ -23,11 +23,11 @@ import {
 async function deriveSshPublicKey(privateKeyPath: string): Promise<string | null> {
   try {
     const expandedPath = privateKeyPath.replace('~', homedir());
-    const { exec } = await import('node:child_process');
+    const { execFile } = await import('node:child_process');
     const { promisify } = await import('node:util');
-    const execAsync = promisify(exec);
+    const execFileAsync = promisify(execFile);
     
-    const { stdout, stderr } = await execAsync(`ssh-keygen -y -f "${expandedPath}"`);
+    const { stdout, stderr } = await execFileAsync('ssh-keygen', ['-y', '-f', expandedPath]);
     
     if (stderr && !stdout) {
       return null;
@@ -92,52 +92,39 @@ async function writeCrossVarsToDisk(
   try {
     const { writeFile, mkdir } = await import('node:fs/promises');
     
-    if (role === 'web') {
-      // Para web: escribir en .env.production para Vite
-      const envPath = resolve(projectDir, '.env.production');
-      const envContent = Object.entries(vars)
-        .map(([key, value]) => `${key}=${value}`)
-        .join('\n') + '\n';
-      
-      await writeFile(envPath, envContent, 'utf-8');
-      
-      return { success: true };
-    } else {
-      // Para api: escribir en .env
-      const envPath = resolve(projectDir, '.env');
-      
-      // Leer el .env existente si existe
-      let existingContent = '';
-      try {
-        existingContent = await readFile(envPath, 'utf-8');
-      } catch {
-        // Si no existe, está bien
-      }
-      
-      // Agregar o actualizar las variables
-      const lines = existingContent.split('\n');
-      const varsToWrite = { ...vars };
-      
-      // Actualizar variables existentes
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        for (const key of Object.keys(varsToWrite)) {
-          if (line.startsWith(`${key}=`)) {
-            lines[i] = `${key}=${varsToWrite[key]}`;
-            delete varsToWrite[key];
-          }
+    const envPath = role === 'web' ? resolve(projectDir, '.env.production') : resolve(projectDir, '.env');
+    
+    // Leer el archivo existente si existe
+    let existingContent = '';
+    try {
+      existingContent = await readFile(envPath, 'utf-8');
+    } catch {
+      // Si no existe, está bien
+    }
+    
+    // Agregar o actualizar las variables
+    const lines = existingContent.split('\n');
+    const varsToWrite = { ...vars };
+    
+    // Actualizar variables existentes
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      for (const key of Object.keys(varsToWrite)) {
+        if (line.startsWith(`${key}=`)) {
+          lines[i] = `${key}=${varsToWrite[key]}`;
+          delete varsToWrite[key];
         }
       }
-      
-      // Agregar variables nuevas al final
-      for (const [key, value] of Object.entries(varsToWrite)) {
-        lines.push(`${key}=${value}`);
-      }
-      
-      await writeFile(envPath, lines.join('\n'), 'utf-8');
-      
-      return { success: true };
     }
+    
+    // Agregar variables nuevas al final
+    for (const [key, value] of Object.entries(varsToWrite)) {
+      lines.push(`${key}=${value}`);
+    }
+    
+    await writeFile(envPath, lines.join('\n'), 'utf-8');
+    
+    return { success: true };
   } catch (error) {
     return {
       success: false,
@@ -499,8 +486,10 @@ export async function deployCommand(
   }
   
   console.log(chalk.green('✓ Runtime configurado'));
-  for (const step of runtimeResult.dockerInstall.steps) {
-    console.log(chalk.dim(`   • ${step}`));
+  if (runtimeResult.dockerInstall) {
+    for (const step of runtimeResult.dockerInstall.steps) {
+      console.log(chalk.dim(`   • ${step}`));
+    }
   }
   
   if (runtimeResult.composeGeneration) {
