@@ -92,6 +92,16 @@ async function writeCrossVarsToDisk(
   try {
     const { writeFile, mkdir } = await import('node:fs/promises');
     
+    // Validar que ningún valor contenga newlines (prevenir inyección)
+    for (const [key, value] of Object.entries(vars)) {
+      if (value.includes('\n') || value.includes('\r')) {
+        return {
+          success: false,
+          error: `El valor de ${key} contiene caracteres de nueva línea, lo cual no está permitido en archivos .env`,
+        };
+      }
+    }
+    
     const envPath = role === 'web' ? resolve(projectDir, '.env.production') : resolve(projectDir, '.env');
     
     // Leer el archivo existente si existe
@@ -379,6 +389,9 @@ export async function deployCommand(
       validate: (value) => {
         if (!value.trim()) return 'La clave pública es requerida';
         if (!value.startsWith('ssh-')) return 'La clave debe comenzar con ssh-rsa, ssh-ed25519, etc.';
+        if (value.includes('\n') || value.includes('\r')) return 'La clave pública no puede contener saltos de línea';
+        // Verificar que sea una sola línea (las claves SSH válidas son de una sola línea)
+        if (value.trim().split(/\r?\n/).length > 1) return 'La clave pública debe ser una sola línea';
         return true;
       },
     });
@@ -503,12 +516,13 @@ export async function deployCommand(
   console.log(chalk.dim('\n→ Iniciando contenedores...'));
   
   const composeUpResult = await deployClient.executeCommand(
-    'cd /home/deploy && docker compose up -d'
+    'cd /home/deploy && docker compose up -d',
+    { timeoutMs: 600_000 } // 10 minutos timeout
   );
   
   if (!composeUpResult.success) {
     console.error(chalk.red('\n❌ Error al iniciar contenedores con docker compose'));
-    console.error(chalk.dim(`   ${composeUpResult.stderr}`));
+    console.error(chalk.dim(`   ${composeUpResult.stderr || composeUpResult.error}`));
     process.exit(1);
   }
   

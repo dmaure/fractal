@@ -250,6 +250,37 @@ describe('Deploy orchestration (FRA-37)', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
     });
+    
+    it('debe rechazar valores con newlines (prevención de inyección)', async () => {
+      // Test para web role
+      const varsWeb = {
+        VITE_API_URL: 'https://api.example.com\nMALICIOUS_VAR=injected',
+      };
+      
+      const resultWeb = await writeCrossVarsToDisk('web', varsWeb, testDir);
+      
+      expect(resultWeb.success).toBe(false);
+      expect(resultWeb.error).toContain('nueva línea');
+      
+      // Verificar que no se escribió ningún archivo
+      try {
+        await readFile(resolve(testDir, '.env.production'), 'utf-8');
+        expect.fail('No debería haber escrito el archivo');
+      } catch {
+        // Esperado: el archivo no debe existir
+      }
+      
+      // Test para api role
+      const varsApi = {
+        CORS_ALLOWED_ORIGIN: 'https://web.example.com',
+        SANCTUM_STATEFUL_DOMAINS: 'web.example.com\r\nINJECTED=malicious',
+      };
+      
+      const resultApi = await writeCrossVarsToDisk('api', varsApi, testDir);
+      
+      expect(resultApi.success).toBe(false);
+      expect(resultApi.error).toContain('nueva línea');
+    });
   });
 
 });

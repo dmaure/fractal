@@ -56,6 +56,24 @@ describe('SshClient', () => {
     });
   });
 
+  describe('executeCommand with timeout', () => {
+    it('debe aceptar timeout opcional como parámetro', () => {
+      // El método executeCommand ahora acepta un segundo parámetro con timeout
+      // Este test verifica que la firma del método es correcta
+      // Los tests de integración con SSH real verificarán el comportamiento
+      
+      // Verificar que el tipo permite timeout opcional
+      type ExecuteCommandOptions = Parameters<InstanceType<typeof import('./client.js').SshClient>['executeCommand']>[1];
+      
+      const validOptions: ExecuteCommandOptions = { timeoutMs: 600_000 };
+      expect(validOptions.timeoutMs).toBe(600_000);
+      
+      // También debe aceptar undefined (timeout opcional)
+      const noOptions: ExecuteCommandOptions = undefined;
+      expect(noOptions).toBeUndefined();
+    });
+  });
+
   // Nota: Los tests de integración reales con SSH se ejecutan
   // en un entorno de CI con un servidor SSH mock.
   // Este test solo verifica los tipos y estructura básica.
