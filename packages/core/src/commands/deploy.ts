@@ -92,8 +92,25 @@ async function writeCrossVarsToDisk(
   try {
     const { writeFile, mkdir } = await import('node:fs/promises');
     
-    // Validar que ningún valor contenga newlines (prevenir inyección)
+    // Validar keys y valores (prevenir inyección)
     for (const [key, value] of Object.entries(vars)) {
+      // Validar el key
+      if (key.includes('\n') || key.includes('\r') || key.includes('=')) {
+        return {
+          success: false,
+          error: `La clave "${key}" contiene caracteres no permitidos (nueva línea o =), lo cual no está permitido en archivos .env`,
+        };
+      }
+      
+      // Validar formato de key (debe ser un identificador válido)
+      if (!/^[A-Z_][A-Z0-9_]*$/i.test(key)) {
+        return {
+          success: false,
+          error: `La clave "${key}" no es un nombre de variable válido. Debe comenzar con letra o guión bajo y contener solo letras, números y guiones bajos`,
+        };
+      }
+      
+      // Validar el valor
       if (value.includes('\n') || value.includes('\r')) {
         return {
           success: false,

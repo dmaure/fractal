@@ -281,6 +281,111 @@ describe('Deploy orchestration (FRA-37)', () => {
       expect(resultApi.success).toBe(false);
       expect(resultApi.error).toContain('nueva línea');
     });
+    
+    it('debe rechazar keys con newlines (prevención de inyección)', async () => {
+      // Test con key que contiene newline
+      const varsNewline = {
+        'VALID_KEY': 'value1',
+        'MALICIOUS\nINJECTED_KEY': 'value2',
+      };
+      
+      const resultNewline = await writeCrossVarsToDisk('api', varsNewline, testDir);
+      
+      expect(resultNewline.success).toBe(false);
+      expect(resultNewline.error).toContain('nueva línea');
+      expect(resultNewline.error).toContain('MALICIOUS');
+      
+      // Verificar que no se escribió el archivo
+      try {
+        await readFile(resolve(testDir, '.env'), 'utf-8');
+        expect.fail('No debería haber escrito el archivo');
+      } catch {
+        // Esperado: el archivo no debe existir
+      }
+      
+      // Test con key que contiene carriage return
+      const varsCR = {
+        'MALICIOUS\rKEY': 'value',
+      };
+      
+      const resultCR = await writeCrossVarsToDisk('api', varsCR, testDir);
+      
+      expect(resultCR.success).toBe(false);
+      expect(resultCR.error).toContain('nueva línea');
+    });
+    
+    it('debe rechazar keys con signo igual (prevención de inyección)', async () => {
+      const vars = {
+        'KEY=INJECTED': 'value',
+      };
+      
+      const result = await writeCrossVarsToDisk('api', vars, testDir);
+      
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('no permitidos');
+      expect(result.error).toContain('KEY=INJECTED');
+      
+      // Verificar que no se escribió el archivo
+      try {
+        await readFile(resolve(testDir, '.env'), 'utf-8');
+        expect.fail('No debería haber escrito el archivo');
+      } catch {
+        // Esperado: el archivo no debe existir
+      }
+    });
+    
+    it('debe rechazar keys con formato inválido', async () => {
+      // Test con key que empieza con número
+      const vars1 = {
+        '123INVALID': 'value',
+      };
+      
+      const result1 = await writeCrossVarsToDisk('api', vars1, testDir);
+      
+      expect(result1.success).toBe(false);
+      expect(result1.error).toContain('no es un nombre de variable válido');
+      expect(result1.error).toContain('123INVALID');
+      
+      // Test con key que contiene caracteres especiales
+      const vars2 = {
+        'KEY-WITH-DASHES': 'value',
+      };
+      
+      const result2 = await writeCrossVarsToDisk('api', vars2, testDir);
+      
+      expect(result2.success).toBe(false);
+      expect(result2.error).toContain('no es un nombre de variable válido');
+      
+      // Test con key que contiene espacios
+      const vars3 = {
+        'KEY WITH SPACES': 'value',
+      };
+      
+      const result3 = await writeCrossVarsToDisk('api', vars3, testDir);
+      
+      expect(result3.success).toBe(false);
+      expect(result3.error).toContain('no es un nombre de variable válido');
+    });
+    
+    it('debe aceptar keys válidos', async () => {
+      // Test con keys válidos en diferentes formatos
+      const vars = {
+        'VALID_KEY': 'value1',
+        '_STARTS_WITH_UNDERSCORE': 'value2',
+        'MixedCase123': 'value3',
+        'lowercase_key': 'value4',
+      };
+      
+      const result = await writeCrossVarsToDisk('api', vars, testDir);
+      
+      expect(result.success).toBe(true);
+      
+      const content = await readFile(resolve(testDir, '.env'), 'utf-8');
+      expect(content).toContain('VALID_KEY=value1');
+      expect(content).toContain('_STARTS_WITH_UNDERSCORE=value2');
+      expect(content).toContain('MixedCase123=value3');
+      expect(content).toContain('lowercase_key=value4');
+    });
   });
 
 });
