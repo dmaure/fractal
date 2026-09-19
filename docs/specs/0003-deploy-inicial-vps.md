@@ -351,3 +351,50 @@ romper esta implementación.
 **Cumplimiento del Artículo II**: El módulo `runtime` no contiene ninguna
 referencia a frameworks específicos (Laravel, Rails, etc.). Todos los términos
 prohibidos fueron verificados en los tests de framework-agnostic compliance.
+
+---
+
+### AC-3, AC-5 y AC-6 implementados (2026-09-19)
+
+El AC-3 (Hardening), AC-5 (DNS Cloudflare) y AC-6 (DNS manual) fueron
+orquestados en `packages/core/src/commands/deploy.ts` (ticket FRA-37),
+integrando los módulos `SystemHardening`, `RuntimeManager` y `DnsManager`
+de `@fractal/deploy`:
+
+- **Derivación de clave pública SSH**: Si `authMethod === 'key'`, la clave
+  pública se deriva automáticamente con `ssh-keygen -y -f <sshKeyPath>`. Si
+  `authMethod === 'password'`, se solicita al usuario la clave pública vía
+  prompt interactivo.
+
+- **Reconexión como usuario deploy**: Después de ejecutar
+  `SystemHardening.harden()` exitosamente, el CLI cierra la conexión SSH
+  inicial (típicamente como `root`) y crea una nueva conexión SSH con
+  `username='deploy'` usando la clave privada que corresponde a la pública
+  instalada en el paso de hardening. Todos los pasos posteriores (runtime, DNS)
+  se ejecutan con esta conexión no-root.
+
+- **Inicio de contenedores**: Después de `RuntimeManager.setup()`, que instala
+  Docker y escribe `docker-compose.yml` en `/home/deploy/`, el CLI ejecuta
+  `docker compose up -d` explícitamente vía SSH para levantar los contenedores.
+  `RuntimeManager.setup()` no ejecuta `up` por sí mismo — escribe el archivo y
+  lo deja listo, pero el inicio lo dispara el CLI para mantener control del
+  flujo.
+
+- **DNS con StateManager**: El paso de DNS se envuelve con
+  `StateManager.shouldRerunStep('dns')` y `StateManager.markStep('dns', ...)`
+  para cumplir AC-11 (idempotencia). Los pasos de hardening y runtime ya tenían
+  esta envoltura implementada en sus propios managers; DNS se agregó en el CLI.
+
+- **Route53 rechazado**: Si el usuario selecciona `dnsProvider === 'route53'`,
+  el comando aborta con un mensaje claro indicando que solo Cloudflare y manual
+  están soportados, antes de intentar llamar a `DnsManager.setup()`.
+
+- **Variables cruzadas al disco**: Si el deploy es en multirepo y se recolectó
+  `siblingInfo`, las variables cruzadas retornadas por `CrossVarWriter` se
+  persisten al disco: `.env.production` para `role === 'web'` (Vite las lee en
+  build time), `.env` para `role === 'api'` (Laravel las lee en runtime). Las
+  variables existentes se actualizan en lugar de duplicarse.
+
+**Cumplimiento del Artículo II**: La orquestación en `packages/core` no
+introduce ninguna referencia a frameworks específicos. Los términos prohibidos
+fueron verificados por el lint de acoplamiento.

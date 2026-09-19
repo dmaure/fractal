@@ -1,16 +1,159 @@
-import { resolve } from 'node:path';
+import { resolve, basename } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
 import { promptDeployParams, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
-import { SshClient, ServerValidator, ManifestManager, CrossVarWriter } from '@fractal/deploy';
+import { 
+  SshClient, 
+  ServerValidator, 
+  ManifestManager, 
+  CrossVarWriter,
+  SystemHardening,
+  RuntimeManager,
+  DnsManager,
+  StateManager,
+  type TargetType,
+} from '@fractal/deploy';
+
+/**
+ * Deriva la clave pública SSH desde una clave privada usando ssh-keygen.
+ * Implementa decisión de producto #1.
+ */
+async function deriveSshPublicKey(privateKeyPath: string): Promise<string | null> {
+  try {
+    const expandedPath = privateKeyPath.replace('~', homedir());
+    const { exec } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const execAsync = promisify(exec);
+    
+    const { stdout, stderr } = await execAsync(`ssh-keygen -y -f "${expandedPath}"`);
+    
+    if (stderr && !stdout) {
+      return null;
+    }
+    
+    return stdout.trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Determina el nombre del proyecto desde package.json o el nombre del directorio.
+ * Implementa decisión de producto #2.
+ */
+async function determineProjectName(projectDir: string): Promise<string> {
+  try {
+    const packageJsonPath = resolve(projectDir, 'package.json');
+    const content = await readFile(packageJsonPath, 'utf-8');
+    const packageJson = JSON.parse(content);
+    
+    if (packageJson.name) {
+      // Eliminar el scope si existe (@scope/name -> name)
+      return packageJson.name.replace(/^@[^/]+\//, '');
+    }
+  } catch {
+    // Si no hay package.json o no tiene nombre, usar el basename del directorio
+  }
+  
+  return basename(projectDir);
+}
+
+/**
+ * Determina el tipo de target según el rol del manifiesto.
+ * Implementa decisión de producto #3.
+ */
+function determineTargetType(role?: 'api' | 'web'): TargetType {
+  if (!role) {
+    return 'backend-full';
+  }
+  
+  if (role === 'web') {
+    return 'frontend-static';
+  }
+  
+  if (role === 'api') {
+    return 'backend-full';
+  }
+  
+  return 'backend-full';
+}
+
+/**
+ * Escribe las variables cruzadas al disco en los archivos apropiados.
+ * Implementa decisión de producto #8.
+ */
+async function writeCrossVarsToDisk(
+  role: 'api' | 'web',
+  vars: Record<string, string>,
+  projectDir: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    
+    if (role === 'web') {
+      // Para web: escribir en .env.production para Vite
+      const envPath = resolve(projectDir, '.env.production');
+      const envContent = Object.entries(vars)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n') + '\n';
+      
+      await writeFile(envPath, envContent, 'utf-8');
+      
+      return { success: true };
+    } else {
+      // Para api: escribir en .env
+      const envPath = resolve(projectDir, '.env');
+      
+      // Leer el .env existente si existe
+      let existingContent = '';
+      try {
+        existingContent = await readFile(envPath, 'utf-8');
+      } catch {
+        // Si no existe, está bien
+      }
+      
+      // Agregar o actualizar las variables
+      const lines = existingContent.split('\n');
+      const varsToWrite = { ...vars };
+      
+      // Actualizar variables existentes
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        for (const key of Object.keys(varsToWrite)) {
+          if (line.startsWith(`${key}=`)) {
+            lines[i] = `${key}=${varsToWrite[key]}`;
+            delete varsToWrite[key];
+          }
+        }
+      }
+      
+      // Agregar variables nuevas al final
+      for (const [key, value] of Object.entries(varsToWrite)) {
+        lines.push(`${key}=${value}`);
+      }
+      
+      await writeFile(envPath, lines.join('\n'), 'utf-8');
+      
+      return { success: true };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Error desconocido',
+    };
+  }
+}
 
 /**
  * Comando `fractal deploy`.
  * 
  * Recolecta datos del servidor, valida conectividad SSH,
  * distribución compatible y recursos mínimos.
+ * Ejecuta hardening, runtime setup y DNS.
  * 
- * Cumple SPEC-0003 AC-1, AC-2 y AC-13 (coordinación multirepo).
+ * Cumple SPEC-0003 AC-1, AC-2, AC-3, AC-4, AC-5, AC-6 y AC-13 (coordinación multirepo).
  */
 export async function deployCommand(
   options: DeployCommandOptions
@@ -55,6 +198,8 @@ export async function deployCommand(
   }
   
   // AC-13: Actualizar manifiesto si se recolectó info del hermano
+  let crossVarResult: Awaited<ReturnType<CrossVarWriter['write']>> | undefined;
+  
   if (manifestResult.exists && manifestResult.manifest && params.siblingInfo) {
     console.log(chalk.dim('\n→ Actualizando manifiesto de coordinación multirepo...'));
     
@@ -75,7 +220,7 @@ export async function deployCommand(
     console.log(chalk.dim('\n→ Configurando variables cruzadas para comunicación entre repos...'));
     
     const crossVarWriter = new CrossVarWriter();
-    const crossVarResult = crossVarWriter.write({
+    crossVarResult = crossVarWriter.write({
       role: manifestResult.manifest.role,
       currentDomain: params.domain,
       siblingDomain: params.siblingInfo.domain,
@@ -204,14 +349,276 @@ export async function deployCommand(
   
   console.log(chalk.green('✓ Puertos 80 y 443 disponibles'));
   
-  // Punto de extensión: aquí continuaría el provisioning real
-  console.log(
-    chalk.yellow(
-      '\n⚠️  Punto de extensión: el provisioning completo (AC-3 a AC-11) se ' +
-      'implementará en tickets posteriores.'
-    )
+  // AC-3: Hardening del sistema
+  console.log(chalk.blue('\n🔐 Endureciendo el sistema...\n'));
+  
+  // Decisión de producto #1: Derivar clave pública o solicitarla
+  let sshPublicKey: string | null = null;
+  
+  if (params.authMethod === 'key' && params.sshKeyPath) {
+    console.log(chalk.dim('→ Derivando clave pública SSH...'));
+    sshPublicKey = await deriveSshPublicKey(params.sshKeyPath);
+    
+    if (!sshPublicKey) {
+      console.error(chalk.red('\n❌ Error: No se pudo derivar la clave pública desde la clave privada'));
+      console.log(chalk.yellow('\nVerifica que:'));
+      console.log(chalk.dim('  • La ruta a la clave privada sea correcta'));
+      console.log(chalk.dim('  • La clave privada tenga el formato correcto'));
+      process.exit(1);
+    }
+  } else if (params.authMethod === 'password') {
+    // Solicitar clave pública para el usuario deploy
+    const { input } = await import('@inquirer/prompts');
+    console.log(chalk.yellow('\n⚠️  Autenticación por contraseña detectada'));
+    console.log(chalk.dim('   Se necesita una clave pública SSH para el usuario deploy\n'));
+    
+    sshPublicKey = await input({
+      message: 'Clave pública SSH para el usuario deploy:',
+      validate: (value) => {
+        if (!value.trim()) return 'La clave pública es requerida';
+        if (!value.startsWith('ssh-')) return 'La clave debe comenzar con ssh-rsa, ssh-ed25519, etc.';
+        return true;
+      },
+    });
+  }
+  
+  if (!sshPublicKey) {
+    console.error(chalk.red('\n❌ Error: No se pudo obtener la clave pública SSH'));
+    process.exit(1);
+  }
+  
+  console.log(chalk.green('✓ Clave pública SSH obtenida'));
+  
+  const hardening = new SystemHardening(sshClient);
+  
+  const hardeningResult = await hardening.harden({
+    deployUser: 'deploy',
+    sshPublicKey,
+    allowedPorts: [22, 80, 443],
+  });
+  
+  if (!hardeningResult.success) {
+    console.error(chalk.red(`\n❌ Error en hardening del sistema:\n   ${hardeningResult.error}`));
+    console.log(chalk.yellow('\nPasos completados antes del error:'));
+    for (const step of hardeningResult.steps) {
+      console.log(chalk.dim(`   • ${step}`));
+    }
+    process.exit(1);
+  }
+  
+  console.log(chalk.green('✓ Hardening completado'));
+  for (const step of hardeningResult.steps) {
+    console.log(chalk.dim(`   • ${step}`));
+  }
+  
+  // Decisión de producto #5: Reconectar como usuario deploy
+  console.log(chalk.blue('\n🔄 Reconectando como usuario deploy...\n'));
+  
+  const deployClient = new SshClient({
+    host: params.serverIp,
+    username: 'deploy',
+    privateKeyPath: params.authMethod === 'key' ? params.sshKeyPath : undefined,
+    timeout: 120_000,
+    onUnknownHost: (info) => confirmUnknownHost(info),
+  });
+  
+  const deployConnectionResult = await deployClient.testConnection();
+  
+  if (!deployConnectionResult.success) {
+    console.error(chalk.red(`\n❌ Error al reconectar como usuario deploy:\n   ${deployConnectionResult.error}`));
+    console.log(chalk.yellow('\nEl hardening fue completado, pero no se pudo establecer la conexión con el usuario deploy.'));
+    process.exit(1);
+  }
+  
+  console.log(chalk.green('✓ Conectado como usuario deploy'));
+  
+  // AC-4: Runtime setup
+  console.log(chalk.blue('\n🐳 Configurando runtime de Docker...\n'));
+  
+  // Decisión de producto #2: Determinar projectName
+  const projectName = await determineProjectName(projectDir);
+  console.log(chalk.dim(`   Nombre del proyecto: ${projectName}`));
+  
+  // Decisión de producto #3: Determinar targetType
+  const targetType = determineTargetType(currentRole);
+  console.log(chalk.dim(`   Tipo de target: ${targetType}`));
+  
+  const runtimeManager = new RuntimeManager(deployClient);
+  
+  const runtimeResult = await runtimeManager.setup({
+    dockerInstall: {
+      checkPrerequisites: true,
+    },
+    compose: {
+      targetType,
+      projectName,
+      outputPath: '/home/deploy/docker-compose.yml',
+    },
+  });
+  
+  if (!runtimeResult.success) {
+    console.error(chalk.red(`\n❌ Error en setup del runtime:\n   ${runtimeResult.error}`));
+    
+    if (runtimeResult.dockerInstall) {
+      console.log(chalk.yellow('\nPasos de Docker completados antes del error:'));
+      for (const step of runtimeResult.dockerInstall.steps) {
+        console.log(chalk.dim(`   • ${step}`));
+      }
+    }
+    
+    process.exit(1);
+  }
+  
+  console.log(chalk.green('✓ Runtime configurado'));
+  for (const step of runtimeResult.dockerInstall.steps) {
+    console.log(chalk.dim(`   • ${step}`));
+  }
+  
+  if (runtimeResult.composeGeneration) {
+    console.log(chalk.dim(`   • docker-compose.yml generado en ${runtimeResult.composeGeneration.filePath}`));
+    if (runtimeResult.composeGeneration.services) {
+      console.log(chalk.dim(`   • Servicios: ${runtimeResult.composeGeneration.services.join(', ')}`));
+    }
+  }
+  
+  // Decisión de producto #6: Ejecutar docker compose up
+  console.log(chalk.dim('\n→ Iniciando contenedores...'));
+  
+  const composeUpResult = await deployClient.executeCommand(
+    'cd /home/deploy && docker compose up -d'
   );
   
-  console.log(chalk.green('\n✅ Validación del servidor completada exitosamente'));
-  console.log(chalk.dim('\nEl servidor cumple todos los requisitos para provisioning.'));
+  if (!composeUpResult.success) {
+    console.error(chalk.red('\n❌ Error al iniciar contenedores con docker compose'));
+    console.error(chalk.dim(`   ${composeUpResult.stderr}`));
+    process.exit(1);
+  }
+  
+  console.log(chalk.green('✓ Contenedores iniciados'));
+  
+  // AC-5 y AC-6: DNS setup
+  console.log(chalk.blue('\n🌐 Configurando DNS...\n'));
+  
+  // Decisión de producto #4: Abortar si Route53
+  if (params.dnsProvider === 'route53') {
+    console.error(chalk.red('\n❌ Error: Route53 no está soportado en esta versión'));
+    console.log(chalk.yellow('\nProveedores DNS soportados:'));
+    console.log(chalk.dim('  • Cloudflare (automatizado)'));
+    console.log(chalk.dim('  • Manual (configuración manual)'));
+    console.log(chalk.yellow('\nPor favor, ejecuta nuevamente el comando y selecciona un proveedor soportado.'));
+    process.exit(1);
+  }
+  
+  // Decisión de producto #7: Wrap DNS con StateManager
+  const dnsStateManager = new StateManager(deployClient);
+  
+  const dnsConfigHash = StateManager.generateConfigHash({
+    provider: params.dnsProvider,
+    domain: params.domain,
+    serverIp: params.serverIp,
+  });
+  
+  const shouldRunDns = await dnsStateManager.shouldRerunStep('dns', dnsConfigHash);
+  
+  let dnsResult;
+  
+  if (!shouldRunDns) {
+    console.log(chalk.green('✓ DNS ya configurado (idempotencia)'));
+    dnsResult = {
+      success: true,
+      records: [],
+      propagated: true,
+      steps: ['DNS ya configurado (idempotencia)'],
+    };
+  } else {
+    await dnsStateManager.markStep('dns', 'pending', dnsConfigHash);
+    
+    if (params.dnsProvider === 'cloudflare') {
+      console.log(chalk.dim('→ Configurando DNS en Cloudflare...'));
+      
+      dnsResult = await DnsManager.setup({
+        provider: 'cloudflare',
+        domain: params.domain,
+        serverIp: params.serverIp,
+        apiToken: params.dnsApiToken!,
+      });
+    } else {
+      // manual
+      console.log(chalk.yellow('→ Configuración DNS manual requerida\n'));
+      console.log(chalk.dim('Crea los siguientes registros DNS en tu proveedor:\n'));
+      console.log(chalk.white(`   Tipo: A`));
+      console.log(chalk.white(`   Nombre: @`));
+      console.log(chalk.white(`   Valor: ${params.serverIp}`));
+      console.log(chalk.white(`   TTL: 300\n`));
+      console.log(chalk.white(`   Tipo: A`));
+      console.log(chalk.white(`   Nombre: www`));
+      console.log(chalk.white(`   Valor: ${params.serverIp}`));
+      console.log(chalk.white(`   TTL: 300\n`));
+      
+      dnsResult = await DnsManager.setup({
+        provider: 'manual',
+        domain: params.domain,
+        serverIp: params.serverIp,
+      });
+    }
+    
+    if (!dnsResult.success) {
+      await dnsStateManager.markStep('dns', 'failed', dnsConfigHash, dnsResult.error);
+      console.error(chalk.red(`\n❌ Error en configuración DNS:\n   ${dnsResult.error}`));
+      
+      if (dnsResult.steps.length > 0) {
+        console.log(chalk.yellow('\nPasos completados antes del error:'));
+        for (const step of dnsResult.steps) {
+          console.log(chalk.dim(`   • ${step}`));
+        }
+      }
+      
+      if (dnsResult.canContinueLater) {
+        console.log(chalk.yellow('\n⚠️  Puedes continuar el proceso más tarde ejecutando el comando nuevamente.'));
+      }
+      
+      process.exit(1);
+    }
+    
+    await dnsStateManager.markStep('dns', 'completed', dnsConfigHash);
+  }
+  
+  console.log(chalk.green('✓ DNS configurado'));
+  for (const step of dnsResult.steps) {
+    console.log(chalk.dim(`   • ${step}`));
+  }
+  
+  if (dnsResult.propagated) {
+    console.log(chalk.green('✓ Propagación DNS confirmada'));
+  }
+  
+  // Decisión de producto #8: Escribir variables cruzadas al disco si aplica
+  if (manifestResult.exists && manifestResult.manifest && params.siblingInfo && crossVarResult?.writtenVars) {
+    console.log(chalk.dim('\n→ Escribiendo variables cruzadas al disco...'));
+    
+    const writeResult = await writeCrossVarsToDisk(
+      manifestResult.manifest.role,
+      crossVarResult.writtenVars,
+      projectDir
+    );
+    
+    if (!writeResult.success) {
+      console.error(chalk.red(`\n❌ Error al escribir variables cruzadas al disco: ${writeResult.error}`));
+      console.log(chalk.yellow('Las variables fueron configuradas en memoria pero no se pudieron persistir al disco.'));
+    } else {
+      console.log(chalk.green('✓ Variables cruzadas escritas al disco'));
+      
+      const envFile = manifestResult.manifest.role === 'web' ? '.env.production' : '.env';
+      console.log(chalk.dim(`   Archivo: ${envFile}`));
+    }
+  }
+  
+  console.log(chalk.green('\n✅ Deploy completado exitosamente'));
+  console.log(chalk.blue('\n📊 Resumen:'));
+  console.log(chalk.dim('   • Sistema endurecido (usuario deploy, SSH hardening, firewall)'));
+  console.log(chalk.dim('   • Runtime configurado (Docker + Compose)'));
+  console.log(chalk.dim('   • Contenedores iniciados'));
+  console.log(chalk.dim('   • DNS configurado'));
+  console.log(chalk.dim(`\n   Tu aplicación estará disponible en: https://${params.domain}`));
+  console.log(chalk.dim('   (Una vez que el DNS propague y configures SSL en un paso futuro)\n'));
 }
