@@ -76,17 +76,43 @@ export class SshClient {
 
   /**
    * Ejecuta un comando en el servidor remoto.
+   * @param command Comando a ejecutar
+   * @param options Opciones adicionales (timeout por comando)
    */
-  async executeCommand(command: string): Promise<SshCommandResult> {
+  async executeCommand(
+    command: string,
+    options?: { timeoutMs?: number }
+  ): Promise<SshCommandResult> {
     return new Promise((resolve) => {
       const client = new Client();
       let stdout = '';
       let stderr = '';
       let exitCode: number | null = null;
+      let timeoutHandle: NodeJS.Timeout | null = null;
+      let commandCompleted = false;
+
+      // Configurar timeout del comando si se especificó
+      if (options?.timeoutMs) {
+        timeoutHandle = setTimeout(() => {
+          if (!commandCompleted) {
+            commandCompleted = true;
+            client.end();
+            resolve({
+              success: false,
+              stdout: stdout.trim(),
+              stderr: stderr.trim(),
+              exitCode: null,
+              error: `Comando excedió el tiempo límite de ${options.timeoutMs}ms`,
+            });
+          }
+        }, options.timeoutMs);
+      }
 
       client.on('ready', () => {
         client.exec(command, (err, stream) => {
           if (err) {
+            commandCompleted = true;
+            if (timeoutHandle) clearTimeout(timeoutHandle);
             client.end();
             resolve({
               success: false,
@@ -107,38 +133,50 @@ export class SshClient {
           });
 
           stream.on('close', (code: number) => {
-            exitCode = code;
-            client.end();
-            resolve({
-              success: code === 0,
-              stdout: stdout.trim(),
-              stderr: stderr.trim(),
-              exitCode,
-            });
+            if (!commandCompleted) {
+              commandCompleted = true;
+              if (timeoutHandle) clearTimeout(timeoutHandle);
+              exitCode = code;
+              client.end();
+              resolve({
+                success: code === 0,
+                stdout: stdout.trim(),
+                stderr: stderr.trim(),
+                exitCode,
+              });
+            }
           });
         });
       });
 
       client.on('error', (err) => {
-        const hostKeyError = this.consumeHostKeyError();
-        resolve({
-          success: false,
-          stdout: '',
-          stderr: '',
-          exitCode: null,
-          error: hostKeyError ?? `Error de conexión: ${err.message}`,
-        });
+        if (!commandCompleted) {
+          commandCompleted = true;
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          const hostKeyError = this.consumeHostKeyError();
+          resolve({
+            success: false,
+            stdout: '',
+            stderr: '',
+            exitCode: null,
+            error: hostKeyError ?? `Error de conexión: ${err.message}`,
+          });
+        }
       });
 
       this.connect(client).catch((err) => {
-        const hostKeyError = this.consumeHostKeyError();
-        resolve({
-          success: false,
-          stdout: '',
-          stderr: '',
-          exitCode: null,
-          error: hostKeyError ?? `Error al conectar: ${err.message}`,
-        });
+        if (!commandCompleted) {
+          commandCompleted = true;
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+          const hostKeyError = this.consumeHostKeyError();
+          resolve({
+            success: false,
+            stdout: '',
+            stderr: '',
+            exitCode: null,
+            error: hostKeyError ?? `Error al conectar: ${err.message}`,
+          });
+        }
       });
     });
   }
