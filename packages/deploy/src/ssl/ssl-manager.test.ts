@@ -174,6 +174,127 @@ describe('SslManager', () => {
       expect(certbotCalls[0]).toContain('acme-v02.api.letsencrypt.org');
     });
 
+    it('incluye subdominio www por defecto', async () => {
+      const config: SslConfig = {
+        domain: 'example.com',
+        email: 'admin@example.com',
+        environment: 'staging',
+      };
+
+      vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        exitCode: 0,
+        stdout: 'success',
+        stderr: '',
+      });
+
+      await manager.setup(config);
+
+      const certbotCalls = vi.mocked(mockSsh.executeCommand).mock.calls
+        .map(call => call[0])
+        .filter(cmd => typeof cmd === 'string' && cmd.includes('certbot certonly'));
+      
+      expect(certbotCalls.length).toBeGreaterThan(0);
+      expect(certbotCalls[0]).toContain('-d example.com');
+      expect(certbotCalls[0]).toContain('-d www.example.com');
+    });
+
+    it('omite subdominio www cuando includeWww es false', async () => {
+      const config: SslConfig = {
+        domain: 'example.com',
+        email: 'admin@example.com',
+        environment: 'staging',
+        includeWww: false,
+      };
+
+      vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        exitCode: 0,
+        stdout: 'success',
+        stderr: '',
+      });
+
+      await manager.setup(config);
+
+      const certbotCalls = vi.mocked(mockSsh.executeCommand).mock.calls
+        .map(call => call[0])
+        .filter(cmd => typeof cmd === 'string' && cmd.includes('certbot certonly'));
+      
+      expect(certbotCalls.length).toBeGreaterThan(0);
+      expect(certbotCalls[0]).toContain('-d example.com');
+      expect(certbotCalls[0]).not.toContain('-d www.example.com');
+    });
+
+    it('incluye subdominio www cuando includeWww es true', async () => {
+      const config: SslConfig = {
+        domain: 'example.com',
+        email: 'admin@example.com',
+        environment: 'staging',
+        includeWww: true,
+      };
+
+      vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        exitCode: 0,
+        stdout: 'success',
+        stderr: '',
+      });
+
+      await manager.setup(config);
+
+      const certbotCalls = vi.mocked(mockSsh.executeCommand).mock.calls
+        .map(call => call[0])
+        .filter(cmd => typeof cmd === 'string' && cmd.includes('certbot certonly'));
+      
+      expect(certbotCalls.length).toBeGreaterThan(0);
+      expect(certbotCalls[0]).toContain('-d example.com');
+      expect(certbotCalls[0]).toContain('-d www.example.com');
+    });
+
+    it('usa postRenewalHook customizado para Docker', async () => {
+      const config: SslConfig = {
+        domain: 'example.com',
+        email: 'admin@example.com',
+        environment: 'staging',
+        postRenewalHook: 'docker exec myapp_nginx nginx -s reload',
+      };
+
+      vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        exitCode: 0,
+        stdout: 'success',
+        stderr: '',
+      });
+
+      await manager.setup(config);
+
+      const renewalCalls = vi.mocked(mockSsh.executeCommand).mock.calls
+        .map(call => call[0])
+        .filter(cmd => typeof cmd === 'string' && cmd.includes('renewal-hooks'));
+      
+      expect(renewalCalls.length).toBeGreaterThan(0);
+      expect(renewalCalls[0]).toContain('docker exec myapp_nginx nginx -s reload');
+    });
+
+    it('usa systemctl reload nginx por defecto cuando no se especifica hook', async () => {
+      const config: SslConfig = {
+        domain: 'example.com',
+        email: 'admin@example.com',
+        environment: 'staging',
+      };
+
+      vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        exitCode: 0,
+        stdout: 'success',
+        stderr: '',
+      });
+
+      await manager.setup(config);
+
+      const renewalCalls = vi.mocked(mockSsh.executeCommand).mock.calls
+        .map(call => call[0])
+        .filter(cmd => typeof cmd === 'string' && cmd.includes('renewal-hooks'));
+      
+      expect(renewalCalls.length).toBeGreaterThan(0);
+      expect(renewalCalls[0]).toContain('systemctl reload nginx');
+    });
+
     it('maneja error en instalación de certbot', async () => {
       const config: SslConfig = {
         domain: 'example.com',

@@ -64,7 +64,8 @@ export class SslManager {
         config.domain,
         config.email,
         config.environment,
-        config.webrootPath
+        config.webrootPath,
+        config.includeWww
       );
       
       if (!certificateIssuance.success) {
@@ -96,7 +97,7 @@ export class SslManager {
 
       // Paso 4: Configurar renovación automática
       const renewalSetup = await this.renewalManager.setup({
-        postRenewalHook: 'systemctl reload nginx',
+        postRenewalHook: config.postRenewalHook || 'systemctl reload nginx',
       });
       
       if (!renewalSetup.success) {
