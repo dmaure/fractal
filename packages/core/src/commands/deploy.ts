@@ -13,6 +13,8 @@ import {
   RuntimeManager,
   DnsManager,
   StateManager,
+  SslManager,
+  adaptSshClient,
   type TargetType,
 } from '@fractal/deploy';
 
@@ -652,14 +654,111 @@ export async function deployCommand(
     }
   }
   
+  // AC-7: SSL con Let's Encrypt
+  console.log(chalk.blue('\n🔒 Configurando SSL...\n'));
+  
+  // Decisión de producto #2: includeWww desde DNS result
+  const includeWww = dnsResult.records.some(record => record.name === 'www');
+  
+  // Decisión de producto #3: postRenewalHook para Docker
+  const postRenewalHook = `docker exec ${projectName}_nginx nginx -s reload`;
+  
+  const sslStateManager = new StateManager(deployClient);
+  
+  const sslConfigHash = StateManager.generateConfigHash({
+    domain: params.domain,
+    email: params.email,
+    includeWww,
+    postRenewalHook,
+  });
+  
+  // Decisión de producto #4: Idempotencia + validación de certificado existente
+  const shouldRunSsl = await sslStateManager.shouldRerunStep('ssl', sslConfigHash);
+  
+  let sslResult;
+  
+  if (!shouldRunSsl) {
+    // Verificar si el certificado aún es válido
+    const sslManager = new SslManager(adaptSshClient(deployClient));
+    const certCheck = await sslManager.checkCertificate(params.domain);
+    
+    if (certCheck.exists && certCheck.daysRemaining && certCheck.daysRemaining > 30) {
+      console.log(chalk.green('✓ SSL ya configurado (certificado válido)'));
+      console.log(chalk.dim(`   Certificado expira en ${certCheck.daysRemaining} días`));
+      sslResult = {
+        success: true,
+        certbotInstall: { success: true, steps: ['Certificado ya configurado'], version: 'n/a' },
+      };
+    } else {
+      // El certificado expira pronto o no existe, re-emitir
+      console.log(chalk.yellow('⚠️  Certificado expira pronto o no válido, renovando...'));
+      await sslStateManager.markStep('ssl', 'pending', sslConfigHash);
+      
+      const sslManager = new SslManager(adaptSshClient(deployClient));
+      sslResult = await sslManager.setup({
+        domain: params.domain,
+        email: params.email,
+        environment: 'production',
+        includeWww,
+        postRenewalHook,
+      });
+    }
+  } else {
+    await sslStateManager.markStep('ssl', 'pending', sslConfigHash);
+    
+    console.log(chalk.dim('→ Instalando Certbot y emitiendo certificado...'));
+    
+    const sslManager = new SslManager(adaptSshClient(deployClient));
+    sslResult = await sslManager.setup({
+      domain: params.domain,
+      email: params.email,
+      environment: 'production',
+      includeWww,
+      postRenewalHook,
+    });
+  }
+  
+  if (!sslResult.success) {
+    await sslStateManager.markStep('ssl', 'failed', sslConfigHash, sslResult.error);
+    console.error(chalk.red(`\n❌ Error en configuración SSL:\n   ${sslResult.error}`));
+    
+    if (sslResult.certbotInstall?.steps.length) {
+      console.log(chalk.yellow('\nPasos completados antes del error:'));
+      for (const step of sslResult.certbotInstall.steps) {
+        console.log(chalk.dim(`   • ${step}`));
+      }
+    }
+    
+    process.exit(1);
+  }
+  
+  await sslStateManager.markStep('ssl', 'completed', sslConfigHash);
+  
+  console.log(chalk.green('✓ SSL configurado exitosamente'));
+  if (sslResult.certbotInstall?.steps.length) {
+    for (const step of sslResult.certbotInstall.steps) {
+      console.log(chalk.dim(`   • ${step}`));
+    }
+  }
+  if (sslResult.certificateIssuance?.domain) {
+    console.log(chalk.green(`✓ Certificado emitido para ${sslResult.certificateIssuance.domain}`));
+    if (!includeWww) {
+      console.log(chalk.dim('   (sin subdominio www)'));
+    }
+  }
+  if (sslResult.renewalSetup?.mechanism) {
+    console.log(chalk.green(`✓ Renovación automática configurada (${sslResult.renewalSetup.mechanism})`));
+    console.log(chalk.dim(`   Hook: ${postRenewalHook}`));
+  }
+  
   console.log(chalk.green('\n✅ Deploy completado exitosamente'));
   console.log(chalk.blue('\n📊 Resumen:'));
   console.log(chalk.dim('   • Sistema endurecido (usuario deploy, SSH hardening, firewall)'));
   console.log(chalk.dim('   • Runtime configurado (Docker + Compose)'));
   console.log(chalk.dim('   • Contenedores iniciados'));
   console.log(chalk.dim('   • DNS configurado'));
-  console.log(chalk.dim(`\n   Tu aplicación estará disponible en: https://${params.domain}`));
-  console.log(chalk.dim('   (Una vez que el DNS propague y configures SSL en un paso futuro)\n'));
+  console.log(chalk.dim('   • SSL/HTTPS configurado con renovación automática'));
+  console.log(chalk.dim(`\n   Tu aplicación está disponible en: https://${params.domain}\n`));
 }
 
 // Exportar funciones helper para testing
