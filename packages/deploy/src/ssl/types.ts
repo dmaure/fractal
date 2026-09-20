@@ -68,6 +68,12 @@ export interface SslConfig {
   
   /** Path al directorio raíz de nginx (para webroot) */
   webrootPath?: string;
+  
+  /** Incluir subdominio www en el certificado */
+  includeWww?: boolean;
+  
+  /** Comando a ejecutar después de renovar el certificado */
+  postRenewalHook?: string;
 }
 
 /**
