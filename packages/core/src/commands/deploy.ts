@@ -15,7 +15,9 @@ import {
   StateManager,
   SslManager,
   adaptSshClient,
+  CicdManager,
   type TargetType,
+  type CicdProvider,
 } from '@fractal/deploy';
 
 /**
@@ -80,6 +82,48 @@ function determineTargetType(role?: 'api' | 'web'): TargetType {
   }
   
   return 'backend-full';
+}
+
+/**
+ * Infiere el proveedor de CI/CD desde la URL del repositorio git.
+ * Implementa decisión de producto FRA-36 #1.
+ */
+async function inferCiProvider(gitRepository: string): Promise<CicdProvider | null> {
+  const repoLower = gitRepository.toLowerCase();
+  
+  if (repoLower.includes('github.com')) {
+    return 'github-actions';
+  }
+  
+  if (repoLower.includes('gitlab.com')) {
+    return 'gitlab-ci';
+  }
+  
+  return null;
+}
+
+/**
+ * Solicita al usuario que seleccione un proveedor de CI/CD.
+ * Implementa decisión de producto FRA-36 #1 (fallback cuando no se puede inferir).
+ */
+async function promptCiProvider(): Promise<CicdProvider> {
+  const { select } = await import('@inquirer/prompts');
+  
+  return select<CicdProvider>({
+    message: 'Proveedor de CI/CD:',
+    choices: [
+      {
+        value: 'github-actions',
+        name: 'GitHub Actions',
+        description: 'Workflows en .github/workflows/',
+      },
+      {
+        value: 'gitlab-ci',
+        name: 'GitLab CI',
+        description: 'Pipeline en .gitlab-ci.yml',
+      },
+    ],
+  });
 }
 
 /**
@@ -653,7 +697,7 @@ export async function deployCommand(
       console.log(chalk.dim(`   Archivo: ${envFile}`));
     }
   }
-  
+
   // AC-7: SSL con Let's Encrypt
   console.log(chalk.blue('\n🔒 Configurando SSL...\n'));
   
@@ -751,6 +795,80 @@ export async function deployCommand(
     console.log(chalk.dim(`   Hook: ${postRenewalHook}`));
   }
   
+  // FRA-36: Generar CI/CD workflow
+  console.log(chalk.blue('\n🔄 Generando workflow de CI/CD...\n'));
+  
+  // Inferir proveedor de CI/CD desde la URL del repositorio
+  let ciProvider = await inferCiProvider(params.gitRepository);
+  
+  if (!ciProvider) {
+    console.log(chalk.yellow('→ No se pudo inferir el proveedor de CI/CD desde la URL del repositorio'));
+    ciProvider = await promptCiProvider();
+  } else {
+    const providerName = ciProvider === 'github-actions' ? 'GitHub Actions' : 'GitLab CI';
+    console.log(chalk.dim(`→ Proveedor detectado: ${providerName}`));
+  }
+  
+  // Determinar outputPath según el proveedor
+  const outputPath = ciProvider === 'github-actions'
+    ? resolve(projectDir, '.github/workflows/deploy.yml')
+    : resolve(projectDir, '.gitlab-ci.yml');
+  
+  // Construir configuración de deploy
+  const cicdManager = new CicdManager();
+  const deployConfig = {
+    provider: ciProvider,
+    targetType,
+    projectName,
+    productionBranch: params.productionBranch,
+    domain: params.domain,
+    outputPath,
+    multiRepo: manifestResult.exists && manifestResult.manifest?.sibling ? {
+      role: manifestResult.manifest.role,
+      siblingGitUrl: manifestResult.manifest.sibling.git_url ?? undefined,
+      siblingDomain: manifestResult.manifest.sibling.domain ?? undefined,
+    } : undefined,
+  };
+  
+  // Validar configuración
+  const validation = cicdManager.validateConfig(deployConfig);
+  
+  if (!validation.valid) {
+    console.error(chalk.red(`\n❌ Error en validación de configuración CI/CD: ${validation.error}`));
+    console.log(chalk.yellow('El workflow no fue generado. Verifica la configuración e intenta nuevamente.'));
+  } else {
+    // Generar workflow
+    console.log(chalk.dim('→ Generando workflow...'));
+    const generationResult = await cicdManager.generate(deployConfig);
+    
+    if (!generationResult.success) {
+      console.error(chalk.red(`\n❌ Error al generar workflow: ${generationResult.error}`));
+    } else {
+      console.log(chalk.green(`✓ Workflow generado: ${generationResult.filePath}`));
+      
+      // Imprimir secrets requeridos
+      if (generationResult.secrets.length > 0) {
+        console.log(chalk.blue('\n🔐 Secrets requeridos para este repositorio:'));
+        for (const secret of generationResult.secrets) {
+          console.log(chalk.white(`   ${secret.name}`));
+          console.log(chalk.dim(`      ${secret.description}`));
+        }
+      }
+      
+      // Imprimir cross-repo secrets si aplica
+      if (generationResult.crossRepoSecrets && generationResult.crossRepoSecrets.length > 0) {
+        console.log(chalk.blue('\n🔗 Secrets que deben cargarse en el repositorio hermano:'));
+        for (const secret of generationResult.crossRepoSecrets) {
+          console.log(chalk.white(`   ${secret.name}`));
+          console.log(chalk.dim(`      ${secret.description}`));
+          if (secret.targetRepo) {
+            console.log(chalk.dim(`      Repositorio: ${secret.targetRepo}`));
+          }
+        }
+      }
+    }
+  }
+  
   console.log(chalk.green('\n✅ Deploy completado exitosamente'));
   console.log(chalk.blue('\n📊 Resumen:'));
   console.log(chalk.dim('   • Sistema endurecido (usuario deploy, SSH hardening, firewall)'));
@@ -767,4 +885,6 @@ export {
   determineProjectName,
   determineTargetType,
   writeCrossVarsToDisk,
+  inferCiProvider,
+  promptCiProvider,
 };
