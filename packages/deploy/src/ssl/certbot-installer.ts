@@ -107,7 +107,8 @@ export class CertbotInstaller {
     domain: string,
     email: string,
     environment: LetsEncryptEnvironment,
-    webrootPath?: string
+    webrootPath?: string,
+    includeWww?: boolean
   ): Promise<CertificateIssuanceResult> {
     const steps: string[] = [];
     
@@ -131,17 +132,26 @@ export class CertbotInstaller {
       steps.push(...setupResult.steps);
 
       // Emitir certificado
-      const certbotCmd = [
+      const certbotCmdParts = [
         'certbot certonly',
         '--webroot',
         `-w ${webroot}`,
         `-d ${domain}`,
-        `-d www.${domain}`,
+      ];
+      
+      // Agregar www solo si includeWww es true (default: true para retrocompatibilidad)
+      if (includeWww !== false) {
+        certbotCmdParts.push(`-d www.${domain}`);
+      }
+      
+      certbotCmdParts.push(
         `--email ${email}`,
         '--agree-tos',
         '--non-interactive',
-        `--server ${server}`,
-      ].join(' ');
+        `--server ${server}`
+      );
+      
+      const certbotCmd = certbotCmdParts.join(' ');
 
       const result = await this.exec(`sudo ${certbotCmd}`);
       

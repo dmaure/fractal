@@ -38,6 +38,9 @@ export interface DeployParams {
   /** Dominio donde vivirá la aplicación */
   domain: string;
   
+  /** Email para notificaciones SSL (Let's Encrypt) */
+  email: string;
+  
   /** Proveedor DNS para automatización */
   dnsProvider: DnsProvider;
   

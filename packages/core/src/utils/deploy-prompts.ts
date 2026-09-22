@@ -116,6 +116,19 @@ export async function promptDeployParams(
       return true;
     },
   });
+  
+  const email = await input({
+    message: 'Email para notificaciones SSL (Let\'s Encrypt):',
+    validate: (value) => {
+      if (!value.trim()) return 'El email es requerido para Let\'s Encrypt';
+      // Validación básica de formato de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value.trim())) {
+        return 'Formato de email inválido (ej: admin@example.com)';
+      }
+      return true;
+    },
+  });
 
   const dnsProvider = await select<DnsProvider>({
     message: 'Proveedor DNS:',
@@ -216,6 +229,7 @@ export async function promptDeployParams(
     sshPassword,
     sshKeyPath: sshKeyPath?.trim(),
     domain: domain.trim().toLowerCase(),
+    email: email.trim().toLowerCase(),
     dnsProvider,
     dnsApiToken,
     gitRepository: gitRepository.trim(),
