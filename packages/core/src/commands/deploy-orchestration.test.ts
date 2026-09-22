@@ -7,6 +7,7 @@ import {
   determineProjectName,
   determineTargetType,
   writeCrossVarsToDisk,
+  inferCiProvider,
 } from './deploy.js';
 
 /**
@@ -385,6 +386,55 @@ describe('Deploy orchestration (FRA-37)', () => {
       expect(content).toContain('_STARTS_WITH_UNDERSCORE=value2');
       expect(content).toContain('MixedCase123=value3');
       expect(content).toContain('lowercase_key=value4');
+    });
+  });
+
+  describe('inferCiProvider (FRA-36)', () => {
+    it('debe inferir github-actions desde URL de github.com', async () => {
+      const provider = await inferCiProvider('https://github.com/user/repo.git');
+      expect(provider).toBe('github-actions');
+    });
+    
+    it('debe inferir github-actions desde URL HTTPS de github.com', async () => {
+      const provider = await inferCiProvider('https://github.com/org/project.git');
+      expect(provider).toBe('github-actions');
+    });
+    
+    it('debe inferir github-actions desde URL SSH de github.com', async () => {
+      const provider = await inferCiProvider('git@github.com:user/repo.git');
+      expect(provider).toBe('github-actions');
+    });
+    
+    it('debe inferir gitlab-ci desde URL de gitlab.com', async () => {
+      const provider = await inferCiProvider('https://gitlab.com/user/repo.git');
+      expect(provider).toBe('gitlab-ci');
+    });
+    
+    it('debe inferir gitlab-ci desde URL HTTPS de gitlab.com', async () => {
+      const provider = await inferCiProvider('https://gitlab.com/org/project.git');
+      expect(provider).toBe('gitlab-ci');
+    });
+    
+    it('debe inferir gitlab-ci desde URL SSH de gitlab.com', async () => {
+      const provider = await inferCiProvider('git@gitlab.com:user/repo.git');
+      expect(provider).toBe('gitlab-ci');
+    });
+    
+    it('debe retornar null para URL sin proveedor conocido', async () => {
+      const provider = await inferCiProvider('https://bitbucket.org/user/repo.git');
+      expect(provider).toBeNull();
+    });
+    
+    it('debe retornar null para URL custom self-hosted', async () => {
+      const provider = await inferCiProvider('https://git.example.com/user/repo.git');
+      expect(provider).toBeNull();
+    });
+    
+    it('debe ser case-insensitive', async () => {
+      const provider1 = await inferCiProvider('https://GitHub.com/user/repo.git');
+      const provider2 = await inferCiProvider('https://GITLAB.COM/user/repo.git');
+      expect(provider1).toBe('github-actions');
+      expect(provider2).toBe('gitlab-ci');
     });
   });
 
