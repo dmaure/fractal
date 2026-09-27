@@ -2,7 +2,8 @@
 
 **Versión:** 1.0.0
 **Estado:** Draft
-**Última revisión:** 2026-09-27
+**Última revisión:** 2026-09-27 — el Diagrama 1 (milestones) es ahora
+auto-generado desde [`progress.json`](progress.json) (SPEC-0031).
 
 ---
 
@@ -43,15 +44,22 @@ justamente lo que este mapa necesita.
 
 ## Diagrama 1 — Avance por milestone (M0 → M6)
 
+> **Generado automáticamente** desde [`progress.json`](progress.json) con
+> `pnpm progress` (dev-tool `scripts/progress-map.js`, semilla de SPEC-0031).
+> No editar a mano el bloque entre los marcadores: se sobrescribe. El
+> **Diagrama 2** (capacidades y módulos) sigue a mano por ahora; se automatiza
+> también en SPEC-0031.
+
+<!-- progress-map:auto:start -->
 ```mermaid
 flowchart LR
     M0["M0 · Fundaciones<br/>reglas, docs y CI base"]
     M1["M1 · Esqueleto vertical<br/>new + deploy = app online"]
     M2["M2 · FDL y entidades<br/>CRUD generado y desplegable"]
-    M3["M3 · Auth<br/>roles, OAuth, 2FA"]
+    M3["M3 · Autenticación y autorización<br/>roles, OAuth, 2FA"]
     M4["M4 · Adapter Rails<br/>multi-target verificado"]
-    M5["M5 · Modulos avanzados<br/>modulos instalables"]
-    M6["M6 · Operacion<br/>backups, monitoreo, upgrade"]
+    M5["M5 · Módulos avanzados<br/>módulos instalables"]
+    M6["M6 · Operación<br/>backups, monitoreo, upgrade"]
 
     M0 --> M1 --> M2 --> M3 --> M4 --> M5 --> M6
 
@@ -62,6 +70,7 @@ flowchart LR
     class M0,M1,M2 curso;
     class M3,M4,M5,M6 pend;
 ```
+<!-- progress-map:auto:end -->
 
 **Lectura honesta del estado actual** (justificada desde
 [`ROADMAP.md`](ROADMAP.md) y el trabajo reciente):

@@ -29,6 +29,13 @@ Cada milestone entrega valor verificable por sí solo.
 | CI base: lint, tests, matriz de versiones | ⬜ |
 | Lint de acoplamiento (Artículo II) | ✅ |
 | Monorepo con workspaces configurado | ✅ |
+| Visibilidad de estado del proyecto (SPEC-0031) | ⬜[^spec0031] |
+
+[^spec0031]: En realidad **🟡 en curso** — MVP entregado (dev-script
+    `scripts/progress-map.js` + `pnpm progress`, que autogenera el Diagrama 1
+    de `MAPA_DE_PROGRESO.md` desde `docs/progress.json`); la capability de
+    producto `fractal status` queda por implementar (SPEC-0031, Aprobado). La
+    tabla de M0 usa solo ✅/⬜, de ahí el ⬜.
 
 **Definition of Done:** un contribuidor nuevo entiende qué construir y cómo, leyendo solo el repo.
 
