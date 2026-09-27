@@ -2,6 +2,8 @@
 
 **Última revisión:** 2026-09-27
 
+> Mapa visual del avance: ver [`MAPA_DE_PROGRESO.md`](./MAPA_DE_PROGRESO.md).
+
 > Base de esta actualización: ADRs M0 aceptados (0002/0003/0004/0006/0007),
 > estructura de `docs/` y monorepo pnpm ya presentes, y lint de acoplamiento
 > con script propio. M1 de deploy (SPEC-0003) mergeado pero aún Aprobado
