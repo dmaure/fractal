@@ -10,6 +10,9 @@ describe('fractal status', () => {
   let consoleLogSpy: string[];
   let consoleErrorSpy: string[];
   let processExitSpy: number | null;
+  let originalLog: typeof console.log;
+  let originalError: typeof console.error;
+  let originalExit: typeof process.exit;
 
   beforeEach(async () => {
     originalCwd = process.cwd();
@@ -17,9 +20,9 @@ describe('fractal status', () => {
     consoleErrorSpy = [];
     processExitSpy = null;
 
-    const originalLog = console.log;
-    const originalError = console.error;
-    const originalExit = process.exit;
+    originalLog = console.log;
+    originalError = console.error;
+    originalExit = process.exit;
 
     console.log = (...args: unknown[]) => {
       consoleLogSpy.push(args.join(' '));
@@ -41,6 +44,10 @@ describe('fractal status', () => {
   });
 
   afterEach(async () => {
+    console.log = originalLog;
+    console.error = originalError;
+    process.exit = originalExit;
+    
     process.chdir(originalCwd);
     await rm(testDir, { recursive: true, force: true });
   });
