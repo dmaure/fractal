@@ -36,6 +36,51 @@ fractal new mi-proyecto --topology=monorepo
 fractal new mi-proyecto --force
 ```
 
+### `fractal status`
+
+Muestra el estado del proyecto según `progress.json`.
+
+Lee el archivo `progress.json` en la raíz del proyecto y muestra un resumen legible milestone por milestone, con conteo y porcentaje por estado.
+
+**Estados válidos:**
+- `completado`: tarea terminada
+- `en_curso`: tarea en progreso
+- `pendiente`: tarea no iniciada
+
+**Estructura esperada de progress.json:**
+
+```json
+{
+  "milestones": [
+    {
+      "name": "Milestone 1",
+      "tasks": [
+        { "name": "Tarea 1", "status": "completado" },
+        { "name": "Tarea 2", "status": "en_curso" },
+        { "name": "Tarea 3", "status": "pendiente" }
+      ]
+    }
+  ]
+}
+```
+
+**Ejemplo de salida:**
+
+```
+📊 Estado del proyecto
+
+Milestone 1
+   ✓ Completado: 1 (33.3%)
+   ◷ En curso:   1 (33.3%)
+   ○ Pendiente:  1 (33.3%)
+   Total:      3
+```
+
+**Validación:**
+- El comando falla con mensaje accionable si el archivo no existe, contiene JSON inválido, o la estructura no es válida
+- Los estados deben ser exactamente uno de los tres valores válidos (`completado`, `en_curso`, `pendiente`)
+
+
 ## Uso del Bridge Node → Toolchain
 
 El módulo `adapter-bridge` permite al core invocar la toolchain de cualquier target sin conocerla, delegando ese conocimiento exclusivamente al adapter correspondiente.
