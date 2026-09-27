@@ -3,7 +3,16 @@
 **Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-01
-**Última revisión:** 2026-09-06 — hardening SSH efectivo: drop-in
+**Última revisión:** 2026-09-27 — sigue en **Aprobado** (no Implementado). M1
+de deploy mergeado y verificado: FRA-37 (PR #41, orquestación
+hardening→runtime→DNS en `packages/core/src/commands/deploy.ts`), FRA-38
+(PR #42, SSL Let's Encrypt + reload de Docker) y FRA-36 (PR #44, generación de
+CI/CD) — sumados a FRA-34/33/32/29 ya mergeados, cubren con tests AC-3, AC-4,
+AC-5, AC-6, AC-8, AC-10, AC-11 y AC-13 en `packages/deploy` y `packages/core`.
+Falta antes de marcar Implementado (DoD §9): el e2e contra un VPS efímero real
+"pasa en CI" — hoy no existe `.github/workflows/`, así que no hay CI que lo
+corra — y la documentación de usuario. Revisión previa 2026-09-06 —
+hardening SSH efectivo: drop-in
 `sshd_config.d` + verificación con `sshd -T` (password, root y
 keyboard-interactive). Revisión previa el mismo día: AC-2 y
 consideraciones de seguridad: las conexiones SSH verifican la clave
