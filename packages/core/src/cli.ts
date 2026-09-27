@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { newCommand } from './commands/new.js';
 import { deployCommand } from './commands/deploy.js';
+import { statusCommand } from './commands/status.js';
 import type { NewCommandOptions } from './types/new-command.js';
 import type { DeployCommandOptions } from './types/deploy-command.js';
 
@@ -43,6 +44,18 @@ program
   .action(async (options: DeployCommandOptions) => {
     try {
       await deployCommand(options);
+    } catch (error) {
+      console.error('Error:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('status')
+  .description('Muestra el estado del proyecto según progress.json')
+  .action(async () => {
+    try {
+      await statusCommand();
     } catch (error) {
       console.error('Error:', error);
       process.exit(1);
