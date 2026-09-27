@@ -3,6 +3,15 @@
 **Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-09
+**Última revisión:** 2026-09-27 — sigue en **Aprobado**. El mecanismo del
+bridge está implementado en `packages/core/src/bridge` (detección de binario
+ausente, timeout, lock `.fractal.lock` con PID) y tiene tests
+(`bridge/timeout.spec.ts`, `lock/lock-manager.spec.ts`,
+`test/adapter-bridge.test.ts`, `test/binary-check.test.ts`). Pendiente para
+poder marcarlo Implementado: AC-4 sigue "Implementado parcialmente" (el
+chequeo de versión mínima depende de SPEC-0006, ahora Aprobado → ver su ticket
+propuesto T3) y falta la documentación de usuario del contrato (AC-6). El M1
+mergeado (FRA-37/FRA-38/FRA-36) es del lado deploy, no toca este bridge.
 **Issue:** #
 
 ---

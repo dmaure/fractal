@@ -74,7 +74,8 @@ Orden de lectura recomendado:
 1. **[CONSTITUTION.md](docs/CONSTITUTION.md)** — principios innegociables
 2. **[VISION.md](docs/VISION.md)** — qué construimos y para quién
 3. **[ROADMAP.md](docs/ROADMAP.md)** — en qué orden
-4. **[PROCESO.md](docs/PROCESO.md)** — cómo se trabaja
+4. **[MAPA_DE_PROGRESO.md](docs/MAPA_DE_PROGRESO.md)** — el avance, visualizado
+5. **[PROCESO.md](docs/PROCESO.md)** — cómo se trabaja
 
 Decisiones técnicas en [`docs/adr/`](docs/adr/).
 Especificaciones de capabilities en [`docs/specs/`](docs/specs/).

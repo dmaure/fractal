@@ -3,9 +3,16 @@
 **Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-09
-**Última revisión:** 2026-08-26 — resueltas las 3 preguntas abiertas que
-había dejado la reapertura del 2026-08-16 (ADR-0010: topología; ADR-0012:
-manifiesto multirepo). Vuelve a Aprobado.
+**Última revisión:** 2026-09-27 — sigue en **Aprobado**. El M1 mergeado
+(PRs #41/#42/#44, tickets FRA-37/FRA-38/FRA-36) completa el lado de deploy
+(SPEC-0003), no `fractal new`; la implementación de `fractal new` y sus tests
+viven en `packages/core` (`commands/new.test.ts`, `utils/directory-validator`,
+`utils/git-initializer`, `utils/manifest-generator`), pero la DoD del §9
+todavía no se puede verificar entera (falta documentación de usuario, e2e y el
+marcado como Implementado). No se marca Implementado. Revisión previa
+2026-08-26 — resueltas las 3 preguntas abiertas que había dejado la reapertura
+del 2026-08-16 (ADR-0010: topología; ADR-0012: manifiesto multirepo). Vuelve a
+Aprobado.
 **Issue:** #
 
 ---

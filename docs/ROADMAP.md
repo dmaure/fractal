@@ -1,6 +1,13 @@
 # Roadmap
 
-**Última revisión:** 2026-08-02
+**Última revisión:** 2026-09-27
+
+> Mapa visual del avance: ver [`MAPA_DE_PROGRESO.md`](./MAPA_DE_PROGRESO.md).
+
+> Base de esta actualización: ADRs M0 aceptados (0002/0003/0004/0006/0007),
+> estructura de `docs/` y monorepo pnpm ya presentes, y lint de acoplamiento
+> con script propio. M1 de deploy (SPEC-0003) mergeado pero aún Aprobado
+> (falta e2e en CI y docs de usuario); SPEC-0006 pasó a Aprobado (no entregado).
 
 Cada milestone entrega valor verificable por sí solo.
 
@@ -13,15 +20,22 @@ Cada milestone entrega valor verificable por sí solo.
 | Ítem | Estado |
 |---|---|
 | Constitución y visión escritas | ✅ |
-| Estructura de `docs/` en el repo | ⬜ |
-| ADR-0002: arquitectura multi-target | ⬜ |
-| ADR-0003: FDL como representación intermedia | ⬜ |
-| ADR-0004: estrategia multi-DB | ⬜ |
-| ADR-0006: Docker Compose como runtime | ⬜ |
-| ADR-0007: GitHub Actions como CI/CD | ⬜ |
+| Estructura de `docs/` en el repo | ✅ |
+| ADR-0002: arquitectura multi-target | ✅ |
+| ADR-0003: FDL como representación intermedia | ✅ |
+| ADR-0004: estrategia multi-DB | ✅ |
+| ADR-0006: Docker Compose como runtime | ✅ |
+| ADR-0007: GitHub Actions como CI/CD | ✅ |
 | CI base: lint, tests, matriz de versiones | ⬜ |
-| Lint de acoplamiento (Artículo II) | ⬜ |
-| Monorepo con workspaces configurado | ⬜ |
+| Lint de acoplamiento (Artículo II) | ✅ |
+| Monorepo con workspaces configurado | ✅ |
+| Visibilidad de estado del proyecto (SPEC-0031) | ⬜[^spec0031] |
+
+[^spec0031]: En realidad **🟡 en curso** — MVP entregado (dev-script
+    `scripts/progress-map.js` + `pnpm progress`, que autogenera el Diagrama 1
+    de `MAPA_DE_PROGRESO.md` desde `docs/progress.json`); la capability de
+    producto `fractal status` queda por implementar (SPEC-0031, Aprobado). La
+    tabla de M0 usa solo ✅/⬜, de ahí el ⬜.
 
 **Definition of Done:** un contribuidor nuevo entiende qué construir y cómo, leyendo solo el repo.
 
@@ -62,6 +76,10 @@ invertir en generación de código.
 | SPEC-0013 | Tests de snapshot de stubs | ⬜ |
 
 **Salida:** `fractal entity Producto` genera CRUD completo y desplegable.
+
+> SPEC-0006 (contrato del adapter) pasó a **Aprobado** el 2026-09-27; sigue ⬜
+> porque aprobado no es entregado. Su descomposición en tickets propuesta está
+> en el §10 del propio spec.
 
 ---
 

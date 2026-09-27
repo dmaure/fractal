@@ -12,7 +12,8 @@
     "test": "pnpm -r test",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint && node scripts/lint-coupling.js",
-    "lint:coupling": "node scripts/lint-coupling.js"
+    "lint:coupling": "node scripts/lint-coupling.js",
+    "progress": "node scripts/progress-map.js"
   },
   "keywords": [
     "fractal",
