@@ -1,8 +1,8 @@
 # Visión de Producto — Fractal
 
-**Versión:** 1.0.0
+**Versión:** 1.1.0
 **Estado:** Draft
-**Última revisión:** 2026-08-02
+**Última revisión:** 2026-09-27
 
 ---
 
@@ -42,12 +42,17 @@ Dos diferenciadores frente a JHipster:
 2. **Multi-target real.** El dominio se define una vez, en FDL, y se proyecta a cualquier
    framework soportado.
 
+La ambición de largo plazo va más allá del software: ver §10.
+
 ---
 
 ## 3. Usuario objetivo
 
 **Primario:** desarrollador fullstack, freelance o en agencia pequeña, que inicia
 proyectos nuevos con frecuencia y necesita mostrar avances tempranos al cliente.
+
+En el horizonte de largo plazo (§10), el usuario objetivo se amplía a cualquier persona
+con una idea por desarrollar, no necesariamente de software.
 
 **Secundario:** equipos de 2 a 8 personas que quieren estandarizar cómo arrancan proyectos.
 
@@ -195,3 +200,41 @@ La última métrica es la prueba de fuego de la arquitectura.
 | Variedad de VPS rompe el provisioning | Alto | Solo Ubuntu LTS en v1 |
 | Alcance excesivo paraliza el desarrollo | Alto | Core mínimo, resto como módulos |
 | Dos targets duplican el esfuerzo de mantenimiento | Medio | Contrato de adapter estrecho y bien testeado |
+
+---
+
+## 10. Visión de largo plazo — más allá del software
+
+Esta sección describe el **norte** del producto: una **ambición de largo plazo**, no el
+alcance actual. Sirve para orientar decisiones de diseño; no afirma que la arquitectura
+de hoy ya cubra dominios no-software.
+
+### La ambición
+
+La idea es **asistir al usuario final en el desarrollo de sus ideas, acompañándolo de
+inicio a fin** —desde el principio hasta la realización completa de la idea—, proveyendo
+las herramientas necesarias para hacerlo de forma **profesional**.
+
+Esto aplica **ya sea a ideas de software o de cualquier otra índole**. Si la idea es de
+**otra índole**, el objetivo es darle las herramientas necesarias para **crear un sistema
+con todas las herramientas de administración** que el proyecto pueda necesitar (por
+ejemplo, un sistema de gestión/administración a medida del proyecto).
+
+### Relación con el alcance actual
+
+Hoy el producto es un **generador de proyectos de _software_**: FDL como representación
+intermedia, adapters Laravel/Rails, y una capa de deploy (ver §5 y §6, y los milestones
+M0–M6 del ROADMAP). La visión de largo plazo **no cambia ese alcance actual**: es la
+dirección que **informa** ciertas decisiones de diseño —el **agnosticismo** del core
+respecto del target y la **modularidad**— para no cerrarnos puertas hacia dominios más
+amplios.
+
+No debe leerse como que la arquitectura actual **ya soporta** dominios no-software: no lo
+hace, y no es lo que este documento afirma.
+
+### Cómo se baja a la práctica
+
+Llevar esta ambición a dominios concretos no-software **requerirá futuros ADRs y specs**,
+respetando el proceso de decisión vigente. En particular, la **`CONSTITUTION.md` no se
+modifica aquí**: su Artículo de Enmiendas exige un ADR para cualquier cambio. Esta sección
+fija el norte; las decisiones que lo hagan realidad se tomarán, documentadas, en su momento.
