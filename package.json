@@ -9,7 +9,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "test": "pnpm -r test",
+    "test": "pnpm -r test && vitest run --config vitest.scripts.config.ts",
+    "test:scripts": "vitest run --config vitest.scripts.config.ts",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint && node scripts/lint-coupling.js",
     "lint:coupling": "node scripts/lint-coupling.js",

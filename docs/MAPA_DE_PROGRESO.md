@@ -2,8 +2,9 @@
 
 **Versión:** 1.0.0
 **Estado:** Draft
-**Última revisión:** 2026-09-27 — el Diagrama 1 (milestones) es ahora
-auto-generado desde [`progress.json`](progress.json) (SPEC-0031).
+**Última revisión:** 2026-09-28 — el Diagrama 1 (milestones) y el Diagrama 2
+(capacidades y módulos) son ahora auto-generados desde
+[`progress.json`](progress.json) (SPEC-0031).
 
 ---
 
@@ -47,8 +48,8 @@ justamente lo que este mapa necesita.
 > **Generado automáticamente** desde [`progress.json`](progress.json) con
 > `pnpm progress` (dev-tool `scripts/progress-map.js`, semilla de SPEC-0031).
 > No editar a mano el bloque entre los marcadores: se sobrescribe. El
-> **Diagrama 2** (capacidades y módulos) sigue a mano por ahora; se automatiza
-> también en SPEC-0031.
+> **Diagrama 2** (capacidades y módulos) también se genera automáticamente
+> desde [`progress.json`](progress.json) (SPEC-0031 AC-3).
 
 <!-- progress-map:auto:start -->
 ```mermaid
@@ -88,6 +89,12 @@ flowchart LR
 
 ## Diagrama 2 — Mapa de capacidades y módulos
 
+> **Generado automáticamente** desde [`progress.json`](progress.json) (bloque
+> `capacidades`) con `pnpm progress` (dev-tool `scripts/progress-map.js`,
+> semilla de SPEC-0031). No editar a mano el bloque entre los marcadores: se
+> sobrescribe.
+
+<!-- progress-map:diagrama2:start -->
 ```mermaid
 flowchart TD
     subgraph CAP["Capabilities (CLI · core)"]
@@ -97,15 +104,15 @@ flowchart TD
         MOD["fractal module"]
     end
 
-    FDL["FDL · entidades<br/>campos · relaciones · reglas<br/>(ADR-0003)"]
-    MODULOS["Modulos opcionales<br/>(Constitucion Art. IX · ROADMAP M5)"]
-
     subgraph PKG["Packages"]
         CORE["core · agnostico"]
         ALAR["adapter-laravel"]
         ARAI["adapter-rails"]
         DEPLOY["deploy · agnostico"]
     end
+
+    FDL["FDL · entidades<br/>campos · relaciones · reglas<br/>(ADR-0003)"]
+    MODULOS["Modulos opcionales<br/>(Constitucion Art. IX · ROADMAP M5)"]
 
     NEW --> CORE
     ENT --> FDL
@@ -120,9 +127,10 @@ flowchart TD
     classDef curso fill:#f9a825,color:#000,stroke:#f57f17;
     classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
 
-    class NEW,DEP,ENT,CORE,ALAR,DEPLOY curso;
-    class FDL,MODULOS,MOD,ARAI pend;
+    class NEW,ENT,DEP,CORE,ALAR,DEPLOY curso;
+    class MOD,ARAI,FDL,MODULOS pend;
 ```
+<!-- progress-map:diagrama2:end -->
 
 Cómo leerlo:
 

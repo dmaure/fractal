@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-09-27",
+  "actualizado": "2026-09-28",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -14,5 +14,43 @@
     { "id": "M4", "nombre": "Adapter Rails", "entregable": "multi-target verificado", "estado": "pendiente" },
     { "id": "M5", "nombre": "Módulos avanzados", "entregable": "módulos instalables", "estado": "pendiente" },
     { "id": "M6", "nombre": "Operación", "entregable": "backups, monitoreo, upgrade", "estado": "pendiente" }
-  ]
+  ],
+  "capacidades": {
+    "grupos": [
+      {
+        "id": "CAP",
+        "titulo": "Capabilities (CLI · core)",
+        "nodos": [
+          { "id": "NEW", "label": "fractal new", "estado": "en_curso" },
+          { "id": "ENT", "label": "fractal entity", "estado": "en_curso" },
+          { "id": "DEP", "label": "fractal deploy", "estado": "en_curso" },
+          { "id": "MOD", "label": "fractal module", "estado": "pendiente" }
+        ]
+      },
+      {
+        "id": "PKG",
+        "titulo": "Packages",
+        "nodos": [
+          { "id": "CORE", "label": "core · agnostico", "estado": "en_curso" },
+          { "id": "ALAR", "label": "adapter-laravel", "estado": "en_curso" },
+          { "id": "ARAI", "label": "adapter-rails", "estado": "pendiente" },
+          { "id": "DEPLOY", "label": "deploy · agnostico", "estado": "en_curso" }
+        ]
+      }
+    ],
+    "nodos": [
+      { "id": "FDL", "label": "FDL · entidades<br/>campos · relaciones · reglas<br/>(ADR-0003)", "estado": "pendiente" },
+      { "id": "MODULOS", "label": "Modulos opcionales<br/>(Constitucion Art. IX · ROADMAP M5)", "estado": "pendiente" }
+    ],
+    "aristas": [
+      ["NEW", "CORE"],
+      ["ENT", "FDL"],
+      ["FDL", "ALAR"],
+      ["FDL", "ARAI"],
+      ["MOD", "MODULOS"],
+      ["CORE", "ALAR"],
+      ["CORE", "ARAI"],
+      ["DEP", "DEPLOY"]
+    ]
+  }
 }
