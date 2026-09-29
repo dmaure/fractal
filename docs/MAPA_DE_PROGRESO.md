@@ -46,10 +46,11 @@ justamente lo que este mapa necesita.
 ## Diagrama 1 — Avance por milestone (M0 → M6)
 
 > **Generado automáticamente** desde [`progress.json`](progress.json) con
-> `pnpm progress` (dev-tool `scripts/progress-map.js`, semilla de SPEC-0031).
-> No editar a mano el bloque entre los marcadores: se sobrescribe. El
-> **Diagrama 2** (capacidades y módulos) también se genera automáticamente
-> desde [`progress.json`](progress.json) (SPEC-0031 AC-3).
+> `fractal status --write` (o el dev-tool `pnpm progress` /
+> `scripts/progress-map.js`, un wrapper fino sobre el mismo núcleo). No editar a
+> mano el bloque entre los marcadores: se sobrescribe. El **Diagrama 2**
+> (capacidades y módulos) también se genera automáticamente desde
+> [`progress.json`](progress.json) (SPEC-0031 AC-3).
 
 <!-- progress-map:auto:start -->
 ```mermaid
@@ -90,9 +91,9 @@ flowchart LR
 ## Diagrama 2 — Mapa de capacidades y módulos
 
 > **Generado automáticamente** desde [`progress.json`](progress.json) (bloque
-> `capacidades`) con `pnpm progress` (dev-tool `scripts/progress-map.js`,
-> semilla de SPEC-0031). No editar a mano el bloque entre los marcadores: se
-> sobrescribe.
+> `capacidades`) con `fractal status --write` (o `pnpm progress` /
+> `scripts/progress-map.js`, wrapper fino sobre el mismo núcleo). No editar a
+> mano el bloque entre los marcadores: se sobrescribe.
 
 <!-- progress-map:diagrama2:start -->
 ```mermaid
