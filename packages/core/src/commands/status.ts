@@ -4,25 +4,50 @@ import chalk from 'chalk';
 import type {
   ProgressData,
   Milestone,
-  MilestoneStats,
-  TaskStatus,
+  Capacidades,
+  CapacidadNodo,
+  StatusSummary,
+  Estado,
 } from '../types/progress.js';
 import { isValidTaskStatus, VALID_STATUSES } from '../types/progress.js';
 
 /**
+ * Glifos y etiquetas por estado. Idénticos a los de `scripts/progress-map.js`
+ * (`printSummary`), para que `fractal status` y `pnpm progress` muestren el
+ * mismo resumen (SPEC-0031, FRA-46).
+ */
+const GLYPHS: Record<Estado, string> = {
+  completado: '✅',
+  en_curso: '🟡',
+  pendiente: '⬜',
+};
+
+const ESTADO_LABEL: Record<Estado, string> = {
+  completado: 'Completado',
+  en_curso: 'En curso',
+  pendiente: 'Pendiente',
+};
+
+/**
+ * Ruta de la fuente de verdad, relativa a la raíz del proyecto actual.
+ */
+const PROGRESS_RELATIVE_PATH = ['docs', 'progress.json'] as const;
+
+/**
  * Comando `fractal status`.
  *
- * Lee progress.json del proyecto actual y muestra un resumen legible
- * milestone por milestone, con conteo y porcentaje por estado.
+ * Lee `docs/progress.json` del proyecto actual y muestra el mismo resumen
+ * legible que `pnpm progress` (`scripts/progress-map.js`): el roadmap por
+ * milestone y el conteo/porcentaje por estado.
  *
- * Cumple SPEC-0031 AC-1 y AC-2:
- * - Parsea progress.json con validación estricta
- * - Muestra resumen por milestone
+ * Cumple SPEC-0031 AC-1 y AC-2 sobre el shape real de la fuente de verdad
+ * (`{ id, nombre, entregable, estado }` + `capacidades` opcional):
+ * - Parsea `docs/progress.json` con validación estricta
  * - Estados válidos: completado | en_curso | pendiente
  * - Mensajes de error accionables
  */
 export async function statusCommand(): Promise<void> {
-  const progressPath = resolve(process.cwd(), 'progress.json');
+  const progressPath = resolve(process.cwd(), ...PROGRESS_RELATIVE_PATH);
 
   let progressData: ProgressData;
 
@@ -33,13 +58,11 @@ export async function statusCommand(): Promise<void> {
     process.exit(1);
   }
 
-  const stats = calculateStats(progressData);
-
-  displayStatus(stats);
+  displaySummary(progressData);
 }
 
 /**
- * Carga y valida progress.json
+ * Carga y valida `docs/progress.json`.
  */
 async function loadProgressFile(path: string): Promise<ProgressData> {
   let content: string;
@@ -66,10 +89,14 @@ async function loadProgressFile(path: string): Promise<ProgressData> {
 }
 
 /**
- * Valida la estructura de progress.json
+ * Valida la estructura de `docs/progress.json`.
+ *
+ * `milestones` es obligatorio (arreglo no vacío) y `capacidades` es opcional;
+ * cuando está presente se valida su forma. Alineado con la validación de
+ * `scripts/progress-map.js` para no divergir de la fuente de verdad.
  */
 function validateProgressData(data: unknown): asserts data is ProgressData {
-  if (typeof data !== 'object' || data === null) {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     throw new Error('INVALID_STRUCTURE: root must be object');
   }
 
@@ -83,114 +110,174 @@ function validateProgressData(data: unknown): asserts data is ProgressData {
     throw new Error('INVALID_STRUCTURE: "milestones" must be array');
   }
 
-  milestones.forEach((milestone, idx) => {
-    if (typeof milestone !== 'object' || milestone === null) {
-      throw new Error(
-        `INVALID_STRUCTURE: milestone[${idx}] must be object`
-      );
-    }
-
-    if (!('name' in milestone) || typeof milestone.name !== 'string') {
-      throw new Error(
-        `INVALID_STRUCTURE: milestone[${idx}].name must be string`
-      );
-    }
-
-    if (!('tasks' in milestone) || !Array.isArray(milestone.tasks)) {
-      throw new Error(
-        `INVALID_STRUCTURE: milestone[${idx}].tasks must be array`
-      );
-    }
-
-    milestone.tasks.forEach((task: unknown, taskIdx: number) => {
-      if (typeof task !== 'object' || task === null) {
-        throw new Error(
-          `INVALID_STRUCTURE: milestone[${idx}].tasks[${taskIdx}] must be object`
-        );
-      }
-
-      if (!('name' in task) || typeof task.name !== 'string') {
-        throw new Error(
-          `INVALID_STRUCTURE: milestone[${idx}].tasks[${taskIdx}].name must be string`
-        );
-      }
-
-      if (!('status' in task)) {
-        throw new Error(
-          `INVALID_STRUCTURE: milestone[${idx}].tasks[${taskIdx}].status is required`
-        );
-      }
-
-      if (!isValidTaskStatus(task.status)) {
-        throw new Error(
-          `INVALID_STATUS: milestone[${idx}].tasks[${taskIdx}].status "${task.status}" is not valid. ` +
-            `Valid statuses: ${VALID_STATUSES.join(', ')}`
-        );
-      }
-    });
-  });
-}
-
-/**
- * Calcula estadísticas por milestone
- */
-function calculateStats(data: ProgressData): MilestoneStats[] {
-  return data.milestones.map((milestone: Milestone) => {
-    const stats: MilestoneStats = {
-      name: milestone.name,
-      completado: 0,
-      en_curso: 0,
-      pendiente: 0,
-      total: milestone.tasks.length,
-    };
-
-    milestone.tasks.forEach((task) => {
-      stats[task.status]++;
-    });
-
-    return stats;
-  });
-}
-
-/**
- * Muestra el resumen de estado en terminal
- */
-function displayStatus(stats: MilestoneStats[]): void {
-  console.log(chalk.blue('\n📊 Estado del proyecto\n'));
-
-  if (stats.length === 0) {
-    console.log(chalk.dim('   No hay milestones definidos\n'));
-    return;
+  if (milestones.length === 0) {
+    throw new Error('INVALID_STRUCTURE: "milestones" must not be empty');
   }
 
-  stats.forEach((milestone) => {
-    console.log(chalk.bold(`${milestone.name}`));
-
-    if (milestone.total === 0) {
-      console.log(chalk.dim('   Sin tareas\n'));
-      return;
+  milestones.forEach((milestone, idx) => {
+    if (typeof milestone !== 'object' || milestone === null) {
+      throw new Error(`INVALID_STRUCTURE: milestone[${idx}] must be object`);
     }
 
-    const completadoPct = ((milestone.completado / milestone.total) * 100).toFixed(1);
-    const enCursoPct = ((milestone.en_curso / milestone.total) * 100).toFixed(1);
-    const pendientePct = ((milestone.pendiente / milestone.total) * 100).toFixed(1);
+    for (const field of ['id', 'nombre', 'entregable'] as const) {
+      if (!(field in milestone) || typeof milestone[field] !== 'string') {
+        throw new Error(
+          `INVALID_STRUCTURE: milestone[${idx}].${field} must be string`
+        );
+      }
+    }
 
-    console.log(
-      `   ${chalk.green('✓')} Completado: ${chalk.bold(milestone.completado.toString())} (${completadoPct}%)`
-    );
-    console.log(
-      `   ${chalk.yellow('◷')} En curso:   ${chalk.bold(milestone.en_curso.toString())} (${enCursoPct}%)`
-    );
-    console.log(
-      `   ${chalk.dim('○')} Pendiente:  ${chalk.bold(milestone.pendiente.toString())} (${pendientePct}%)`
-    );
-    console.log(chalk.dim(`   Total:      ${milestone.total}`));
-    console.log();
+    if (!('estado' in milestone)) {
+      throw new Error(
+        `INVALID_STRUCTURE: milestone[${idx}].estado is required`
+      );
+    }
+
+    if (!isValidTaskStatus(milestone.estado)) {
+      throw new Error(
+        `INVALID_STATUS: milestone[${idx}].estado "${milestone.estado}" is not valid. ` +
+          `Valid statuses: ${VALID_STATUSES.join(', ')}`
+      );
+    }
   });
+
+  if ('capacidades' in data && (data as ProgressData).capacidades !== undefined) {
+    validateCapacidades((data as { capacidades: unknown }).capacidades);
+  }
 }
 
 /**
- * Maneja errores de carga con mensajes accionables
+ * Valida el bloque opcional `capacidades` (Diagrama 2).
+ */
+function validateCapacidades(cap: unknown): asserts cap is Capacidades {
+  if (typeof cap !== 'object' || cap === null || Array.isArray(cap)) {
+    throw new Error('INVALID_STRUCTURE: "capacidades" must be object');
+  }
+
+  const { grupos, nodos, aristas } = cap as {
+    grupos?: unknown;
+    nodos?: unknown;
+    aristas?: unknown;
+  };
+
+  const validarNodo = (nodo: unknown, contexto: string): void => {
+    if (
+      typeof nodo !== 'object' ||
+      nodo === null ||
+      typeof (nodo as CapacidadNodo).id !== 'string' ||
+      typeof (nodo as CapacidadNodo).label !== 'string'
+    ) {
+      throw new Error(
+        `INVALID_STRUCTURE: "capacidades" node in ${contexto} must have string "id" and "label"`
+      );
+    }
+    if (!isValidTaskStatus((nodo as CapacidadNodo).estado)) {
+      throw new Error(
+        `INVALID_STATUS: "capacidades" node "${(nodo as CapacidadNodo).id}" estado is not valid. ` +
+          `Valid statuses: ${VALID_STATUSES.join(', ')}`
+      );
+    }
+  };
+
+  if (grupos !== undefined) {
+    if (!Array.isArray(grupos)) {
+      throw new Error('INVALID_STRUCTURE: "capacidades.grupos" must be array');
+    }
+    grupos.forEach((grupo, idx) => {
+      if (
+        typeof grupo !== 'object' ||
+        grupo === null ||
+        typeof grupo.id !== 'string' ||
+        typeof grupo.titulo !== 'string' ||
+        !Array.isArray(grupo.nodos)
+      ) {
+        throw new Error(
+          `INVALID_STRUCTURE: "capacidades.grupos[${idx}]" must have string "id", "titulo" and array "nodos"`
+        );
+      }
+      grupo.nodos.forEach((nodo: unknown) => validarNodo(nodo, `grupos[${idx}]`));
+    });
+  }
+
+  if (nodos !== undefined) {
+    if (!Array.isArray(nodos)) {
+      throw new Error('INVALID_STRUCTURE: "capacidades.nodos" must be array');
+    }
+    nodos.forEach((nodo) => validarNodo(nodo, 'nodos'));
+  }
+
+  if (aristas !== undefined) {
+    if (!Array.isArray(aristas)) {
+      throw new Error('INVALID_STRUCTURE: "capacidades.aristas" must be array');
+    }
+    aristas.forEach((arista, idx) => {
+      if (
+        !Array.isArray(arista) ||
+        arista.length !== 2 ||
+        arista.some((x) => typeof x !== 'string')
+      ) {
+        throw new Error(
+          `INVALID_STRUCTURE: "capacidades.aristas[${idx}]" must be a ["origen", "destino"] pair`
+        );
+      }
+    });
+  }
+}
+
+/**
+ * Calcula el conteo por estado a partir de los milestones.
+ */
+function calculateSummary(milestones: Milestone[]): StatusSummary {
+  const summary: StatusSummary = {
+    completado: 0,
+    en_curso: 0,
+    pendiente: 0,
+    total: milestones.length,
+  };
+
+  for (const milestone of milestones) {
+    summary[milestone.estado]++;
+  }
+
+  return summary;
+}
+
+/**
+ * Muestra el resumen del estado del proyecto.
+ *
+ * Reproduce el formato de `printSummary` de `scripts/progress-map.js` para que
+ * `fractal status` y `pnpm progress` sean consistentes (FRA-46).
+ */
+function displaySummary(data: ProgressData): void {
+  const { milestones } = data;
+
+  console.log(`🗺️  Mapa de avance — ${data.proyecto ?? 'Proyecto'}`);
+  if (data.actualizado) {
+    console.log(`    Actualizado: ${data.actualizado}`);
+  }
+  console.log('');
+
+  for (const m of milestones) {
+    console.log(`${GLYPHS[m.estado]} ${m.id} — ${m.nombre}: ${m.entregable}`);
+  }
+
+  console.log('');
+
+  const summary = calculateSummary(milestones);
+  for (const estado of VALID_STATUSES) {
+    const count = summary[estado];
+    const pct =
+      summary.total > 0 ? Math.round((count / summary.total) * 100) : 0;
+    console.log(
+      `${GLYPHS[estado]} ${ESTADO_LABEL[estado]}: ${count}/${summary.total} (${pct}%)`
+    );
+  }
+
+  console.log('');
+}
+
+/**
+ * Maneja errores de carga con mensajes accionables.
  */
 function handleLoadError(error: unknown, path: string): void {
   const message = error instanceof Error ? error.message : String(error);
@@ -198,9 +285,9 @@ function handleLoadError(error: unknown, path: string): void {
   if (message === 'FILE_NOT_FOUND') {
     console.error(
       chalk.red(
-        `\n❌ Error: No se encontró progress.json\n\n` +
+        `\n❌ Error: No se encontró docs/progress.json\n\n` +
           `   Ubicación esperada: ${chalk.dim(path)}\n\n` +
-          `   ${chalk.yellow('→')} Crea el archivo progress.json en la raíz del proyecto.\n`
+          `   ${chalk.yellow('→')} Crea el archivo docs/progress.json en la raíz del proyecto.\n`
       )
     );
     return;
@@ -209,7 +296,7 @@ function handleLoadError(error: unknown, path: string): void {
   if (message === 'INVALID_JSON') {
     console.error(
       chalk.red(
-        `\n❌ Error: progress.json no es un JSON válido\n\n` +
+        `\n❌ Error: docs/progress.json no es un JSON válido\n\n` +
           `   Archivo: ${chalk.dim(path)}\n\n` +
           `   ${chalk.yellow('→')} Verifica la sintaxis JSON (comillas, comas, llaves).\n`
       )
@@ -221,10 +308,10 @@ function handleLoadError(error: unknown, path: string): void {
     const detail = message.replace('INVALID_STRUCTURE: ', '');
     console.error(
       chalk.red(
-        `\n❌ Error: Estructura inválida en progress.json\n\n` +
+        `\n❌ Error: Estructura inválida en docs/progress.json\n\n` +
           `   ${detail}\n\n` +
           `   ${chalk.yellow('→')} Verifica que el archivo tenga la estructura esperada:\n` +
-          `      { "milestones": [ { "name": "...", "tasks": [ { "name": "...", "status": "..." } ] } ] }\n`
+          `      { "milestones": [ { "id": "...", "nombre": "...", "entregable": "...", "estado": "..." } ] }\n`
       )
     );
     return;
@@ -234,8 +321,7 @@ function handleLoadError(error: unknown, path: string): void {
     const detail = message.replace('INVALID_STATUS: ', '');
     console.error(
       chalk.red(
-        `\n❌ Error: Estado inválido en progress.json\n\n` +
-          `   ${detail}\n`
+        `\n❌ Error: Estado inválido en docs/progress.json\n\n` + `   ${detail}\n`
       )
     );
     return;
@@ -243,8 +329,7 @@ function handleLoadError(error: unknown, path: string): void {
 
   console.error(
     chalk.red(
-      `\n❌ Error inesperado al leer progress.json\n\n` +
-        `   ${message}\n`
+      `\n❌ Error inesperado al leer docs/progress.json\n\n` + `   ${message}\n`
     )
   );
 }

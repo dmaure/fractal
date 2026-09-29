@@ -4,21 +4,13 @@ import { homedir } from 'node:os';
 import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
 import { promptDeployParams, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
-import { 
-  SshClient, 
-  ServerValidator, 
-  ManifestManager, 
-  CrossVarWriter,
-  SystemHardening,
-  RuntimeManager,
-  DnsManager,
-  StateManager,
-  SslManager,
-  adaptSshClient,
-  CicdManager,
-  type TargetType,
-  type CicdProvider,
-} from '@fractal/deploy';
+// NOTA (FRA-46): `@fractal/deploy` arrastra `ssh2` (módulo nativo) de forma
+// transitiva. Importarlo estáticamente aquí hacía que cargar el CLI —y por lo
+// tanto cualquier comando, incluido `fractal status`— fallara si `ssh2` no está
+// disponible. Por eso solo importamos TIPOS a nivel de módulo (se borran en
+// compilación) y cargamos las implementaciones con un `import()` dinámico dentro
+// de `deployCommand`, cuando el comando deploy realmente se ejecuta.
+import type { TargetType, CicdProvider, CrossVarWriter } from '@fractal/deploy';
 
 /**
  * Deriva la clave pública SSH desde una clave privada usando ssh-keygen.
@@ -218,8 +210,24 @@ async function writeCrossVarsToDisk(
 export async function deployCommand(
   options: DeployCommandOptions
 ): Promise<void> {
+  // Carga diferida de `@fractal/deploy` (y por lo tanto de `ssh2`): solo ocurre
+  // cuando el comando deploy se ejecuta, nunca al cargar el CLI (FRA-46).
+  const {
+    SshClient,
+    ServerValidator,
+    ManifestManager,
+    CrossVarWriter,
+    SystemHardening,
+    RuntimeManager,
+    DnsManager,
+    StateManager,
+    SslManager,
+    adaptSshClient,
+    CicdManager,
+  } = await import('@fractal/deploy');
+
   console.log(chalk.blue('🚀 Fractal Deploy — Provisioning de VPS production-ready\n'));
-  
+
   const projectDir = resolve(process.cwd());
   
   // AC-13: Verificar si hay manifiesto de multirepo
