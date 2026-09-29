@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
 import { newCommand } from './commands/new.js';
 import { deployCommand } from './commands/deploy.js';
 import { statusCommand } from './commands/status.js';
@@ -62,4 +64,23 @@ program
     }
   });
 
-program.parse();
+export { program };
+
+// Ejecutar solo si se invoca directamente (no al importar desde los tests).
+// Esto permite testear que cargar el CLI no arrastra `ssh2` sin disparar el
+// parseo de argumentos (FRA-46). Se resuelve `argv[1]` con `realpathSync` para
+// que la detección funcione también cuando se invoca vía el bin `fractal`
+// (symlink en node_modules/.bin apuntando a dist/cli.js).
+function isInvokedDirectly(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isInvokedDirectly()) {
+  program.parse();
+}
