@@ -8,6 +8,7 @@ import { deployCommand } from './commands/deploy.js';
 import { statusCommand } from './commands/status.js';
 import type { NewCommandOptions } from './types/new-command.js';
 import type { DeployCommandOptions } from './types/deploy-command.js';
+import type { StatusCommandOptions } from './types/status-command.js';
 
 const program = new Command();
 
@@ -55,9 +56,13 @@ program
 program
   .command('status')
   .description('Muestra el estado del proyecto según progress.json')
-  .action(async () => {
+  .option(
+    '--write',
+    'Regenera los diagramas de docs/MAPA_DE_PROGRESO.md desde progress.json'
+  )
+  .action(async (options: StatusCommandOptions) => {
     try {
-      await statusCommand();
+      await statusCommand(options);
     } catch (error) {
       console.error('Error:', error);
       process.exit(1);

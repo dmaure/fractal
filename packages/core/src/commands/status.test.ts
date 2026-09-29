@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { statusCommand } from './status.js';
+import { DIAGRAMA1_MARKERS, DIAGRAMA2_MARKERS } from './progress-map.js';
 import type { ProgressData } from '../types/progress.js';
 
 /**
@@ -312,6 +313,109 @@ describe('fractal status', () => {
       const secondOutput = consoleLogSpy.join('\n');
 
       expect(firstOutput).toBe(secondOutput);
+    });
+  });
+
+  describe('write mode (--write) — SPEC-0031 AC-3 / FRA-47', () => {
+    const mapaPath = join(testDir, 'docs', 'MAPA_DE_PROGRESO.md');
+
+    const sample: ProgressData = {
+      proyecto: 'Fractal',
+      milestones: [
+        { id: 'M0', nombre: 'Fundaciones', entregable: 'reglas', estado: 'en_curso' },
+        { id: 'M1', nombre: 'Esqueleto', entregable: 'app online', estado: 'pendiente' },
+        { id: 'M2', nombre: 'Entidades', entregable: 'CRUD', estado: 'completado' },
+      ],
+      capacidades: {
+        grupos: [
+          {
+            id: 'CAP',
+            titulo: 'Capabilities',
+            nodos: [{ id: 'NEW', label: 'fractal new', estado: 'en_curso' }],
+          },
+        ],
+        nodos: [{ id: 'FDL', label: 'FDL', estado: 'pendiente' }],
+        aristas: [['NEW', 'FDL']],
+      },
+    };
+
+    async function writeMapa({ withDiagrama2 = true } = {}): Promise<void> {
+      const d2 = withDiagrama2
+        ? `\n## Diagrama 2\n\n${DIAGRAMA2_MARKERS.start}\nSTALE\n${DIAGRAMA2_MARKERS.end}\n`
+        : '';
+      const md =
+        `# Mapa\n\nTexto a mano antes.\n\n## Diagrama 1\n\n` +
+        `${DIAGRAMA1_MARKERS.start}\nSTALE\n${DIAGRAMA1_MARKERS.end}\n` +
+        `${d2}\nTexto a mano después.\n`;
+      await writeFile(mapaPath, md);
+    }
+
+    it('regenera ambos diagramas desde progress.json e imprime el resumen', async () => {
+      await writeProgress(sample);
+      await writeMapa();
+
+      await statusCommand({ write: true });
+
+      const md = await readFile(mapaPath, 'utf-8');
+      expect(md).toContain('flowchart LR'); // Diagrama 1
+      expect(md).toContain('flowchart TD'); // Diagrama 2
+      expect(md).not.toContain('STALE');
+      // Conserva el contenido escrito a mano alrededor de los marcadores.
+      expect(md).toContain('Texto a mano antes.');
+      expect(md).toContain('Texto a mano después.');
+      // Colorea por estado.
+      expect(md).toContain('class M0 curso;');
+      expect(md).toContain('class M2 done;');
+
+      // Sigue imprimiendo el resumen de siempre.
+      const output = consoleLogSpy.join('\n');
+      expect(output).toContain('🗺️  Mapa de avance — Fractal');
+      expect(output).toContain('✅ M2 — Entidades: CRUD');
+      expect(output).toContain('Diagramas regenerados');
+    });
+
+    it('es idempotente: una segunda corrida no produce diff', async () => {
+      await writeProgress(sample);
+      await writeMapa();
+
+      await statusCommand({ write: true });
+      const afterFirst = await readFile(mapaPath, 'utf-8');
+
+      consoleLogSpy = [];
+      await statusCommand({ write: true });
+      const afterSecond = await readFile(mapaPath, 'utf-8');
+
+      expect(afterSecond).toBe(afterFirst);
+      expect(consoleLogSpy.join('\n')).toContain('ya estaban sincronizados');
+    });
+
+    it('sin --write no toca el mapa (modo lectura por defecto)', async () => {
+      await writeProgress(sample);
+      await writeMapa();
+      const before = await readFile(mapaPath, 'utf-8');
+
+      await statusCommand();
+
+      expect(await readFile(mapaPath, 'utf-8')).toBe(before);
+    });
+
+    it('falla con mensaje accionable si falta MAPA_DE_PROGRESO.md', async () => {
+      await writeProgress(sample);
+
+      await expect(statusCommand({ write: true })).rejects.toThrow('process.exit');
+
+      expect(processExitSpy).toBe(1);
+      expect(consoleErrorSpy.join('\n')).toContain('No se encontró docs/MAPA_DE_PROGRESO.md');
+    });
+
+    it('falla nombrando los marcadores del Diagrama 2 cuando faltan pero hay capacidades', async () => {
+      await writeProgress(sample);
+      await writeMapa({ withDiagrama2: false });
+
+      await expect(statusCommand({ write: true })).rejects.toThrow('process.exit');
+
+      expect(processExitSpy).toBe(1);
+      expect(consoleErrorSpy.join('\n')).toContain(DIAGRAMA2_MARKERS.start);
     });
   });
 });

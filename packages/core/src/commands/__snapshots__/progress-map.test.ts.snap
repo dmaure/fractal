@@ -1,0 +1,48 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`progress-map · generación de diagramas (SPEC-0031 AC-3) > generateDiagrama1 > genera un bloque estable (snapshot) coloreado por estado 1`] = `
+"\`\`\`mermaid
+flowchart LR
+    M0["M0 · Fundaciones<br/>reglas y docs"]
+    M1["M1 · Esqueleto<br/>app online"]
+    M2["M2 · Entidades<br/>CRUD"]
+
+    M0 --> M1 --> M2
+
+    classDef done fill:#2e7d32,color:#fff,stroke:#1b5e20;
+    classDef curso fill:#f9a825,color:#000,stroke:#f57f17;
+    classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
+
+    class M2 done;
+    class M0 curso;
+    class M1 pend;
+\`\`\`"
+`;
+
+exports[`progress-map · generación de diagramas (SPEC-0031 AC-3) > generateDiagrama2 > genera un bloque estable (snapshot) con subgraphs, nodos y aristas 1`] = `
+"\`\`\`mermaid
+flowchart TD
+    subgraph CAP["Capabilities (CLI · core)"]
+        NEW["fractal new"]
+        DEP["fractal deploy"]
+    end
+
+    subgraph PKG["Packages"]
+        CORE["core · agnostico"]
+    end
+
+    FDL["FDL · entidades"]
+
+    NEW --> CORE
+    CORE --> FDL
+    DEP --> CORE
+
+    classDef done fill:#2e7d32,color:#fff,stroke:#1b5e20;
+    classDef curso fill:#f9a825,color:#000,stroke:#f57f17;
+    classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
+
+    class DEP done;
+    class NEW,CORE curso;
+    class FDL pend;
+\`\`\`"
+`;

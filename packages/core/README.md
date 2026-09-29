@@ -80,6 +80,37 @@ Milestone 1
 - El comando falla con mensaje accionable si el archivo no existe, contiene JSON inválido, o la estructura no es válida
 - Los estados deben ser exactamente uno de los tres valores válidos (`completado`, `en_curso`, `pendiente`)
 
+#### Modo escritura: `fractal status --write`
+
+Por defecto, `fractal status` solo imprime el resumen (modo lectura, no toca
+archivos). Con `--write` (modo escritura, SPEC-0031 AC-3) además **regenera de
+forma idempotente** los diagramas Mermaid de `docs/MAPA_DE_PROGRESO.md` desde
+`docs/progress.json`:
+
+- **Diagrama 1 — avance por milestone**, entre los marcadores
+  `<!-- progress-map:auto:start -->` / `<!-- progress-map:auto:end -->`.
+- **Diagrama 2 — capacidades y módulos** (solo si `progress.json` incluye el
+  bloque opcional `capacidades`), entre `<!-- progress-map:diagrama2:start -->`
+  / `<!-- progress-map:diagrama2:end -->`.
+
+```bash
+# Solo imprime el resumen (no modifica archivos)
+fractal status
+
+# Imprime el resumen y regenera ambos diagramas del mapa
+fractal status --write
+```
+
+Los nodos se colorean por `estado` y el texto escrito a mano fuera de los
+marcadores se conserva. Correr `--write` dos veces no produce diff
+(idempotente). Si el mapa o los marcadores esperados no existen, falla con un
+mensaje claro en vez de corromper el documento (AC-5).
+
+La lógica vive en el módulo compartido `@fractal/core/progress-map`, que es la
+**única fuente de verdad**: el dev-tool `pnpm progress`
+(`scripts/progress-map.js`) es un wrapper fino sobre ese mismo núcleo, de modo
+que ambos caminos producen exactamente la misma salida.
+
 
 ## Uso del Bridge Node → Toolchain
 

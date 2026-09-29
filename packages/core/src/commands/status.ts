@@ -10,6 +10,8 @@ import type {
   Estado,
 } from '../types/progress.js';
 import { isValidTaskStatus, VALID_STATUSES } from '../types/progress.js';
+import type { StatusCommandOptions } from '../types/status-command.js';
+import { regenerateMap } from './progress-map.js';
 
 /**
  * Glifos y etiquetas por estado. Idénticos a los de `scripts/progress-map.js`
@@ -34,11 +36,21 @@ const ESTADO_LABEL: Record<Estado, string> = {
 const PROGRESS_RELATIVE_PATH = ['docs', 'progress.json'] as const;
 
 /**
+ * Ruta del mapa visual, relativa a la raíz del proyecto actual.
+ */
+const MAPA_RELATIVE_PATH = ['docs', 'MAPA_DE_PROGRESO.md'] as const;
+
+/**
  * Comando `fractal status`.
  *
  * Lee `docs/progress.json` del proyecto actual y muestra el mismo resumen
  * legible que `pnpm progress` (`scripts/progress-map.js`): el roadmap por
  * milestone y el conteo/porcentaje por estado.
+ *
+ * Con `--write` (modo escritura, SPEC-0031 AC-3 / FRA-47) además regenera, de
+ * forma idempotente, el Diagrama 1 (milestones) y el Diagrama 2 (capacidades y
+ * módulos) de `docs/MAPA_DE_PROGRESO.md`, usando el mismo núcleo compartido que
+ * `pnpm progress` (`./progress-map.ts`) para que ambos caminos no diverjan.
  *
  * Cumple SPEC-0031 AC-1 y AC-2 sobre el shape real de la fuente de verdad
  * (`{ id, nombre, entregable, estado }` + `capacidades` opcional):
@@ -46,7 +58,9 @@ const PROGRESS_RELATIVE_PATH = ['docs', 'progress.json'] as const;
  * - Estados válidos: completado | en_curso | pendiente
  * - Mensajes de error accionables
  */
-export async function statusCommand(): Promise<void> {
+export async function statusCommand(
+  options: StatusCommandOptions = {}
+): Promise<void> {
   const progressPath = resolve(process.cwd(), ...PROGRESS_RELATIVE_PATH);
 
   let progressData: ProgressData;
@@ -59,6 +73,38 @@ export async function statusCommand(): Promise<void> {
   }
 
   displaySummary(progressData);
+
+  if (options.write) {
+    await regenerateDiagrams(progressData);
+  }
+}
+
+/**
+ * Modo escritura: regenera los diagramas del mapa desde los datos ya cargados
+ * y validados. Delega la lógica de dominio en `./progress-map.ts` (única fuente
+ * de verdad, compartida con `pnpm progress`). Idempotente (AC-3): una segunda
+ * corrida no produce diff.
+ */
+async function regenerateDiagrams(data: ProgressData): Promise<void> {
+  const mapaPath = resolve(process.cwd(), ...MAPA_RELATIVE_PATH);
+
+  try {
+    const { changed, inSync } = await regenerateMap({ mapaPath, data });
+
+    if (inSync) {
+      console.log(
+        '✅ Los diagramas ya estaban sincronizados; no hubo cambios en docs/MAPA_DE_PROGRESO.md.'
+      );
+      return;
+    }
+
+    console.log(
+      `✅ Diagramas regenerados en docs/MAPA_DE_PROGRESO.md desde docs/progress.json: ${changed.join(', ')}.`
+    );
+  } catch (error) {
+    handleRegenerateError(error, mapaPath);
+    process.exit(1);
+  }
 }
 
 /**
@@ -330,6 +376,34 @@ function handleLoadError(error: unknown, path: string): void {
   console.error(
     chalk.red(
       `\n❌ Error inesperado al leer docs/progress.json\n\n` + `   ${message}\n`
+    )
+  );
+}
+
+/**
+ * Maneja errores de la regeneración del mapa (modo `--write`) con mensajes
+ * accionables: archivo del mapa ausente o marcadores faltantes/invertidos
+ * (SPEC-0031 AC-5). El núcleo compartido ya lanza mensajes claros; acá se les
+ * da el mismo formato en rojo que el resto del comando.
+ */
+function handleRegenerateError(error: unknown, path: string): void {
+  if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+    console.error(
+      chalk.red(
+        `\n❌ Error: No se encontró docs/MAPA_DE_PROGRESO.md\n\n` +
+          `   Ubicación esperada: ${chalk.dim(path)}\n\n` +
+          `   ${chalk.yellow('→')} Crea el documento con los marcadores de auto-generación,\n` +
+          `      o ejecuta 'fractal status' sin '--write' para solo ver el resumen.\n`
+      )
+    );
+    return;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(
+    chalk.red(
+      `\n❌ Error al regenerar los diagramas de docs/MAPA_DE_PROGRESO.md\n\n` +
+        `   ${message}\n`
     )
   );
 }
