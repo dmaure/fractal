@@ -184,7 +184,7 @@ implementar ahora):
 - [ ] Todos los criterios de aceptación tienen test automatizado
 - [ ] `fractal status` implementado en `packages/core`, agnóstico de framework
 - [ ] Diagrama 1 y Diagrama 2 generados desde `progress.json`, idempotentes
-- [ ] Modo `--check` cableado en CI
+- [x] Modo `--check` cableado en CI (FRA-45)
 - [ ] Lint de acoplamiento limpio (sin términos de framework en core)
 - [ ] Documentación de usuario escrita
 - [ ] Este spec marcado como Implementado

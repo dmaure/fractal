@@ -51,6 +51,11 @@ justamente lo que este mapa necesita.
 > mano el bloque entre los marcadores: se sobrescribe. El **Diagrama 2**
 > (capacidades y módulos) también se genera automáticamente desde
 > [`progress.json`](progress.json) (SPEC-0031 AC-3).
+>
+> La CI del repo corre `fractal status --check` (modo dry-run, no escribe) y
+> **bloquea el merge** si este bloque quedó desactualizado respecto de
+> `progress.json`: regenerá con `fractal status --write` y commiteá el cambio
+> (SPEC-0031 AC-4, FRA-45).
 
 <!-- progress-map:auto:start -->
 ```mermaid

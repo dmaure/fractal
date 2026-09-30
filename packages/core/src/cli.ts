@@ -60,6 +60,11 @@ program
     '--write',
     'Regenera los diagramas de docs/MAPA_DE_PROGRESO.md desde progress.json'
   )
+  .option(
+    '--check',
+    'Valida (sin escribir) que docs/MAPA_DE_PROGRESO.md esté sincronizado; ' +
+      'sale con código != 0 si está desactualizado (guardia de CI)'
+  )
   .action(async (options: StatusCommandOptions) => {
     try {
       await statusCommand(options);
