@@ -38,59 +38,91 @@ fractal new mi-proyecto --force
 
 ### `fractal status`
 
-Muestra el estado del proyecto según `progress.json`.
+Muestra el estado del proyecto según `docs/progress.json` (SPEC-0031).
 
-Lee el archivo `progress.json` en la raíz del proyecto y muestra un resumen legible milestone por milestone, con conteo y porcentaje por estado.
+Lee `docs/progress.json` del proyecto y muestra un resumen legible milestone por milestone, con conteo y porcentaje por estado.
 
 **Estados válidos:**
-- `completado`: tarea terminada
-- `en_curso`: tarea en progreso
-- `pendiente`: tarea no iniciada
+- `completado`: milestone completado ✅
+- `en_curso`: milestone en progreso 🟡
+- `pendiente`: milestone no iniciado ⬜
 
-**Estructura esperada de progress.json:**
+**Estructura esperada de docs/progress.json:**
 
 ```json
 {
+  "proyecto": "Nombre del proyecto",
+  "actualizado": "2026-09-28",
   "milestones": [
     {
-      "name": "Milestone 1",
-      "tasks": [
-        { "name": "Tarea 1", "status": "completado" },
-        { "name": "Tarea 2", "status": "en_curso" },
-        { "name": "Tarea 3", "status": "pendiente" }
-      ]
+      "id": "M0",
+      "nombre": "Fundaciones",
+      "entregable": "reglas, docs y CI base",
+      "estado": "en_curso"
+    },
+    {
+      "id": "M1",
+      "nombre": "Esqueleto vertical",
+      "entregable": "new + deploy = app online",
+      "estado": "pendiente"
     }
-  ]
+  ],
+  "capacidades": {
+    "grupos": [
+      {
+        "id": "CAP",
+        "titulo": "Capabilities (CLI · core)",
+        "nodos": [
+          { "id": "NEW", "label": "fractal new", "estado": "en_curso" },
+          { "id": "DEP", "label": "fractal deploy", "estado": "pendiente" }
+        ]
+      }
+    ],
+    "nodos": [
+      { "id": "FDL", "label": "FDL · entidades", "estado": "pendiente" }
+    ],
+    "aristas": [
+      ["NEW", "FDL"],
+      ["FDL", "DEP"]
+    ]
+  }
 }
 ```
+
+El bloque `capacidades` es opcional (solo se usa si tu proyecto tiene el Diagrama 2 de capacidades y módulos en el mapa).
 
 **Ejemplo de salida:**
 
 ```
-📊 Estado del proyecto
+🗺️  Mapa de avance — Fractal
+    Actualizado: 2026-09-28
 
-Milestone 1
-   ✓ Completado: 1 (33.3%)
-   ◷ En curso:   1 (33.3%)
-   ○ Pendiente:  1 (33.3%)
-   Total:      3
+✅ M0 — Fundaciones: reglas, docs y CI base
+🟡 M1 — Esqueleto vertical: new + deploy = app online
+⬜ M2 — FDL y entidades: CRUD generado y desplegable
+
+✅ Completado: 1/3 (33%)
+🟡 En curso: 1/3 (33%)
+⬜ Pendiente: 1/3 (33%)
 ```
 
 **Validación:**
 - El comando falla con mensaje accionable si el archivo no existe, contiene JSON inválido, o la estructura no es válida
 - Los estados deben ser exactamente uno de los tres valores válidos (`completado`, `en_curso`, `pendiente`)
 
-#### Modo escritura: `fractal status --write`
+#### Flags
+
+##### `--write`: Regenerar los diagramas del mapa
 
 Por defecto, `fractal status` solo imprime el resumen (modo lectura, no toca
-archivos). Con `--write` (modo escritura, SPEC-0031 AC-3) además **regenera de
-forma idempotente** los diagramas Mermaid de `docs/MAPA_DE_PROGRESO.md` desde
+archivos). Con `--write` (SPEC-0031 AC-3) además **regenera de forma
+idempotente** los diagramas Mermaid de `docs/MAPA_DE_PROGRESO.md` desde
 `docs/progress.json`:
 
 - **Diagrama 1 — avance por milestone**, entre los marcadores
   `<!-- progress-map:auto:start -->` / `<!-- progress-map:auto:end -->`.
-- **Diagrama 2 — capacidades y módulos** (solo si `progress.json` incluye el
-  bloque opcional `capacidades`), entre `<!-- progress-map:diagrama2:start -->`
+- **Diagrama 2 — capacidades y módulos** (solo si `docs/progress.json` incluye
+  el bloque opcional `capacidades`), entre `<!-- progress-map:diagrama2:start -->`
   / `<!-- progress-map:diagrama2:end -->`.
 
 ```bash
@@ -106,10 +138,23 @@ marcadores se conserva. Correr `--write` dos veces no produce diff
 (idempotente). Si el mapa o los marcadores esperados no existen, falla con un
 mensaje claro en vez de corromper el documento (AC-5).
 
-La lógica vive en el módulo compartido `@fractal/core/progress-map`, que es la
-**única fuente de verdad**: el dev-tool `pnpm progress`
-(`scripts/progress-map.js`) es un wrapper fino sobre ese mismo núcleo, de modo
-que ambos caminos producen exactamente la misma salida.
+##### `--check`: Validar sincronía del mapa (para CI)
+
+El modo `--check` (SPEC-0031 AC-4) regenera los diagramas **en memoria** y verifica que `docs/MAPA_DE_PROGRESO.md` esté sincronizado con `docs/progress.json`, sin escribir ningún archivo:
+
+```bash
+# Valida que el mapa esté sincronizado (CI)
+fractal status --check
+```
+
+- **Exit code 0:** el mapa está sincronizado con `docs/progress.json`
+- **Exit code != 0:** el mapa está desactualizado; muestra un mensaje accionable indicando cómo regenerarlo
+
+Útil como guardia de CI para bloquear merges que dejarían el mapa desincronizado.
+
+**Alias de conveniencia:**
+
+Usa `pnpm status` desde la raíz del monorepo para ejecutar `fractal status` directamente (ver `package.json`). El dev-tool `pnpm progress` ejecuta `scripts/progress-map.js`, que usa el mismo núcleo compartido `@fractal/core/progress-map` para garantizar que `fractal status --write` y `pnpm progress` produzcan exactamente la misma salida.
 
 
 ## Uso del Bridge Node → Toolchain

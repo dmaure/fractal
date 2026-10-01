@@ -1,6 +1,6 @@
 # SPEC-0031: Visibilidad de estado del proyecto — mapa de avance
 
-**Estado:** Aprobado
+**Estado:** Implementado
 **Autor:** Diego
 **Fecha:** 2026-09-27
 **Última revisión:** 2026-09-27
@@ -63,37 +63,37 @@ completa de producto (`fractal status` en `packages/core`); el dev-script
 generalizan.
 
 ### AC-1: Resumen de estado en terminal
-- **Dado** un proyecto con un `progress.json` válido en la raíz del proyecto
+- **Dado** un proyecto con un `docs/progress.json` válido
 - **Cuando** el usuario ejecuta `fractal status`
 - **Entonces** imprime cada milestone como `<glifo> <id> — <nombre>:
   <entregable>` y un conteo con porcentaje de `completado` / `en_curso` /
   `pendiente`, con exit code 0
 
 ### AC-2: Fuente de verdad estructurada
-- **Dado** que `progress.json` es la única fuente de verdad del estado
+- **Dado** que `docs/progress.json` es la única fuente de verdad del estado
 - **Cuando** `fractal status` necesita datos de avance
-- **Entonces** los lee exclusivamente de `progress.json` (no de Linear, Notion
+- **Entonces** los lee exclusivamente de `docs/progress.json` (no de Linear, Notion
   ni de los diagramas mismos), y falla con un error claro y accionable si el
   archivo falta, no parsea, o tiene un `estado` fuera del enum permitido
   (`completado | en_curso | pendiente`)
 
 ### AC-3: Regeneración del mapa visual (ambos diagramas)
-- **Dado** un `MAPA_DE_PROGRESO.md` con los marcadores de auto-generación
-- **Cuando** el usuario ejecuta `fractal status` en modo escritura (por
-  defecto)
+- **Dado** un `docs/MAPA_DE_PROGRESO.md` con los marcadores de auto-generación
+- **Cuando** el usuario ejecuta `fractal status --write`
 - **Entonces** regenera el **Diagrama 1 (milestones)** y el **Diagrama 2
-  (capacidades y módulos)** desde `progress.json`, coloreando los nodos por su
-  `estado`, de forma **idempotente** (ejecutarlo dos veces no produce diff)
+  (capacidades y módulos)** desde `docs/progress.json`, coloreando los nodos por su
+  `estado`, de forma **idempotente** (ejecutarlo dos veces no produce diff). Por
+  defecto (sin `--write`), `fractal status` solo imprime el resumen y no modifica archivos.
 
 ### AC-4: Modo `--check` para CI
-- **Dado** un `progress.json` y un `MAPA_DE_PROGRESO.md`
+- **Dado** un `docs/progress.json` y un `docs/MAPA_DE_PROGRESO.md`
 - **Cuando** el usuario o la CI ejecuta `fractal status --check`
 - **Entonces** regenera en memoria y **no escribe**; sale con código 0 si el
   mapa está sincronizado, y con código distinto de 0 y un mensaje accionable si
   está desactualizado
 
 ### AC-5: Marcadores ausentes o inválidos
-- **Dado** un `MAPA_DE_PROGRESO.md` sin los marcadores de auto-generación
+- **Dado** un `docs/MAPA_DE_PROGRESO.md` sin los marcadores de auto-generación
   esperados (o con ellos invertidos)
 - **Cuando** se ejecuta `fractal status` (escritura o `--check`)
 - **Entonces** falla con un error claro que nombra los marcadores esperados, en
@@ -133,7 +133,7 @@ generalizan.
 Restricciones conocidas, no diseño.
 
 **Fuente de verdad: JSON (decisión de Diego)**
-- El estado se modela en un **archivo JSON estructurado** (`progress.json`), no
+- El estado se modela en un **archivo JSON estructurado** (`docs/progress.json`), no
   en los diagramas ni en un servicio externo. Justificación: es legible y
   mantenible por humanos y máquinas, versiona en git junto al código, y
   **no acopla el proyecto a Linear ni a Notion** (Linear puede ser reemplazado
@@ -160,7 +160,7 @@ Restricciones conocidas, no diseño.
 - No maneja secrets; solo lee/escribe archivos del repo del proyecto.
 
 **Compatibilidad**
-- El shape de `progress.json` debe poder crecer (p. ej. capacidades/paquetes
+- El shape de `docs/progress.json` debe poder crecer (p. ej. capacidades/paquetes
   para el Diagrama 2) sin romper a `fractal status` existente.
 
 ---
@@ -181,13 +181,13 @@ implementar ahora):
 
 ## 9. Definition of Done
 
-- [ ] Todos los criterios de aceptación tienen test automatizado
-- [ ] `fractal status` implementado en `packages/core`, agnóstico de framework
-- [ ] Diagrama 1 y Diagrama 2 generados desde `progress.json`, idempotentes
+- [x] Todos los criterios de aceptación tienen test automatizado
+- [x] `fractal status` implementado en `packages/core`, agnóstico de framework
+- [x] Diagrama 1 y Diagrama 2 generados desde `docs/progress.json`, idempotentes
 - [x] Modo `--check` cableado en CI (FRA-45)
-- [ ] Lint de acoplamiento limpio (sin términos de framework en core)
-- [ ] Documentación de usuario escrita
-- [ ] Este spec marcado como Implementado
+- [x] Lint de acoplamiento limpio (sin términos de framework en core)
+- [x] Documentación de usuario escrita
+- [x] Este spec marcado como Implementado
 
 ---
 
@@ -202,15 +202,15 @@ implementar ahora):
 > `progress.json`, resumen en terminal, generación del Diagrama 1 y modo
 > `--check`; los tickets lo generalizan a la capability de producto.
 
-### T1 — `fractal status`: lectura de `progress.json` + salida en terminal
+### T1 — `fractal status`: lectura de `docs/progress.json` + salida en terminal
 
 - **Context:** AC-1 y AC-2. Hoy el resumen de estado solo existe como dev-script
   del repo (`scripts/progress-map.js`); no hay comando de producto.
 - **Objective:** Implementar `fractal status` en `packages/core` que lea
-  `progress.json` del proyecto e imprima el resumen legible (milestone por
+  `docs/progress.json` del proyecto e imprima el resumen legible (milestone por
   milestone + conteo/porcentaje por estado).
 - **Technical Context:** Agnóstico de framework (Artículo II, ADR-0002).
-  `progress.json` es la única fuente de verdad (§7). Enum de estado
+  `docs/progress.json` es la única fuente de verdad (§7). Enum de estado
   `completado | en_curso | pendiente` (AC-2). Portar la lógica del MVP
   `scripts/progress-map.js` como base.
 - **Implementation Notes:** Validación estricta del JSON (archivo ausente,
@@ -226,16 +226,16 @@ implementar ahora):
 - **Definition of Done:** Comando implementado en `packages/core`, tests en
   verde, lint de acoplamiento limpio, documentado.
 
-### T2 — Generación del Diagrama 1 y Diagrama 2 del mapa desde `progress.json`
+### T2 — Generación del Diagrama 1 y Diagrama 2 del mapa desde `docs/progress.json`
 
 - **Context:** AC-3. El MVP ya genera el **Diagrama 1** entre marcadores; falta
   llevarlo al core y **extenderlo al Diagrama 2** (capacidades y módulos), hoy a
   mano.
-- **Objective:** Que `fractal status` (modo escritura, por defecto) regenere
-  ambos diagramas de `MAPA_DE_PROGRESO.md` desde `progress.json`, coloreando por
-  estado, de forma idempotente.
+- **Objective:** Que `fractal status --write` regenere ambos diagramas de
+  `docs/MAPA_DE_PROGRESO.md` desde `docs/progress.json`, coloreando por estado,
+  de forma idempotente.
 - **Technical Context:** Regeneración entre marcadores HTML; el Diagrama 2
-  requiere extender el shape de `progress.json` para modelar
+  requiere extender el shape de `docs/progress.json` para modelar
   capacidades/paquetes (compatible hacia atrás, §7). Reutilizar el generador del
   MVP para el Diagrama 1.
 - **Implementation Notes:** Idempotencia estricta (dos corridas = sin diff).

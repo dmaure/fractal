@@ -15,6 +15,7 @@
     "lint": "pnpm -r lint && node scripts/lint-coupling.js",
     "lint:coupling": "node scripts/lint-coupling.js",
     "progress": "pnpm --filter @fractal/core build && node scripts/progress-map.js",
+    "status": "pnpm --filter @fractal/core build && node packages/core/dist/cli.js status",
     "status:check": "pnpm -r build && node packages/core/dist/cli.js status --check"
   },
   "keywords": [
