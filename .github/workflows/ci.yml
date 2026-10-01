@@ -1,0 +1,38 @@
+name: CI
+
+# Guardia de CI del repo (SPEC-0031 T3 / FRA-45).
+#
+# Corre en cada pull request (y en push a master) y bloquea el merge si el mapa
+# de progreso quedó desactualizado: `fractal status --check` regenera los
+# diagramas de docs/MAPA_DE_PROGRESO.md en memoria y sale con código != 0 si no
+# coinciden con lo que produciría `fractal status --write` desde
+# docs/progress.json, o si faltan / están invertidos los marcadores de
+# auto-generación. No escribe ningún archivo.
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  progress-map-check:
+    name: progress-map --check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: fractal status --check
+        run: pnpm status:check

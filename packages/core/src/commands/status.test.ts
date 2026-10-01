@@ -418,4 +418,110 @@ describe('fractal status', () => {
       expect(consoleErrorSpy.join('\n')).toContain(DIAGRAMA2_MARKERS.start);
     });
   });
+
+  describe('check mode (--check) — SPEC-0031 AC-4 / AC-5 / FRA-45', () => {
+    const mapaPath = join(testDir, 'docs', 'MAPA_DE_PROGRESO.md');
+
+    const sample: ProgressData = {
+      proyecto: 'Fractal',
+      milestones: [
+        { id: 'M0', nombre: 'Fundaciones', entregable: 'reglas', estado: 'en_curso' },
+        { id: 'M1', nombre: 'Esqueleto', entregable: 'app online', estado: 'pendiente' },
+        { id: 'M2', nombre: 'Entidades', entregable: 'CRUD', estado: 'completado' },
+      ],
+      capacidades: {
+        grupos: [
+          {
+            id: 'CAP',
+            titulo: 'Capabilities',
+            nodos: [{ id: 'NEW', label: 'fractal new', estado: 'en_curso' }],
+          },
+        ],
+        nodos: [{ id: 'FDL', label: 'FDL', estado: 'pendiente' }],
+        aristas: [['NEW', 'FDL']],
+      },
+    };
+
+    /** Escribe un mapa con marcadores y contenido STALE (desincronizado). */
+    async function writeStaleMapa(): Promise<void> {
+      const md =
+        `# Mapa\n\nTexto a mano antes.\n\n## Diagrama 1\n\n` +
+        `${DIAGRAMA1_MARKERS.start}\nSTALE\n${DIAGRAMA1_MARKERS.end}\n` +
+        `\n## Diagrama 2\n\n${DIAGRAMA2_MARKERS.start}\nSTALE\n${DIAGRAMA2_MARKERS.end}\n` +
+        `\nTexto a mano después.\n`;
+      await writeFile(mapaPath, md);
+    }
+
+    /** Genera un mapa YA sincronizado con `sample` usando el modo `--write`. */
+    async function writeSyncedMapa(): Promise<void> {
+      await writeStaleMapa();
+      await statusCommand({ write: true });
+      // Limpiar los spies para no arrastrar el output del write.
+      consoleLogSpy = [];
+      consoleErrorSpy = [];
+      processExitSpy = null;
+    }
+
+    it('sincronizado: sale con código 0 y no escribe (dry-run)', async () => {
+      await writeProgress(sample);
+      await writeSyncedMapa();
+      const before = await readFile(mapaPath, 'utf-8');
+
+      // No debe lanzar (no llama a process.exit).
+      await statusCommand({ check: true });
+
+      expect(processExitSpy).toBeNull();
+      expect(consoleLogSpy.join('\n')).toContain('están sincronizados');
+      // No escribió nada.
+      expect(await readFile(mapaPath, 'utf-8')).toBe(before);
+    });
+
+    it('desincronizado: sale con código != 0 y no escribe (dry-run)', async () => {
+      await writeProgress(sample);
+      await writeStaleMapa();
+      const before = await readFile(mapaPath, 'utf-8');
+
+      await expect(statusCommand({ check: true })).rejects.toThrow('process.exit');
+
+      expect(processExitSpy).toBe(1);
+      expect(consoleErrorSpy.join('\n')).toContain('desactualizado');
+      expect(consoleErrorSpy.join('\n')).toContain('Diagrama 1');
+      // No escribió: el mapa STALE queda intacto.
+      expect(await readFile(mapaPath, 'utf-8')).toBe(before);
+      expect(await readFile(mapaPath, 'utf-8')).toContain('STALE');
+    });
+
+    it('marcadores ausentes: sale con código != 0 nombrando los marcadores', async () => {
+      await writeProgress(sample);
+      await writeFile(mapaPath, '# Mapa sin marcadores\n');
+
+      await expect(statusCommand({ check: true })).rejects.toThrow('process.exit');
+
+      expect(processExitSpy).toBe(1);
+      expect(consoleErrorSpy.join('\n')).toContain(DIAGRAMA1_MARKERS.start);
+    });
+
+    it('marcadores invertidos: sale con código != 0 con mensaje claro', async () => {
+      await writeProgress(sample);
+      // `end` antes de `start` para el Diagrama 1.
+      const md =
+        `# Mapa\n\n${DIAGRAMA1_MARKERS.end}\nSTALE\n${DIAGRAMA1_MARKERS.start}\n` +
+        `\n${DIAGRAMA2_MARKERS.start}\nSTALE\n${DIAGRAMA2_MARKERS.end}\n`;
+      await writeFile(mapaPath, md);
+
+      await expect(statusCommand({ check: true })).rejects.toThrow('process.exit');
+
+      expect(processExitSpy).toBe(1);
+      expect(consoleErrorSpy.join('\n')).toContain('invertidos');
+    });
+
+    it('falla con mensaje accionable si falta docs/MAPA_DE_PROGRESO.md', async () => {
+      await writeProgress(sample);
+
+      await expect(statusCommand({ check: true })).rejects.toThrow('process.exit');
+
+      expect(processExitSpy).toBe(1);
+      expect(consoleErrorSpy.join('\n')).toContain('No se encontró docs/MAPA_DE_PROGRESO.md');
+    });
+  });
 });

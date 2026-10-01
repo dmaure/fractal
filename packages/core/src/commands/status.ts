@@ -74,6 +74,13 @@ export async function statusCommand(
 
   displaySummary(progressData);
 
+  // `--check` es un dry-run de CI: valida sincronía sin escribir y tiene
+  // prioridad sobre `--write` (nunca modifica el mapa). Ver SPEC-0031 AC-4/AC-5.
+  if (options.check) {
+    await checkDiagrams(progressData);
+    return;
+  }
+
   if (options.write) {
     await regenerateDiagrams(progressData);
   }
@@ -105,6 +112,45 @@ async function regenerateDiagrams(data: ProgressData): Promise<void> {
     handleRegenerateError(error, mapaPath);
     process.exit(1);
   }
+}
+
+/**
+ * Modo validación (`--check`, SPEC-0031 AC-4 / FRA-45): regenera los diagramas
+ * en memoria a partir de los datos ya cargados y compara contra el mapa actual,
+ * SIN escribir. Delega en el mismo núcleo (`./progress-map.ts`, `check: true`)
+ * que usan `--write` y `pnpm progress`, para no divergir.
+ *
+ * Sirve como guardia de CI: sale con código 0 si el mapa está sincronizado, y
+ * con código != 0 y un mensaje accionable si está desactualizado o si faltan /
+ * están invertidos los marcadores de auto-generación (AC-5). No escribe nunca.
+ */
+async function checkDiagrams(data: ProgressData): Promise<void> {
+  const mapaPath = resolve(process.cwd(), ...MAPA_RELATIVE_PATH);
+
+  let inSync: boolean;
+  let changed: string[];
+  try {
+    ({ inSync, changed } = await regenerateMap({ mapaPath, data, check: true }));
+  } catch (error) {
+    handleRegenerateError(error, mapaPath);
+    process.exit(1);
+  }
+
+  if (inSync) {
+    console.log(
+      '✅ Los diagramas de docs/MAPA_DE_PROGRESO.md están sincronizados con docs/progress.json.'
+    );
+    return;
+  }
+
+  console.error(
+    chalk.red(
+      `\n❌ docs/MAPA_DE_PROGRESO.md está desactualizado respecto de docs/progress.json.\n\n` +
+        `   Diagramas fuera de sincronía: ${changed.join(', ')}\n\n` +
+        `   ${chalk.yellow('→')} Ejecuta 'fractal status --write' (o 'pnpm progress') y commitea el cambio.\n`
+    )
+  );
+  process.exit(1);
 }
 
 /**

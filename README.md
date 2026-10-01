@@ -50,6 +50,30 @@ pnpm install
 pnpm lint:coupling
 ```
 
+### Estado del proyecto y mapa de progreso
+
+La fuente de verdad del avance es [`docs/progress.json`](docs/progress.json). El
+comando `fractal status` la lee y muestra el resumen por milestone; los
+diagramas Mermaid de [`docs/MAPA_DE_PROGRESO.md`](docs/MAPA_DE_PROGRESO.md) se
+generan desde ahí (SPEC-0031).
+
+```bash
+fractal status            # imprime el resumen (solo lectura)
+fractal status --write    # regenera los diagramas del mapa (idempotente)
+fractal status --check    # valida sin escribir; falla si el mapa está desactualizado
+```
+
+`--check` es un **dry-run**: no escribe ningún archivo. Regenera los diagramas
+en memoria y sale con código `!= 0` si `docs/MAPA_DE_PROGRESO.md` no coincide con
+lo que produciría `--write`, o si faltan / están invertidos los marcadores de
+auto-generación (`<!-- progress-map:auto:start -->` / `:end`, y el par
+`:diagrama2:`). Sale con código `0` cuando todo está sincronizado.
+
+**Gate de CI:** el workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+corre `pnpm status:check` (= `fractal status --check`) en cada pull request, de
+modo que un mapa desactualizado **bloquea el merge**. Para arreglarlo, corré
+`fractal status --write` (o `pnpm progress`) y commiteá el cambio.
+
 ### Estructura del monorepo
 
 ```
