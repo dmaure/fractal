@@ -341,21 +341,24 @@ El AC-4 (Runtime) fue implementado en `packages/deploy/src/runtime` con:
   idempotente. Detecta instalaciones previas y las reutiliza. Configura el
   servicio Docker para que inicie automáticamente.
 
-- **`ComposeGenerator`**: Genera `docker-compose.yml` según el tipo de target:
-  - `backend-full`: seis contenedores (`app`, `nginx`, `db`, `redis`, `worker`,
-    `scheduler`) para un backend completo
-  - `frontend-static`: solo `nginx` sirviendo el build estático de `dist/`
+- **`ComposeGenerator`**: Genera `docker-compose.yml` consumiendo la declaración
+  `DeployRuntime` del adapter contract (SPEC-0006 AC-3). Los servicios, comandos
+  de build/migración, puerto y healthcheck se leen desde el contrato en lugar de
+  constantes hardcodeadas. Flexible para soportar variaciones de servicios
+  (ej. `cache` en lugar de `redis`). Implementado en FRA-40 (2026-10-02).
 
 - **`RuntimeManager`**: Orquesta la instalación de Docker y la generación del
-  archivo compose.
+  archivo compose. Actualizado en FRA-40 para recibir `DeployRuntime` del adapter
+  contract en lugar de `TargetType`.
 
-**Set de contenedores hardcodeado**: Como se indica en los Implementation Notes
-del ticket FRA-29, el set de contenedores para cada tipo de target está
-explícitamente codificado en `packages/deploy/src/runtime/types.ts` (constantes
-`BACKEND_FULL_SERVICES` y `FRONTEND_STATIC_SERVICES`). Cuando SPEC-0006
-(contrato del adapter) se resuelva y formalice cómo un adapter declara sus
-requisitos de runtime, este mecanismo se generalizará en un ticket aparte, sin
-romper esta implementación.
+**Consumo del contrato del adapter (FRA-40, 2026-10-02)**: El set de contenedores,
+comandos y configuración de runtime ya no están hardcodeados en
+`packages/deploy/src/runtime/types.ts`. Ahora se consumen desde la declaración
+`DeployRuntime` del adapter contract (SPEC-0006 §10 T2, AC-3), lo que permite
+que cada adapter declare su propia configuración de runtime sin modificar
+`packages/deploy`. Los tipos `TargetType`, `BACKEND_FULL_SERVICES` y
+`FRONTEND_STATIC_SERVICES` están marcados como `@deprecated` pero se mantienen
+temporalmente para compatibilidad hacia atrás.
 
 **Cumplimiento del Artículo II**: El módulo `runtime` no contiene ninguna
 referencia a frameworks específicos (Laravel, Rails, etc.). Todos los términos
