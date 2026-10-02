@@ -43,9 +43,28 @@ fractal entity Producto     # genera CRUD completo
 ### Setup
 
 ```bash
-# Instalar dependencias
-pnpm install
+git clone https://github.com/dmaure/fractal.git
+cd fractal
+pnpm install      # instala dependencias, compila e instala el comando `fractal`
 
+fractal --help
+```
+
+`pnpm install` (en su `postinstall`) compila el monorepo y deja un comando
+`fractal` en el PATH: un shim que ejecuta `packages/core/dist/cli.js` de este
+checkout. Lo escribe en el `bin/` de tu Node (nvm, Homebrew, instalador
+oficial) o, si ese no es escribible, en `~/.local/bin`. No hace falta `sudo` ni
+`pnpm setup`.
+
+- Después de cambiar código del CLI, corré `pnpm build`: el comando usa el build
+  del checkout, no una copia.
+- Si ya tenías el repo instalado (pnpm saltea el `postinstall` cuando no hay
+  cambios), o cambiaste de versión de Node: `pnpm cli:install`.
+- Para quitarlo: `pnpm cli:uninstall`.
+- Para elegir otro directorio: `FRACTAL_BIN_DIR=/ruta/en/el/PATH pnpm cli:install`.
+- En CI (`CI` definido) o con `FRACTAL_SKIP_CLI_INSTALL=1` no se instala nada.
+
+```bash
 # Lint de acoplamiento (Artículo II)
 pnpm lint:coupling
 ```
