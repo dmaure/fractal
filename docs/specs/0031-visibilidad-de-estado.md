@@ -3,8 +3,8 @@
 **Estado:** Implementado
 **Autor:** Diego
 **Fecha:** 2026-09-27
-**Última revisión:** 2026-09-27
-**Issue:** #
+**Última revisión:** 2026-10-01
+**Issue:** FRA-43, FRA-44, FRA-45, FRA-46, FRA-47, FRA-49
 
 ---
 
@@ -95,7 +95,7 @@ generalizan.
 ### AC-5: Marcadores ausentes o inválidos
 - **Dado** un `docs/MAPA_DE_PROGRESO.md` sin los marcadores de auto-generación
   esperados (o con ellos invertidos)
-- **Cuando** se ejecuta `fractal status` (escritura o `--check`)
+- **Cuando** se ejecuta `fractal status --write` o `fractal status --check`
 - **Entonces** falla con un error claro que nombra los marcadores esperados, en
   vez de corromper el documento
 
@@ -139,6 +139,17 @@ Restricciones conocidas, no diseño.
   **no acopla el proyecto a Linear ni a Notion** (Linear puede ser reemplazado
   por Notion; el mapa debe seguir funcionando de forma self-contained en el
   repo). Consistente con la convención del proyecto de preferir JSON (ADR-0003).
+
+**Ubicación y modo por defecto (decisión de implementación, FRA-46/FRA-47)**
+- `progress.json` y `MAPA_DE_PROGRESO.md` viven en `docs/` (no en la raíz del
+  proyecto): son documentación del proyecto, junto al resto de `docs/`, y es la
+  ruta que ya usaba el MVP `scripts/progress-map.js`. Una sola ruta canónica
+  evita reglas de búsqueda ambiguas.
+- `fractal status` sin flags es de **solo lectura**: imprime el resumen y no
+  modifica archivos. Regenerar el mapa requiere `--write` explícito. Motivo: un
+  comando de consulta no debería tener efectos laterales sobre archivos
+  versionados; la escritura es una acción deliberada y `--check` cubre la
+  validación en CI.
 
 **Enum de estado**
 - `estado` está restringido a `completado | en_curso | pendiente`, con glifos
