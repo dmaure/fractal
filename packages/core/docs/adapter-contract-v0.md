@@ -25,6 +25,7 @@ interface CreateProjectPayload {
   name: string;                            // Nombre del proyecto (requerido)
   topology: ProjectTopology;               // Topología: monolith | monorepo | multirepo (requerido)
   destinationPath: string;                 // Path absoluto donde generar el proyecto (requerido)
+  target: string;                          // Framework/adapter destino (requerido)
   contractVersion?: AdapterContractVersion; // Versión del contrato, opcional
 }
 ```
@@ -33,39 +34,69 @@ interface CreateProjectPayload {
 - `name`: Nombre del proyecto a generar
 - `topology`: Una de las topologías válidas (ver ADR-0010)
 - `destinationPath`: Path absoluto donde crear el proyecto
+- `target`: Framework/adapter destino (en v0, solo "default" está disponible)
 
 **Campos opcionales:**
 - `contractVersion`: Versión del contrato que usa el core. El adapter puede validar compatibilidad.
+
+**Nota sobre `target`:** Aunque v0 solo tiene un adapter disponible, se incluye este campo para extensibilidad futura cuando haya múltiples adapters (ver `ValidatedNewParams` en `new-command.ts`).
 
 ### CreateProjectResponse
 
 Respuesta del comando "crear proyecto base".
 
+El adapter debe retornar una respuesta que coincide con el **envelope del bridge** (SPEC-0002):
+
 ```typescript
-type CreateProjectResponse = CreateProjectSuccess | CreateProjectError;
+type CreateProjectResponse =
+  | { success: true; data: CreateProjectData }
+  | { success: false; error: { message: string; step?: string } };
 
-interface CreateProjectSuccess {
-  success: true;
-  projectPath: string;    // Path absoluto del proyecto generado
+interface CreateProjectData {
+  projectPath: string;    // Path absoluto del proyecto generado (requerido)
   message?: string;       // Mensaje opcional para el usuario
-}
-
-interface CreateProjectError {
-  success: false;
-  error: string;          // Mensaje de error legible (sin stacktraces crudos)
-  code?: string;          // Código de error opcional para clasificación
 }
 ```
 
+**Envelope del bridge (SPEC-0002):**
+
+El bridge espera que los adapters retornen respuestas en este formato estándar:
+- **Éxito:** `{success: true, data: <datos específicos del comando>}`
+- **Error:** `{success: false, error: {message: string, step?: string}}`
+
+El adapter debe terminar con exit code 0 para indicar que pudo procesar el comando (incluso si reporta `success: false` por errores de validación o negocio).
+
 **Respuesta exitosa:**
 - `success: true`
-- `projectPath`: Path del proyecto generado (normalmente coincide con `destinationPath`)
-- `message`: Mensaje opcional para mostrar al usuario
+- `data.projectPath`: Path del proyecto generado (normalmente coincide con `destinationPath`)
+- `data.message`: Mensaje opcional para mostrar al usuario
 
 **Respuesta de error:**
 - `success: false`
-- `error`: Mensaje legible sin stacktraces (ver SPEC-0002 AC-3)
-- `code`: Código de error opcional (e.g., `DIRECTORY_NOT_EMPTY`)
+- `error.message`: Mensaje legible sin stacktraces (ver SPEC-0002 AC-3)
+- `error.step`: Paso opcional donde ocurrió el error (e.g., "validación", "generación", "git-init")
+
+**Ejemplo de respuesta exitosa:**
+```json
+{
+  "success": true,
+  "data": {
+    "projectPath": "/home/user/mi-proyecto",
+    "message": "Proyecto generado exitosamente"
+  }
+}
+```
+
+**Ejemplo de respuesta de error:**
+```json
+{
+  "success": false,
+  "error": {
+    "message": "El directorio /home/user/mi-proyecto no está vacío",
+    "step": "validación"
+  }
+}
+```
 
 ### RuntimeRequirements
 
@@ -212,6 +243,11 @@ El contrato usa un único campo `healthcheck.path` agnóstico al runtime (ver SP
 - **Nginx-only**: Ruta estática servida por nginx (e.g., `/health.txt`)
 
 No se filtra la topología del runtime dentro del contrato (alineado con ADR-0002).
+
+**Validación de `healthcheck.path`:**
+- El tipo TypeScript es `string` (sin restricción en tiempo de compilación)
+- La validación de que comienza con `/` se realiza en **runtime** por el orquestador
+- Esto mantiene el tipo simple y serializable en JSON
 
 ### ServiceName como string
 

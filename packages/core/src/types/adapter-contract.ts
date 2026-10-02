@@ -50,6 +50,13 @@ export interface CreateProjectPayload {
   destinationPath: string;
 
   /**
+   * Framework/adapter destino.
+   * En v0, el único adapter disponible es el default.
+   * Se incluye para extensibilidad futura cuando haya múltiples adapters.
+   */
+  target: string;
+
+  /**
    * Versión del contrato que usa el core.
    * Permite al adapter validar compatibilidad si es necesario.
    */
@@ -57,11 +64,13 @@ export interface CreateProjectPayload {
 }
 
 /**
- * Respuesta exitosa del comando "crear proyecto base".
+ * Datos de respuesta exitosa del comando "crear proyecto base".
+ * 
+ * Estos datos se envuelven en el envelope del bridge como `{success: true, data: CreateProjectData}`.
+ * 
+ * @see SPEC-0002 — Bridge envelope format
  */
-export interface CreateProjectSuccess {
-  success: true;
-
+export interface CreateProjectData {
   /**
    * Path absoluto del proyecto generado.
    * Normalmente coincide con destinationPath del payload.
@@ -75,29 +84,18 @@ export interface CreateProjectSuccess {
 }
 
 /**
- * Respuesta de error del comando "crear proyecto base".
+ * Respuesta completa del adapter para "crear proyecto base".
  * 
- * @see SPEC-0002 AC-3 — errores propagables y legibles
+ * El adapter debe retornar este formato, que coincide con el envelope
+ * esperado por el bridge (SPEC-0002):
+ * - Éxito: `{success: true, data: CreateProjectData}`
+ * - Error: `{success: false, error: {message: string, step?: string}}`
+ * 
+ * @see SPEC-0002 AC-2, AC-3 — Bridge envelope format
  */
-export interface CreateProjectError {
-  success: false;
-
-  /**
-   * Mensaje de error legible para el usuario.
-   * No debe incluir stacktraces crudos.
-   */
-  error: string;
-
-  /**
-   * Código de error opcional para clasificación.
-   */
-  code?: string;
-}
-
-/**
- * Respuesta del comando "crear proyecto base".
- */
-export type CreateProjectResponse = CreateProjectSuccess | CreateProjectError;
+export type CreateProjectResponse =
+  | { success: true; data: CreateProjectData }
+  | { success: false; error: { message: string; step?: string } };
 
 /**
  * Declaración de un binario requerido con su versión mínima.
@@ -164,7 +162,9 @@ export type ServiceName = string;
 export interface HealthCheck {
   /**
    * Ruta HTTP para verificar el estado del servicio (e.g., "/api/health").
-   * Debe comenzar con "/".
+   * 
+   * Debe comenzar con "/" — esto se valida en runtime por el orquestador,
+   * no en tiempo de compilación.
    */
   path: string;
 }

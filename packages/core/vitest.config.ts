@@ -10,5 +10,9 @@ export default defineConfig({
       reporter: ['text', 'html'],
       exclude: ['dist/**', '**/*.spec.ts', '**/*.test.ts'],
     },
+    typecheck: {
+      enabled: true,
+      tsconfig: './tsconfig.test.json',
+    },
   },
 });
