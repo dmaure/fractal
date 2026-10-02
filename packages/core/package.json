@@ -20,8 +20,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
+    "test": "vitest run --typecheck.enabled",
     "test:watch": "vitest",
+    "test:typecheck": "vitest --typecheck.only --run",
     "lint": "echo 'TODO: agregar eslint'"
   },
   "dependencies": {

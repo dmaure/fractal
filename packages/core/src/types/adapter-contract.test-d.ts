@@ -219,9 +219,9 @@ describe('Adapter Contract v0 Types', () => {
     });
 
     it('debe fallar data sin projectPath', () => {
-      // @ts-expect-error - projectPath es requerido en data
       const response: CreateProjectResponse = {
         success: true,
+        // @ts-expect-error - projectPath es requerido en data
         data: {
           message: 'Solo mensaje',
         },
@@ -230,9 +230,9 @@ describe('Adapter Contract v0 Types', () => {
     });
 
     it('debe fallar error sin message', () => {
-      // @ts-expect-error - message es requerido en error
       const response: CreateProjectResponse = {
         success: false,
+        // @ts-expect-error - message es requerido en error
         error: {
           step: 'Solo step',
         },
