@@ -3,9 +3,12 @@
  * Framework-agnostic según Artículo II de CONSTITUTION.md.
  */
 
+import type { DeployRuntime } from '@fractal/core';
+
 /**
- * Tipo de target desplegable.
- * Determina qué contenedores se generan en docker-compose.yml.
+ * @deprecated Reemplazado por DeployRuntime del adapter contract (SPEC-0006 T2).
+ * Se mantiene temporalmente para compatibilidad hacia atrás, pero no debe usarse
+ * en código nuevo. Usar DeployRuntime del contrato del adapter en su lugar.
  */
 export type TargetType = 
   | 'backend-full'  // Backend completo: app, nginx, db, redis, worker, scheduler
@@ -41,10 +44,11 @@ export interface DockerInstallResult {
 
 /**
  * Configuración para generación de docker-compose.yml.
+ * Consume la declaración de runtime del adapter contract (SPEC-0006 AC-3).
  */
 export interface ComposeConfig {
-  /** Tipo de target a desplegar */
-  targetType: TargetType;
+  /** Declaración de runtime desde el adapter contract */
+  runtime: DeployRuntime;
   
   /** Nombre del proyecto (usado para namespacing de contenedores) */
   projectName: string;
@@ -65,6 +69,9 @@ export interface ComposeGenerationResult {
   
   /** Lista de servicios generados */
   services?: string[];
+  
+  /** Contenido del archivo generado */
+  content?: string;
   
   /** Mensaje de error en caso de fallo */
   error?: string;
@@ -99,8 +106,9 @@ export interface RuntimeSetupResult {
 }
 
 /**
- * Configuración por defecto según SPEC-0003 AC-4.
- * Set de contenedores hardcodeado hasta que SPEC-0006 esté resuelto.
+ * @deprecated Reemplazado por DeployRuntime.services del adapter contract (SPEC-0006 T2).
+ * Ya no se usan constantes hardcodeadas; los servicios se leen desde la declaración
+ * de runtime del adapter. Se mantienen temporalmente para compatibilidad hacia atrás.
  */
 export const BACKEND_FULL_SERVICES = [
   'app',
@@ -111,6 +119,9 @@ export const BACKEND_FULL_SERVICES = [
   'scheduler'
 ] as const;
 
+/**
+ * @deprecated Reemplazado por DeployRuntime.services del adapter contract (SPEC-0006 T2).
+ */
 export const FRONTEND_STATIC_SERVICES = [
   'nginx'
 ] as const;

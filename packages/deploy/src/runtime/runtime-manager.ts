@@ -109,10 +109,7 @@ export class RuntimeManager {
       }
 
       // 4. Escribir el archivo en el servidor
-      const writeResult = await this.writeComposeFile(
-        config.compose.outputPath,
-        this.composeGenerator.generate(config.compose)
-      );
+      const writeResult = await this.writeComposeFile(config.compose);
 
       if (!writeResult.success) {
         await this.stateManager.markStep(
@@ -157,22 +154,26 @@ export class RuntimeManager {
    * Escribe el archivo docker-compose.yml en el servidor remoto.
    */
   private async writeComposeFile(
-    path: string,
-    generationResult: any
+    config: RuntimeConfig['compose']
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // Generar el contenido nuevamente (no es óptimo pero es simple)
+      // Generar el contenido del compose
       const generator = new ComposeGenerator();
-      const content = generator.generate({
-        targetType: 'backend-full', // Se pasará desde config
-        projectName: 'temp',
-        outputPath: path,
-      });
+      const generationResult = generator.generate(config);
+      
+      if (!generationResult.success || !generationResult.content) {
+        return {
+          success: false,
+          error: generationResult.error || 'Error desconocido al generar compose',
+        };
+      }
+      
+      const content = generationResult.content;
 
       // Escribir archivo
-      const escapedContent = content.toString().replace(/'/g, "'\\''");
+      const escapedContent = content.replace(/'/g, "'\\''");
       const result = await this.sshClient.executeCommand(
-        `cat > ${path} << 'FRACTAL_EOF'\n${escapedContent}\nFRACTAL_EOF`
+        `cat > ${config.outputPath} << 'FRACTAL_EOF'\n${escapedContent}\nFRACTAL_EOF`
       );
 
       return {

@@ -2,10 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RuntimeManager } from './runtime-manager.js';
 import type { SshClient } from '../ssh/client.js';
 import type { RuntimeConfig } from './types.js';
+import type { DeployRuntime } from '@fractal/core';
 
 describe('RuntimeManager', () => {
   let mockSshClient: SshClient;
   let manager: RuntimeManager;
+
+  // Helper para crear runtimes de prueba
+  const createBackendFullRuntime = (): DeployRuntime => ({
+    services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+    buildCommand: 'docker build -t test:latest .',
+    migrateCommand: 'docker compose exec app migrate',
+    port: 80,
+    healthcheck: { path: '/api/health' },
+  });
 
   beforeEach(() => {
     mockSshClient = {
@@ -60,7 +70,7 @@ describe('RuntimeManager', () => {
 
       const config: RuntimeConfig = {
         compose: {
-          targetType: 'backend-full',
+          runtime: createBackendFullRuntime(),
           projectName: 'test-project',
           outputPath: '/tmp/docker-compose.yml',
         },
@@ -83,7 +93,7 @@ describe('RuntimeManager', () => {
 
       const config: RuntimeConfig = {
         compose: {
-          targetType: 'backend-full',
+          runtime: createBackendFullRuntime(),
           projectName: 'test-project',
           outputPath: '/tmp/docker-compose.yml',
         },
@@ -138,7 +148,7 @@ describe('RuntimeManager', () => {
 
       const config: RuntimeConfig = {
         compose: {
-          targetType: 'backend-full',
+          runtime: createBackendFullRuntime(),
           projectName: '', // Invalid: empty name
           outputPath: '/tmp/docker-compose.yml',
         },
@@ -217,7 +227,7 @@ describe('RuntimeManager', () => {
 
       const config: RuntimeConfig = {
         compose: {
-          targetType: 'backend-full',
+          runtime: createBackendFullRuntime(),
           projectName: 'test',
           outputPath: '/tmp/docker-compose.yml',
         },

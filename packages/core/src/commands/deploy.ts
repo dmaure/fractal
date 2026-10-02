@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
+import type { DeployRuntime } from '../types/adapter-contract.js';
 import { promptDeployParams, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
 // NOTA (FRA-46): `@fractal/deploy` arrastra `ssh2` (módulo nativo) de forma
 // transitiva. Importarlo estáticamente aquí hacía que cargar el CLI —y por lo
@@ -74,6 +75,37 @@ function determineTargetType(role?: 'api' | 'web'): TargetType {
   }
   
   return 'backend-full';
+}
+
+/**
+ * Construye un DeployRuntime según el tipo de target.
+ * Implementa decisión de producto #4 (SPEC-0006 T2).
+ * 
+ * Esta función hace el mapping temporal entre TargetType legacy y DeployRuntime
+ * del contrato del adapter. Cuando existan adapters reales (T4), esta lógica
+ * se moverá a los adapters y aquí solo se consultará el contrato.
+ */
+function createDeployRuntime(targetType: TargetType): DeployRuntime {
+  if (targetType === 'backend-full') {
+    return {
+      services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+      buildCommand: 'docker build -t ${DOCKER_REGISTRY:-localhost}/${PROJECT_NAME}:latest .',
+      migrateCommand: 'docker compose exec app migrate',
+      port: 80,
+      healthcheck: {
+        path: '/api/health',
+      },
+    };
+  } else {
+    // frontend-static
+    return {
+      services: ['nginx'],
+      port: 80,
+      healthcheck: {
+        path: '/health.txt',
+      },
+    };
+  }
 }
 
 /**
@@ -543,6 +575,10 @@ export async function deployCommand(
   const targetType = determineTargetType(currentRole);
   console.log(chalk.dim(`   Tipo de target: ${targetType}`));
   
+  // Decisión de producto #4: Construir DeployRuntime desde el targetType (SPEC-0006 T2)
+  const deployRuntime = createDeployRuntime(targetType);
+  console.log(chalk.dim(`   Servicios: ${deployRuntime.services.join(', ')}`));
+  
   const runtimeManager = new RuntimeManager(deployClient);
   
   const runtimeResult = await runtimeManager.setup({
@@ -550,7 +586,7 @@ export async function deployCommand(
       checkPrerequisites: true,
     },
     compose: {
-      targetType,
+      runtime: deployRuntime,
       projectName,
       outputPath: '/home/deploy/docker-compose.yml',
     },
