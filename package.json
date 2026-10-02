@@ -9,6 +9,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "postinstall": "node scripts/install-cli.js",
+    "cli:install": "node scripts/install-cli.js",
+    "cli:uninstall": "node scripts/install-cli.js --uninstall",
     "test": "pnpm -r test && vitest run --config vitest.scripts.config.ts",
     "test:scripts": "vitest run --config vitest.scripts.config.ts",
     "build": "pnpm -r build",
