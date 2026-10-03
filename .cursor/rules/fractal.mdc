@@ -70,6 +70,17 @@ no solo como un diff total.
 - Test e2e pasa
 - Spec actualizado si el código divergió de lo escrito
 
+## PR y code review
+
+- PR **no draft**, abierto con `gh pr create`, en la rama exacta indicada,
+  con título `FRA-<n>: <título>` y `Fixes FRA-<n>` en el cuerpo.
+- Claude revisa cada PR. Si deja comentarios: corregir cada uno en la misma
+  rama y el mismo PR, y responder cada comentario.
+- No modificar `docs/ORCHESTRATOR_PLAYBOOK.md`.
+
+Detalle: `docs/AGENT_PLAYBOOK.md`, secciones "Abrir el PR" y "Responder al
+code review".
+
 ## Referencias
 
 `docs/CONSTITUTION.md`, `docs/PROCESO.md`, `docs/AGENT_PLAYBOOK.md`,
