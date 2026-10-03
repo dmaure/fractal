@@ -1,29 +1,24 @@
 import type {
   ComposeConfig,
   ComposeGenerationResult,
-  TargetType,
-} from './types.js';
-import {
-  BACKEND_FULL_SERVICES,
-  FRONTEND_STATIC_SERVICES,
 } from './types.js';
 
 /**
  * Generador de docker-compose.yml.
- * Implementa AC-4 del SPEC-0003.
- * Framework-agnostic: el set de contenedores es parametrizado.
+ * Implementa AC-4 del SPEC-0003 y AC-3 del SPEC-0006.
+ * Framework-agnostic: consume la declaración de runtime del adapter contract.
  */
 export class ComposeGenerator {
   /**
-   * Genera un docker-compose.yml según el tipo de target.
-   * Set de contenedores hardcodeado hasta que SPEC-0006 esté resuelto.
+   * Genera un docker-compose.yml según la declaración de runtime del adapter.
+   * Consume DeployRuntime en lugar de constantes hardcodeadas (SPEC-0006 T2).
    */
   generate(config: ComposeConfig): ComposeGenerationResult {
     try {
-      const services = this.getServicesForTarget(config.targetType);
+      const services = config.runtime.services;
       const composeContent = this.generateComposeYml(
         config.projectName,
-        config.targetType,
+        config.runtime,
         services
       );
 
@@ -31,6 +26,7 @@ export class ComposeGenerator {
         success: true,
         filePath: config.outputPath,
         services: [...services],
+        content: composeContent,
       };
     } catch (error) {
       return {
@@ -41,36 +37,24 @@ export class ComposeGenerator {
   }
 
   /**
-   * Obtiene la lista de servicios según el tipo de target.
-   */
-  private getServicesForTarget(targetType: TargetType): readonly string[] {
-    switch (targetType) {
-      case 'backend-full':
-        return BACKEND_FULL_SERVICES;
-      case 'frontend-static':
-        return FRONTEND_STATIC_SERVICES;
-      default:
-        throw new Error(`Tipo de target desconocido: ${targetType}`);
-    }
-  }
-
-  /**
    * Genera el contenido del docker-compose.yml.
    */
   private generateComposeYml(
     projectName: string,
-    targetType: TargetType,
+    runtime: ComposeConfig['runtime'],
     services: readonly string[]
   ): string {
     const header = this.generateHeader(projectName);
     
-    if (targetType === 'backend-full') {
-      return this.generateBackendFullCompose(projectName, header);
-    } else if (targetType === 'frontend-static') {
-      return this.generateFrontendStaticCompose(projectName, header);
-    }
+    // Determinar el tipo de compose según los servicios declarados
+    // Backend completo tiene más que solo nginx
+    const isBackendFull = services.length > 1 || (services.length === 1 && services[0] !== 'nginx');
     
-    throw new Error(`Tipo de target no soportado: ${targetType}`);
+    if (isBackendFull) {
+      return this.generateBackendFullCompose(projectName, header, runtime);
+    } else {
+      return this.generateFrontendStaticCompose(projectName, header, runtime);
+    }
   }
 
   /**
@@ -88,27 +72,57 @@ version: '3.8'
 
   /**
    * Genera docker-compose.yml para backend completo.
-   * Incluye: app, nginx, db, redis, worker, scheduler.
+   * Los servicios se determinan desde el DeployRuntime del adapter.
    */
-  private generateBackendFullCompose(projectName: string, header: string): string {
-    return header + `services:
-  app:
+  private generateBackendFullCompose(projectName: string, header: string, runtime: ComposeConfig['runtime']): string {
+    const services = runtime.services;
+    const port = runtime.port || 80;
+    const hasApp = services.includes('app');
+    const hasDb = services.includes('db');
+    const hasRedis = services.includes('redis');
+    const hasCache = services.includes('cache');
+    const hasCacheService = hasRedis || hasCache;
+    const cacheServiceName = hasCache ? 'cache' : 'redis';
+    const hasWorker = services.includes('worker');
+    const hasScheduler = services.includes('scheduler');
+    
+    let compose = header + 'services:\n';
+    
+    // App service
+    if (hasApp) {
+      compose += `  app:
     image: \${DOCKER_REGISTRY:-localhost}/${projectName}:latest
     container_name: ${projectName}_app
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
       - ./:/var/www/html
-    environment:
-      - DB_HOST=db
-      - REDIS_HOST=redis
+    environment:`;
+      
+      if (hasDb) {
+        compose += '\n      - DB_HOST=db';
+      }
+      if (hasCacheService) {
+        compose += `\n      - REDIS_HOST=${cacheServiceName}`;
+      }
+      
+      compose += `
     networks:
       - ${projectName}_network
-    depends_on:
-      - db
-      - redis
-
-  nginx:
+    depends_on:`;
+      
+      if (hasDb) {
+        compose += '\n      - db';
+      }
+      if (hasCacheService) {
+        compose += `\n      - ${cacheServiceName}`;
+      }
+      compose += '\n\n';
+    }
+    
+    // Nginx service
+    if (services.includes('nginx')) {
+      compose += `  nginx:
     image: nginx:alpine
     container_name: ${projectName}_nginx
     restart: unless-stopped
@@ -120,11 +134,19 @@ version: '3.8'
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
     networks:
-      - ${projectName}_network
+      - ${projectName}_network`;
+      
+      if (hasApp) {
+        compose += `
     depends_on:
-      - app
-
-  db:
+      - app`;
+      }
+      compose += '\n\n';
+    }
+    
+    // DB service
+    if (hasDb) {
+      compose += `  db:
     image: postgres:15-alpine
     container_name: ${projectName}_db
     restart: unless-stopped
@@ -137,66 +159,115 @@ version: '3.8'
     networks:
       - ${projectName}_network
 
-  redis:
+`;
+    }
+    
+    // Redis/Cache service
+    if (hasCacheService) {
+      compose += `  ${cacheServiceName}:
     image: redis:7-alpine
-    container_name: ${projectName}_redis
+    container_name: ${projectName}_${cacheServiceName}
     restart: unless-stopped
     volumes:
-      - redis_data:/data
+      - ${cacheServiceName}_data:/data
     networks:
       - ${projectName}_network
 
-  worker:
+`;
+    }
+    
+    // Worker service
+    if (hasWorker) {
+      compose += `  worker:
     image: \${DOCKER_REGISTRY:-localhost}/${projectName}:latest
     container_name: ${projectName}_worker
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
       - ./:/var/www/html
-    environment:
-      - DB_HOST=db
-      - REDIS_HOST=redis
+    environment:`;
+      
+      if (hasDb) {
+        compose += '\n      - DB_HOST=db';
+      }
+      if (hasCacheService) {
+        compose += `\n      - REDIS_HOST=${cacheServiceName}`;
+      }
+      
+      compose += `
     command: ["sh", "-c", "while true; do echo 'Worker placeholder - configure with adapter'; sleep 60; done"]
     networks:
       - ${projectName}_network
-    depends_on:
-      - db
-      - redis
-
-  scheduler:
+    depends_on:`;
+      
+      if (hasDb) {
+        compose += '\n      - db';
+      }
+      if (hasCacheService) {
+        compose += `\n      - ${cacheServiceName}`;
+      }
+      compose += '\n\n';
+    }
+    
+    // Scheduler service
+    if (hasScheduler) {
+      compose += `  scheduler:
     image: \${DOCKER_REGISTRY:-localhost}/${projectName}:latest
     container_name: ${projectName}_scheduler
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
       - ./:/var/www/html
-    environment:
-      - DB_HOST=db
-      - REDIS_HOST=redis
+    environment:`;
+      
+      if (hasDb) {
+        compose += '\n      - DB_HOST=db';
+      }
+      if (hasCacheService) {
+        compose += `\n      - REDIS_HOST=${cacheServiceName}`;
+      }
+      
+      compose += `
     command: ["sh", "-c", "while true; do echo 'Scheduler placeholder - configure with adapter'; sleep 60; done"]
     networks:
       - ${projectName}_network
-    depends_on:
-      - db
-      - redis
-
-networks:
+    depends_on:`;
+      
+      if (hasDb) {
+        compose += '\n      - db';
+      }
+      if (hasCacheService) {
+        compose += `\n      - ${cacheServiceName}`;
+      }
+      compose += '\n\n';
+    }
+    
+    // Networks
+    compose += `networks:
   ${projectName}_network:
     driver: bridge
 
-volumes:
-  db_data:
-    driver: local
-  redis_data:
-    driver: local
 `;
+    
+    // Volumes
+    if (hasDb || hasCacheService) {
+      compose += 'volumes:\n';
+      if (hasDb) {
+        compose += '  db_data:\n    driver: local\n';
+      }
+      if (hasCacheService) {
+        compose += `  ${cacheServiceName}_data:\n    driver: local\n`;
+      }
+    }
+    
+    return compose;
   }
 
   /**
    * Genera docker-compose.yml para frontend estático.
    * Solo nginx sirviendo archivos de dist/.
    */
-  private generateFrontendStaticCompose(projectName: string, header: string): string {
+  private generateFrontendStaticCompose(projectName: string, header: string, runtime: ComposeConfig['runtime']): string {
     return header + `services:
   nginx:
     image: nginx:alpine
@@ -235,12 +306,18 @@ networks:
         error: 'La ruta de salida es requerida',
       };
     }
-
-    const validTargets: TargetType[] = ['backend-full', 'frontend-static'];
-    if (!validTargets.includes(config.targetType)) {
+    
+    if (!config.runtime) {
       return {
         valid: false,
-        error: `Tipo de target inválido: ${config.targetType}. Valores válidos: ${validTargets.join(', ')}`,
+        error: 'La declaración de runtime es requerida',
+      };
+    }
+    
+    if (!config.runtime.services || config.runtime.services.length === 0) {
+      return {
+        valid: false,
+        error: 'La declaración de runtime debe incluir al menos un servicio',
       };
     }
 
