@@ -56,6 +56,9 @@ importers:
         specifier: ^1.16.0
         version: 1.17.0
     devDependencies:
+      '@fractal/core':
+        specifier: workspace:*
+        version: link:../core
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1

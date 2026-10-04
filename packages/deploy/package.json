@@ -4,15 +4,15 @@
   "description": "Provisioning, Docker, Nginx, SSL, CI/CD. Framework-agnostic.",
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./src/index.ts"
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -20,6 +20,7 @@
     "ssh2": "^1.16.0"
   },
   "devDependencies": {
+    "@fractal/core": "workspace:*",
     "@types/node": "^22.0.0",
     "@types/ssh2": "^1.15.0",
     "typescript": "^5.7.3",
