@@ -3,64 +3,70 @@
 > El mapa completo del sistema: quién es cada pieza, cómo se conectan, y en
 > qué estado quedó cada duda que se planteó al armarlo. Este documento
 > describe el sistema **tal como existe hoy** — no es una aspiración. Última
-> verificación: 2026-09-06.
+> verificación: 2026-10-03.
 >
-> Para las reglas de comportamiento de los agentes (qué puede y no puede
-> hacer Cursor al implementar, el schema de ticket), ver
-> [`docs/AGENT_PLAYBOOK.md`](AGENT_PLAYBOOK.md). Este documento es el mapa;
-> ese es el manual de cada ejecutor.
+> Las piezas se describen por **rol** (orquestador, agente de código,
+> tracker), no por herramienta: las herramientas concretas se cambian a
+> medida que aparecen mejores opciones. Qué herramienta cumple cada rol hoy
+> vive en un único lugar — la tabla "Implementación actual" de la sección 2.
+>
+> Documentos hermanos: [`AGENT_PLAYBOOK.md`](AGENT_PLAYBOOK.md) es el
+> manual de quien implementa y de quien revisa código (schema de ticket,
+> code review); [`ORCHESTRATOR_PLAYBOOK.md`](ORCHESTRATOR_PLAYBOOK.md) es el
+> manual operativo del orquestador, y además es la fuente de la que el
+> orquestador lee sus instrucciones. Este documento es el mapa; esos son los
+> manuales.
 
 ---
 
 ## 1. El circuito completo
 
 ```
-IDEA / REQUERIMIENTO (Diego habla con Claude)
-        │
-        ▼
-   CLAUDE analiza
-        │
-        ├── ¿hay alternativas de arquitectura?  → ADR (Propuesto) → Diego decide
-        ├── ¿es una capability nueva?           → SPEC (Draft) → Diego aprueba
-        │
-        ▼
-CLAUDE descompone el spec Aprobado en tickets
-        │
-        ▼
-      LINEAR  (fuente de verdad del trabajo pendiente)
-        │
-        │  ticket en estado READY FOR AI
-        ▼
-   N8N (gatekeeper) — workflow "Linear (Ready for AI) → Cursor Cloud Agent v2"
-        │  dos disparadores independientes, misma lógica:
-        │    • webhook de Linear (inmediato, cuando un issue entra a Ready for AI)
-        │    • chequeo por schedule cada 15 min (agarra tickets que ya estaban
-        │      esperando y se desbloquearon sin que su estado cambiara — Gap 1)
-        │
-        │  antes de lanzar nada:
-        │  1. lista TODOS los candidatos del proyecto en Ready for AI
-        │  2. descarta los que tienen algún blockedBy sin resolver
-        │  3. ordena por prioridad
-        │  4. chequea que no haya otro corriendo (límite de concurrencia = 1)
-        │  5. marca el elegido como AI WORKING
-        ▼
-   CURSOR (Cloud Agent)
-        │  lee el ticket, analiza el repo, implementa, testea, hace commit
-        │  crea la rama con el nombre que Linear ya generó (gitBranchName),
-        │  lo que permite que la integración GitHub↔Linear la reconozca sola
-        ▼
-    GITHUB (Pull Request)
-        │  Linear detecta el PR por el nombre de rama y lo linkea al ticket
-        │  (integración GitHub↔Linear confirmada activa en dmaure/fractal)
-        ▼
-   DIEGO revisa
-        │
-        ├── pide cambios  → ticket vuelve a CHANGES REQUESTED, Cursor itera
-        └── aprueba y mergea → Linear cierra el ticket (Done) automáticamente
-        │
-        ▼
-   (n8n vuelve a evaluar candidatos en el próximo webhook o chequeo periódico)
+IDEA (Diego)
+   │
+   ▼
+DIEGO + CLAUDE desarrollan la idea
+   │  ├── ¿alternativas de arquitectura?  → ADR (Propuesto) → Diego decide
+   │  └── ¿capability nueva?              → SPEC (Draft) → Diego aprueba
+   ▼
+CLAUDE escribe/commitea la documentación y crea los tickets
+   │  (los que cumplen la sección 5 quedan en READY FOR AI)
+   ▼
+TRACKER (fuente de verdad del trabajo pendiente)
+   │
+   ▼
+ORQUESTADOR ── todas las mañanas: mapa de estado + "¿cuál es el próximo paso?"
+   │            (módulo en curso, si su DoD se cumple, qué falta, qué sigue)
+   │
+   │  selección determinística (bloqueos, prioridad, concurrencia = 1)
+   ▼
+AGENTE DE CÓDIGO implementa en la rama indicada y abre el PR
+   │  (si no puede abrirlo, el orquestador lo abre como respaldo)
+   ▼
+┌─▶ ORQUESTADOR le pide el code review a CLAUDE           [PR READY]
+│     │
+│     ▼
+│   CLAUDE revisa y deja comentarios + veredicto en el PR
+│     │
+│     ├── CAMBIOS PEDIDOS → el orquestador le avisa al agente   [CHANGES REQUESTED]
+│     │        │
+│     │        ▼
+└─────┴── el agente corrige y pushea (máximo 3 rondas, después decide Diego)
+      │
+      └── APROBADO → DIEGO hace el review final            [HUMAN REVIEW]
+               │
+               ├── pide cambios → vuelve al ciclo de arriba
+               └── mergea → el orquestador cierra el ticket   [Done]
+                        │
+                        ▼
+               el orquestador elige el próximo ticket (y el barrido periódico
+               cada hora agarra lo que los eventos no dispararon)
+
+Una vez por semana: review del sprint (métricas, fallas, mejoras, objetivo
+de la semana) entre el orquestador, Diego y Claude.
 ```
+
+Detalle de cada paso del orquestador: `ORCHESTRATOR_PLAYBOOK.md`.
 
 ---
 
@@ -68,37 +74,87 @@ CLAUDE descompone el spec Aprobado en tickets
 
 | Quién | Rol | No hace |
 |---|---|---|
-| **Diego** | Decide arquitectura (ADRs), prioridades, aprueba specs, revisa y mergea PRs. Product Owner / Tech Lead / Reviewer. | No implementa código directamente en el flujo normal. |
-| **Claude** | Analiza requerimientos, escribe specs y ADRs, los descompone en tickets de Linear con contexto suficiente para que Cursor no necesite volver a preguntar. | No decide entre alternativas de arquitectura con más de una opción viable. No implementa código de `packages/` salvo pedido explícito. |
-| **Linear** | Fuente de verdad de qué hay que hacer, en qué estado está, y qué lo bloquea. | No es fuente de verdad del código ni de las decisiones de arquitectura — eso vive en `docs/`. |
-| **n8n** | Gatekeeper determinístico entre Linear y Cursor: decide *cuándo* y *cuál* ticket se lanza, sin usar ningún modelo de lenguaje para esa decisión — es lógica de filtro/orden pura sobre datos que Linear ya expone. | No decide qué trabajo existe ni cómo se prioriza conceptualmente — solo ejecuta las reglas mecánicas sobre lo que ya está en Linear. |
-| **Cursor (Cloud Agent)** | Implementa contra el ticket: lee contexto, analiza el repo, escribe código, corre tests/lint, commitea, abre PR. | No decide alcance no cubierto por el ticket. |
+| **Diego** | Product Owner / Tech Lead. Decide arquitectura (ADRs) y prioridades, aprueba specs, hace el review final y mergea. | No implementa código en el flujo normal. No tiene que elegir el próximo ticket: el orquestador se lo recomienda. |
+| **Claude** | Desarrolla las ideas con Diego, escribe specs, ADRs y docs, crea los tickets. **Hace el code review** de cada PR del agente, con veredicto explícito. | No decide entre alternativas de arquitectura viables. No implementa código de `packages/` salvo pedido explícito. No mergea. |
+| **Tracker** | Fuente de verdad de qué hay que hacer, en qué estado está y qué lo bloquea. | No es fuente de verdad del código ni de las decisiones: eso vive en `docs/`. |
+| **Orquestador** | Project manager. (1) Elige y lanza tickets con reglas determinísticas. (2) Coordina el ciclo PR → code review → correcciones → review de Diego → cierre. (3) Recomienda todos los días el próximo paso y hace el review semanal. | No mergea, no inventa alcance, no promueve tickets a `READY FOR AI`, no toca producción sin aprobación. |
+| **Agente de código** | Implementa contra el ticket, abre el PR y corrige lo que pida el code review. | No decide alcance no cubierto por el ticket. |
 | **GitHub** | Fuente de verdad del código. Todo cambio pasa por PR. | Nunca se pushea directo a `master`. |
 
+### Implementación actual
+
+Único lugar del documento atado a herramientas concretas. Cambiar de
+herramienta = actualizar esta tabla (y, si cambia el contrato, la sección
+del rol correspondiente).
+
+| Rol | Herramienta hoy | Desde | Antes |
+|---|---|---|---|
+| Orquestador | Bot de Grok ("Project Manager"), con rutinas por evento y por horario | 2026-10 | n8n (2026-08-31 → 2026-10), workflow `sF5SIIrRWKyvQ2HI` |
+| Agente de código | Cursor Cloud Agent | 2026-08-31 | — |
+| Revisor de código | Claude, invocado por el orquestador en Slack `#project-ai` | 2026-10 | Solo Diego |
+| Tracker | Linear (equipo FRA) | 2026-08 | — |
+| Canal de coordinación | Slack `#project-ai` | 2026-10 | — |
+
+### Contrato del orquestador
+
+Cualquier herramienta que cumpla el rol de orquestador tiene que cumplir
+estas invariantes. Son lo que se aprendió con los Gaps 1–3 y el bug de
+concurrencia de la sección 6, independientemente de la herramienta. El
+*cómo* está en `ORCHESTRATOR_PLAYBOOK.md`.
+
+1. **Instrucciones desde el repo:** leer `ORCHESTRATOR_PLAYBOOK.md` desde
+   `master` en cada ejecución. Cambiar de orquestador = apuntar la
+   herramienta nueva a ese archivo.
+2. **Disparo doble:** reaccionar a eventos *y* barrer periódicamente
+   (Gap 1).
+3. **Selección determinística:** bloqueos y prioridad, sin LLM en ese paso
+   (sección 3).
+4. **Concurrencia = 1:** contar *cualquier* ticket en `AI WORKING`,
+   `PR READY`, `CHANGES REQUESTED` o `HUMAN REVIEW`, no solo `AI WORKING`
+   (sección 6.1).
+5. **El PR siempre existe:** lo abre el agente; si no puede, lo abre el
+   orquestador (Gap 2).
+6. **Code review antes de Diego:** ningún PR llega a `HUMAN REVIEW` sin
+   veredicto aprobado de Claude (o sin haber agotado las 3 rondas).
+7. **Cierre automático** a `Done` al mergear (Gap 3) y selección inmediata
+   del siguiente ticket.
+8. **Ningún fallo silencioso** (ver `MEJORAS_FUTURAS.md`).
+
 ---
 
-## 3. Por qué n8n y no una IA decidiendo qué ticket sigue
+## 3. Selección determinística, planificación con criterio
 
-Se evaluó explícitamente poner una IA a decidir "qué ticket sigue" en cada evento, y se descartó para esa capa: chequear si un ticket está bloqueado y comparar prioridades es lógica determinística — comparar campos que Linear ya expone (`blockedBy`, `priority`, `state`). Una IA ahí introduce una fuente de error (alucinación) exactamente en el paso donde menos se la quiere, más lenta y más cara sin ninguna ganancia real.
+Se evaluó poner una IA a decidir "qué ticket sigue" en cada evento y se
+descartó **para esa capa**. Chequear si un ticket está bloqueado y comparar
+prioridades es lógica determinística: comparar campos que el tracker ya
+expone (bloqueos, prioridad, estado). Una IA ahí introduce una fuente de
+error (alucinación) justo en el paso donde menos se la quiere, y además es
+más lenta y más cara sin ninguna ganancia. Esto vale aunque el orquestador
+sea un bot construido sobre un modelo de lenguaje: la *selección* entre
+tickets `READY FOR AI` sigue siendo una regla.
 
-El lugar donde una IA sí aporta es distinto: releer el plan completo (`docs/`) y el estado de Linear para decidir *qué debería existir como próximo trabajo* — eso es lo que hace Claude al armar el backlog, no algo que deba correr en cada evento de selección.
-
-**Mejora futura considerada, no construida todavía:** un chequeo de baja frecuencia (diario, o cuando el backlog ejecutable se vacía) que relea `docs/`, Linear y los PRs recientes, y le reporte a Diego qué se completó, qué decisión está pendiente, y si algo divergió del plan. Se conversó el 2026-08-31 y quedó pendiente de que Diego decida si y cómo la quiere (vía la skill `schedule` de Claude Code) — no es una regla del sistema todavía, es una idea.
+Donde una IA sí aporta es en la **planificación**: releer `docs/`, el
+tracker y los PRs para decidir *qué debería existir como próximo trabajo*.
+Desde 2026-10 esto ya no es una idea pendiente. El orquestador lo hace todos
+los días (identifica el módulo en curso, verifica su DoD con dogfood real
+por CLI y recomienda **un** próximo paso) y una vez por semana (review del
+sprint). Recomienda; los tickets nuevos los crea en `Todo`, y pasarlos a
+`READY FOR AI` sigue siendo de Claude o de Diego (sección 5).
 
 ---
 
-## 4. Estados de Linear y su significado operativo
+## 4. Estados del tracker y su significado operativo
 
-| Estado | Categoría Linear | Significado |
+| Estado | Categoría | Significado |
 |---|---|---|
 | `Backlog` | backlog | Idea o trabajo todavía no preparado |
 | `Todo` | unstarted | Tarea definida pero requiere más análisis/documentación antes de ejecutarse (equivale a "Planned") |
-| `READY FOR AI` | unstarted | Suficientemente especificado para que Cursor lo ejecute sin preguntar |
-| `AI WORKING` | started | n8n ya marcó este ticket como el elegido; Cursor debería estar trabajando en él |
-| `PR READY` | started | Existe un PR — n8n lo mueve solo (Gap 2, sección 6), sin intervención manual |
-| `HUMAN REVIEW` | started | Listo para que Diego revise |
-| `CHANGES REQUESTED` | started | La revisión encontró problemas, Cursor debe seguir |
-| `Done` | completed | PR aprobado y mergeado — n8n lo mueve solo (Gap 3, sección 6.2), sin intervención manual |
+| `READY FOR AI` | unstarted | Suficientemente especificado para que el agente de código lo ejecute sin preguntar |
+| `AI WORKING` | started | El orquestador lanzó el agente de código sobre este ticket |
+| `PR READY` | started | Hay PR y está esperando el code review de Claude |
+| `CHANGES REQUESTED` | started | Claude o Diego pidieron cambios; el agente está corrigiendo |
+| `HUMAN REVIEW` | started | Claude aprobó (o se agotaron las 3 rondas): le toca a Diego |
+| `Done` | completed | PR mergeado; el orquestador lo mueve solo |
 
 ---
 
@@ -118,6 +174,12 @@ Si falta algo, el ticket se queda en `Todo` y Claude indica qué información o 
 ---
 
 ## 6. Historial de gaps encontrados y resueltos
+
+> **Registro histórico.** Las secciones 6 a 8 cuentan lo que pasó cuando el
+> orquestador estaba implementado en n8n y se conservan tal cual, con los
+> nombres de nodos y herramientas de ese momento. Las lecciones que sobreviven
+> al cambio de herramienta están condensadas en el "Contrato del
+> orquestador" (sección 2).
 
 Se identificaron revisando el circuito completo antes de la primera ejecución real (2026-08-31), antes de haberlo corrido nunca.
 
@@ -525,8 +587,9 @@ validarlo contra un segundo agente cuando exista la oportunidad.
 
 ## 9. Referencias
 
-- [`docs/AGENT_PLAYBOOK.md`](AGENT_PLAYBOOK.md) — reglas de comportamiento para Claude y para Cursor al implementar, schema de ticket
+- [`docs/ORCHESTRATOR_PLAYBOOK.md`](ORCHESTRATOR_PLAYBOOK.md) — manual operativo del orquestador y fuente de sus instrucciones
+- [`docs/AGENT_PLAYBOOK.md`](AGENT_PLAYBOOK.md) — reglas para quien implementa y para quien hace code review, schema de ticket
 - [`.cursor/rules/fractal.mdc`](../.cursor/rules/fractal.mdc) — versión resumida cargada automáticamente en Cursor
 - [`docs/PROCESO.md`](PROCESO.md) — ciclo de trabajo, numeración, branches, commits
-- Workflow de n8n: [Linear (Ready for AI) → Cursor Cloud Agent v2](https://n8n.universofractal.dev/workflow/sF5SIIrRWKyvQ2HI) — el detalle técnico (queries GraphQL, nombres de nodos) vive ahí, con su propio historial de versiones, no se duplica acá
+- Detalle técnico del orquestador: vive en la herramienta que cumpla ese rol (ver "Implementación actual", sección 2), con su propio historial — no se duplica acá. Histórico: workflow de n8n [`sF5SIIrRWKyvQ2HI`](https://n8n.universofractal.dev/workflow/sF5SIIrRWKyvQ2HI), retirado.
 - [`dmaure/fractal-workflow`](https://github.com/dmaure/fractal-workflow) — el patrón extraído, agnóstico de proyecto y de agente de código

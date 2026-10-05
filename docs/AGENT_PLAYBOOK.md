@@ -42,7 +42,7 @@ Todo ticket que Claude crea en Linear sigue esta estructura fija:
 `Definition of Done`
 
 Las dependencias se declaran como relación real de Linear (`blockedBy`), no
-solo mencionadas en el texto — es lo que el gatekeeper de n8n necesita para
+solo mencionadas en el texto — es lo que el orquestador (gatekeeper) necesita para
 funcionar (ver `ARCHITECTURE_WORKFLOW.md`, sección 3).
 
 Un ticket pasa a **Ready for AI** solo cuando el objetivo está claro, los
@@ -66,6 +66,66 @@ falta — no se fuerza.
 - Todo PR sigue el formato de `docs/PROCESO.md`: declara el spec o ticket
   que implementa, los criterios de aceptación cubiertos, los ADRs creados
   si los hubo, y el checklist completo.
+
+### Abrir el PR
+
+- Trabajar en la rama con el nombre exacto que indica el orquestador.
+- Abrir el PR **no draft** con `gh pr create` (usa `GH_TOKEN` del
+  entorno). Título `FRA-<n>: <título>`, y en el cuerpo la línea
+  `Fixes FRA-<n>`.
+- Si no se puede crear, responder con el error exacto y el nombre de la
+  rama. El orquestador lo crea como respaldo; no se reintenta en loop.
+
+### Responder al code review
+
+- Resolver **cada** comentario en la misma rama y el mismo PR, nunca
+  abriendo un PR nuevo.
+- Responder cada comentario con lo que se hizo, o con por qué no se hizo
+  si el comentario contradice el ticket, el spec o un ADR. En ese caso no
+  se elige solo: se marca como punto de bloqueo.
+- Un commit por corrección lógica (`fix(<scope>): …`), sin reescribir los
+  commits que ya se revisaron.
+- No modificar `docs/ORCHESTRATOR_PLAYBOOK.md`: son las instrucciones del
+  orquestador y solo las cambian Diego o Claude.
+
+---
+
+## Code review (Claude)
+
+Claude revisa cada PR del agente de código antes de que llegue a Diego. El
+orquestador le pide el review con el link al PR, el ticket y el número de
+ronda.
+
+**Contra qué se revisa**, en este orden:
+
+1. **Criterios de aceptación del ticket:** cada AC cubierto y con test. Si
+   falta uno, son cambios pedidos.
+2. **Artículo II:** ningún término de framework en `packages/core` ni
+   `packages/deploy`.
+3. **Alcance:** nada fuera de lo que pide el ticket, y ninguna decisión
+   técnica no cubierta por el spec o un ADR.
+4. **Checklist de `docs/PROCESO.md`:** snapshots, e2e, docs, spec
+   actualizado si el código divergió.
+5. **Corrección y legibilidad:** bugs, casos borde, tests que no prueban
+   lo que dicen probar.
+6. **Archivos sensibles:** si el PR toca `docs/ORCHESTRATOR_PLAYBOOK.md`,
+   `.github/` o `.cursor/rules/`, son cambios pedidos, salvo que el ticket
+   lo pida explícitamente.
+
+**Cómo se responde:**
+
+- Comentarios en línea en el PR, cada uno accionable: qué está mal y qué se
+  espera. Sin comentarios de gusto personal; si algo es opcional, se marca
+  como `nit:` y no bloquea.
+- Al final, **un** comentario en el PR que empieza con una de estas dos
+  líneas exactas, porque el orquestador las detecta:
+  - `CR Claude — APROBADO`
+  - `CR Claude — CAMBIOS PEDIDOS`
+
+  Abajo, el resumen: qué AC quedan cubiertos y qué hay que corregir.
+- En la ronda N+1 se verifica que se resolvió lo pedido en la ronda N. No
+  se abren temas nuevos que ya estaban en el diff anterior, salvo bugs
+  reales.
 
 ---
 
