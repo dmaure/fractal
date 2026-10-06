@@ -39,6 +39,9 @@ export {
   checkBinaryVersion,
   ensureBinaryVersion,
   BinaryVersionMismatchError,
+  checkRuntimeRequirements,
+  ensureRuntimeRequirements,
   type BinaryCheckResult,
   type BinaryVersionCheckResult,
+  type RuntimeRequirementsCheckResult,
 } from './bridge/binary-check.js';

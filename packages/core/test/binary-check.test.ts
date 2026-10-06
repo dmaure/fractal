@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import {
   checkBinaryAvailable,
   ensureBinaryAvailable,
@@ -12,7 +12,10 @@ import {
   checkBinaryVersion,
   ensureBinaryVersion,
   BinaryVersionMismatchError,
+  checkRuntimeRequirements,
+  ensureRuntimeRequirements,
 } from '../src/bridge/binary-check.js';
+import type { RuntimeRequirements } from '../src/types/adapter-contract.js';
 
 // Mock child_process
 vi.mock('child_process');
@@ -28,7 +31,7 @@ describe('checkBinaryAvailable', () => {
 
   it('returns available true when binary exists in PATH', () => {
     const mockPath = '/usr/local/bin/python';
-    vi.mocked(execSync).mockReturnValue(mockPath);
+    vi.mocked(execFileSync).mockReturnValue(mockPath);
 
     const result = checkBinaryAvailable('python');
 
@@ -38,7 +41,7 @@ describe('checkBinaryAvailable', () => {
   });
 
   it('returns available false when binary does not exist', () => {
-    vi.mocked(execSync).mockImplementation(() => {
+    vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error('not found');
     });
 
@@ -53,11 +56,12 @@ describe('checkBinaryAvailable', () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'linux' });
 
-    vi.mocked(execSync).mockReturnValue('/usr/bin/php');
+    vi.mocked(execFileSync).mockReturnValue('/usr/bin/php');
     checkBinaryAvailable('php');
 
-    expect(execSync).toHaveBeenCalledWith(
-      'which php',
+    expect(execFileSync).toHaveBeenCalledWith(
+      'which',
+      ['php'],
       expect.objectContaining({
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -71,11 +75,12 @@ describe('checkBinaryAvailable', () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'win32' });
 
-    vi.mocked(execSync).mockReturnValue('C:\\Program Files\\PHP\\php.exe');
+    vi.mocked(execFileSync).mockReturnValue('C:\\Program Files\\PHP\\php.exe');
     checkBinaryAvailable('php');
 
-    expect(execSync).toHaveBeenCalledWith(
-      'where php',
+    expect(execFileSync).toHaveBeenCalledWith(
+      'where',
+      ['php'],
       expect.objectContaining({
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -87,7 +92,7 @@ describe('checkBinaryAvailable', () => {
 
   it('handles multiple paths by returning the first one', () => {
     const multiplePaths = '/usr/local/bin/node\n/usr/bin/node\n';
-    vi.mocked(execSync).mockReturnValue(multiplePaths);
+    vi.mocked(execFileSync).mockReturnValue(multiplePaths);
 
     const result = checkBinaryAvailable('node');
 
@@ -96,7 +101,7 @@ describe('checkBinaryAvailable', () => {
   });
 
   it('adds no perceptible delay when binary exists', () => {
-    vi.mocked(execSync).mockReturnValue('/usr/bin/test');
+    vi.mocked(execFileSync).mockReturnValue('/usr/bin/test');
 
     const startTime = Date.now();
     checkBinaryAvailable('test');
@@ -139,7 +144,7 @@ describe('ensureBinaryAvailable', () => {
   });
 
   it('does not throw when binary is available', () => {
-    vi.mocked(execSync).mockReturnValue('/usr/bin/php');
+    vi.mocked(execFileSync).mockReturnValue('/usr/bin/php');
 
     expect(() => {
       ensureBinaryAvailable('php');
@@ -147,7 +152,7 @@ describe('ensureBinaryAvailable', () => {
   });
 
   it('throws BinaryNotAvailableError when binary is missing', () => {
-    vi.mocked(execSync).mockImplementation(() => {
+    vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error('not found');
     });
 
@@ -157,7 +162,7 @@ describe('ensureBinaryAvailable', () => {
   });
 
   it('includes installation hint in error when provided', () => {
-    vi.mocked(execSync).mockImplementation(() => {
+    vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error('not found');
     });
 
@@ -184,7 +189,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('returns sufficient true when installed version meets requirement', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/node')
       .mockReturnValueOnce('v18.16.0');
 
@@ -197,7 +202,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('returns sufficient false when installed version is below requirement', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/python')
       .mockReturnValueOnce('Python 3.8.5');
 
@@ -210,7 +215,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('returns sufficient false when binary is not found', () => {
-    vi.mocked(execSync).mockImplementation(() => {
+    vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error('not found');
     });
 
@@ -223,7 +228,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('handles version strings without patch number', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/ruby')
       .mockReturnValueOnce('ruby 3.2');
 
@@ -234,7 +239,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('handles version strings with only major version', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/go')
       .mockReturnValueOnce('go version go1.21');
 
@@ -244,7 +249,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('handles version strings with "v" prefix', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/node')
       .mockReturnValueOnce('v20.10.0');
 
@@ -254,7 +259,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('handles version strings with pre-release tags', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/tool')
       .mockReturnValueOnce('2.5.0-beta.1');
 
@@ -264,7 +269,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('returns error when version cannot be determined', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/tool')
       .mockReturnValue('Some tool output without version');
 
@@ -275,7 +280,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('correctly compares major version differences', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/tool')
       .mockReturnValueOnce('1.9.9');
 
@@ -285,7 +290,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('correctly compares minor version differences', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/tool')
       .mockReturnValueOnce('3.4.9');
 
@@ -295,7 +300,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('correctly compares patch version differences', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/tool')
       .mockReturnValueOnce('2.1.2');
 
@@ -305,7 +310,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('accepts exact version match', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/tool')
       .mockReturnValueOnce('5.3.1');
 
@@ -315,7 +320,7 @@ describe('checkBinaryVersion', () => {
   });
 
   it('tries multiple version flags when first fails', () => {
-    const mockExec = vi.mocked(execSync);
+    const mockExec = vi.mocked(execFileSync);
     mockExec
       .mockReturnValueOnce('/usr/bin/tool')
       .mockImplementationOnce(() => {
@@ -326,8 +331,8 @@ describe('checkBinaryVersion', () => {
     const result = checkBinaryVersion('tool', '2.0.0');
 
     expect(result.sufficient).toBe(true);
-    expect(mockExec).toHaveBeenCalledWith('tool --version', expect.any(Object));
-    expect(mockExec).toHaveBeenCalledWith('tool -v', expect.any(Object));
+    expect(mockExec).toHaveBeenCalledWith('tool', ['--version'], expect.any(Object));
+    expect(mockExec).toHaveBeenCalledWith('tool', ['-v'], expect.any(Object));
   });
 });
 
@@ -370,7 +375,7 @@ describe('ensureBinaryVersion', () => {
   });
 
   it('does not throw when version is sufficient', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/node')
       .mockReturnValueOnce('v18.16.0');
 
@@ -380,7 +385,7 @@ describe('ensureBinaryVersion', () => {
   });
 
   it('throws BinaryVersionMismatchError when version is insufficient', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/python')
       .mockReturnValueOnce('Python 3.8.5');
 
@@ -390,7 +395,7 @@ describe('ensureBinaryVersion', () => {
   });
 
   it('throws BinaryNotAvailableError when binary is missing', () => {
-    vi.mocked(execSync).mockImplementation(() => {
+    vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error('not found');
     });
 
@@ -400,7 +405,7 @@ describe('ensureBinaryVersion', () => {
   });
 
   it('includes upgrade hint in error when provided', () => {
-    vi.mocked(execSync)
+    vi.mocked(execFileSync)
       .mockReturnValueOnce('/usr/bin/tool')
       .mockReturnValueOnce('1.5.0');
 
@@ -417,7 +422,7 @@ describe('ensureBinaryVersion', () => {
   });
 
   it('throws BinaryNotAvailableError with hint when binary is missing', () => {
-    vi.mocked(execSync).mockImplementation(() => {
+    vi.mocked(execFileSync).mockImplementation(() => {
       throw new Error('not found');
     });
 
@@ -425,6 +430,186 @@ describe('ensureBinaryVersion', () => {
 
     try {
       ensureBinaryVersion('tool', '1.0.0', hint);
+      expect.fail('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BinaryNotAvailableError);
+      expect((error as BinaryNotAvailableError).installationHint).toBe(hint);
+    }
+  });
+});
+
+describe('checkRuntimeRequirements (SPEC-0006 AC-2 integration)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns allSatisfied true when all binaries meet requirements', () => {
+    vi.mocked(execFileSync)
+      .mockReturnValueOnce('/usr/bin/node')
+      .mockReturnValueOnce('v18.16.0')
+      .mockReturnValueOnce('/usr/bin/npm')
+      .mockReturnValueOnce('9.5.0');
+
+    const requirements: RuntimeRequirements = {
+      binaries: [
+        { name: 'node', minVersion: '18.0.0', displayName: 'Node.js' },
+        { name: 'npm', minVersion: '9.0.0', displayName: 'npm' },
+      ],
+    };
+
+    const result = checkRuntimeRequirements(requirements);
+
+    expect(result.allSatisfied).toBe(true);
+    expect(result.results).toHaveLength(2);
+    expect(result.results[0].satisfied).toBe(true);
+    expect(result.results[0].binaryName).toBe('node');
+    expect(result.results[0].displayName).toBe('Node.js');
+    expect(result.results[0].installedVersion).toBe('18.16.0');
+    expect(result.results[1].satisfied).toBe(true);
+    expect(result.results[1].binaryName).toBe('npm');
+  });
+
+  it('returns allSatisfied false when any binary is insufficient', () => {
+    vi.mocked(execFileSync)
+      .mockReturnValueOnce('/usr/bin/php')
+      .mockReturnValueOnce('PHP 8.1.0')
+      .mockReturnValueOnce('/usr/bin/composer')
+      .mockReturnValueOnce('Composer version 2.5.0');
+
+    const requirements: RuntimeRequirements = {
+      binaries: [
+        { name: 'php', minVersion: '8.2.0' },
+        { name: 'composer', minVersion: '2.5.0' },
+      ],
+    };
+
+    const result = checkRuntimeRequirements(requirements);
+
+    expect(result.allSatisfied).toBe(false);
+    expect(result.results[0].satisfied).toBe(false);
+    expect(result.results[0].binaryName).toBe('php');
+    expect(result.results[0].installedVersion).toBe('8.1.0');
+    expect(result.results[0].requiredVersion).toBe('8.2.0');
+    expect(result.results[0].error).toContain('8.1.0 is below required 8.2.0');
+    expect(result.results[1].satisfied).toBe(true);
+  });
+
+  it('returns allSatisfied false when any binary is missing', () => {
+    vi.mocked(execFileSync)
+      .mockReturnValueOnce('/usr/bin/ruby')
+      .mockReturnValueOnce('ruby 3.2.0')
+      .mockImplementation(() => {
+        throw new Error('not found');
+      });
+
+    const requirements: RuntimeRequirements = {
+      binaries: [
+        { name: 'ruby', minVersion: '3.0.0' },
+        { name: 'bundler', minVersion: '2.3.0' },
+      ],
+    };
+
+    const result = checkRuntimeRequirements(requirements);
+
+    expect(result.allSatisfied).toBe(false);
+    expect(result.results[0].satisfied).toBe(true);
+    expect(result.results[1].satisfied).toBe(false);
+    expect(result.results[1].binaryName).toBe('bundler');
+    expect(result.results[1].error).toContain('not found in PATH');
+  });
+
+  it('handles empty binaries list', () => {
+    const requirements: RuntimeRequirements = {
+      binaries: [],
+    };
+
+    const result = checkRuntimeRequirements(requirements);
+
+    expect(result.allSatisfied).toBe(true);
+    expect(result.results).toHaveLength(0);
+  });
+});
+
+describe('ensureRuntimeRequirements (SPEC-0006 AC-2 enforcement)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not throw when all binaries are satisfied', () => {
+    vi.mocked(execFileSync)
+      .mockReturnValueOnce('/usr/bin/node')
+      .mockReturnValueOnce('v18.16.0')
+      .mockReturnValueOnce('/usr/bin/npm')
+      .mockReturnValueOnce('9.5.0');
+
+    const requirements: RuntimeRequirements = {
+      binaries: [
+        { name: 'node', minVersion: '18.0.0' },
+        { name: 'npm', minVersion: '9.0.0' },
+      ],
+    };
+
+    expect(() => {
+      ensureRuntimeRequirements(requirements);
+    }).not.toThrow();
+  });
+
+  it('throws on first insufficient binary', () => {
+    vi.mocked(execFileSync)
+      .mockReturnValueOnce('/usr/bin/php')
+      .mockReturnValueOnce('PHP 8.1.0');
+
+    const requirements: RuntimeRequirements = {
+      binaries: [
+        { name: 'php', minVersion: '8.2.0' },
+        { name: 'composer', minVersion: '2.5.0' },
+      ],
+    };
+
+    expect(() => {
+      ensureRuntimeRequirements(requirements);
+    }).toThrow(BinaryVersionMismatchError);
+  });
+
+  it('throws on first missing binary', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error('not found');
+    });
+
+    const requirements: RuntimeRequirements = {
+      binaries: [
+        { name: 'nonexistent', minVersion: '1.0.0' },
+      ],
+    };
+
+    expect(() => {
+      ensureRuntimeRequirements(requirements);
+    }).toThrow(BinaryNotAvailableError);
+  });
+
+  it('includes installation hint in error', () => {
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error('not found');
+    });
+
+    const requirements: RuntimeRequirements = {
+      binaries: [
+        { name: 'tool', minVersion: '1.0.0' },
+      ],
+    };
+
+    const hint = 'Visit https://example.com/install';
+
+    try {
+      ensureRuntimeRequirements(requirements, hint);
       expect.fail('Should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(BinaryNotAvailableError);
