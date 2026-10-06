@@ -85,17 +85,18 @@ que la sostenga.
 - **Entonces** el CLI lo detecta antes de intentar ejecutar nada y muestra
   instrucciones claras (qué falta, o qué versión mínima se necesita)
 
-**Estado de implementación:** Implementado parcialmente.
+**Estado de implementación:** Implementado.
 
 La detección de binario ausente está implementada mediante
 `checkBinaryAvailable()` y `ensureBinaryAvailable()` en
 `packages/core/src/bridge/binary-check.ts`. El mecanismo es framework-agnostic
 y usa detección multiplataforma (which/where).
 
-El chequeo de versión mínima queda pendiente de SPEC-0006 v0 (contrato del
-adapter), que debe definir cómo un adapter declara formalmente su versión
-mínima. Una vez existente ese contrato, se agregará
-`checkBinaryVersion(binaryName, minVersion)` en este mismo módulo.
+El chequeo de versión mínima está implementado mediante `checkBinaryVersion()`
+y `ensureBinaryVersion()` en el mismo módulo. Lee la versión mínima requerida
+desde la declaración del contrato del adapter (SPEC-0006 AC-2) y compara
+versiones de forma robusta usando comparación semver. Proporciona mensajes
+claros indicando qué versión está instalada y qué versión mínima se requiere.
 
 ### AC-5: Timeout ante proceso colgado
 - **Dado** que la toolchain del target no responde
