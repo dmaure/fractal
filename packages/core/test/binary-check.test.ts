@@ -9,6 +9,9 @@ import {
   checkBinaryAvailable,
   ensureBinaryAvailable,
   BinaryNotAvailableError,
+  checkBinaryVersion,
+  ensureBinaryVersion,
+  BinaryVersionMismatchError,
 } from '../src/bridge/binary-check.js';
 
 // Mock child_process
@@ -167,6 +170,265 @@ describe('ensureBinaryAvailable', () => {
       expect(error).toBeInstanceOf(BinaryNotAvailableError);
       expect((error as BinaryNotAvailableError).installationHint).toBe(hint);
       expect((error as BinaryNotAvailableError).message).toContain(hint);
+    }
+  });
+});
+
+describe('checkBinaryVersion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns sufficient true when installed version meets requirement', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/node')
+      .mockReturnValueOnce('v18.16.0');
+
+    const result = checkBinaryVersion('node', '18.0.0');
+
+    expect(result.sufficient).toBe(true);
+    expect(result.installedVersion).toBe('18.16.0');
+    expect(result.requiredVersion).toBe('18.0.0');
+    expect(result.error).toBeUndefined();
+  });
+
+  it('returns sufficient false when installed version is below requirement', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/python')
+      .mockReturnValueOnce('Python 3.8.5');
+
+    const result = checkBinaryVersion('python', '3.10.0');
+
+    expect(result.sufficient).toBe(false);
+    expect(result.installedVersion).toBe('3.8.5');
+    expect(result.requiredVersion).toBe('3.10.0');
+    expect(result.error).toContain('version 3.8.5 is below required 3.10.0');
+  });
+
+  it('returns sufficient false when binary is not found', () => {
+    vi.mocked(execSync).mockImplementation(() => {
+      throw new Error('not found');
+    });
+
+    const result = checkBinaryVersion('nonexistent', '1.0.0');
+
+    expect(result.sufficient).toBe(false);
+    expect(result.installedVersion).toBeUndefined();
+    expect(result.requiredVersion).toBe('1.0.0');
+    expect(result.error).toContain('not found in PATH');
+  });
+
+  it('handles version strings without patch number', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/ruby')
+      .mockReturnValueOnce('ruby 3.2');
+
+    const result = checkBinaryVersion('ruby', '3.0');
+
+    expect(result.sufficient).toBe(true);
+    expect(result.installedVersion).toBe('3.2');
+  });
+
+  it('handles version strings with only major version', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/go')
+      .mockReturnValueOnce('go version go1.21');
+
+    const result = checkBinaryVersion('go', '1.20');
+
+    expect(result.sufficient).toBe(true);
+  });
+
+  it('handles version strings with "v" prefix', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/node')
+      .mockReturnValueOnce('v20.10.0');
+
+    const result = checkBinaryVersion('node', 'v20.0.0');
+
+    expect(result.sufficient).toBe(true);
+  });
+
+  it('handles version strings with pre-release tags', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/tool')
+      .mockReturnValueOnce('2.5.0-beta.1');
+
+    const result = checkBinaryVersion('tool', '2.4.0');
+
+    expect(result.sufficient).toBe(true);
+  });
+
+  it('returns error when version cannot be determined', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/tool')
+      .mockReturnValue('Some tool output without version');
+
+    const result = checkBinaryVersion('tool', '1.0.0');
+
+    expect(result.sufficient).toBe(false);
+    expect(result.error).toContain('Unable to determine version');
+  });
+
+  it('correctly compares major version differences', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/tool')
+      .mockReturnValueOnce('1.9.9');
+
+    const result = checkBinaryVersion('tool', '2.0.0');
+
+    expect(result.sufficient).toBe(false);
+  });
+
+  it('correctly compares minor version differences', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/tool')
+      .mockReturnValueOnce('3.4.9');
+
+    const result = checkBinaryVersion('tool', '3.5.0');
+
+    expect(result.sufficient).toBe(false);
+  });
+
+  it('correctly compares patch version differences', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/tool')
+      .mockReturnValueOnce('2.1.2');
+
+    const result = checkBinaryVersion('tool', '2.1.3');
+
+    expect(result.sufficient).toBe(false);
+  });
+
+  it('accepts exact version match', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/tool')
+      .mockReturnValueOnce('5.3.1');
+
+    const result = checkBinaryVersion('tool', '5.3.1');
+
+    expect(result.sufficient).toBe(true);
+  });
+
+  it('tries multiple version flags when first fails', () => {
+    const mockExec = vi.mocked(execSync);
+    mockExec
+      .mockReturnValueOnce('/usr/bin/tool')
+      .mockImplementationOnce(() => {
+        throw new Error('--version not supported');
+      })
+      .mockReturnValueOnce('tool version 2.5.0');
+
+    const result = checkBinaryVersion('tool', '2.0.0');
+
+    expect(result.sufficient).toBe(true);
+    expect(mockExec).toHaveBeenCalledWith('tool --version', expect.any(Object));
+    expect(mockExec).toHaveBeenCalledWith('tool -v', expect.any(Object));
+  });
+});
+
+describe('BinaryVersionMismatchError', () => {
+  it('creates error with version details', () => {
+    const error = new BinaryVersionMismatchError('python', '3.8.0', '3.10.0');
+
+    expect(error.name).toBe('BinaryVersionMismatchError');
+    expect(error.binaryName).toBe('python');
+    expect(error.installedVersion).toBe('3.8.0');
+    expect(error.requiredVersion).toBe('3.10.0');
+    expect(error.message).toContain('version 3.8.0 is installed');
+    expect(error.message).toContain('version 3.10.0 or higher is required');
+  });
+
+  it('handles undefined installed version', () => {
+    const error = new BinaryVersionMismatchError('tool', undefined, '2.0.0');
+
+    expect(error.installedVersion).toBeUndefined();
+    expect(error.message).toContain('version 2.0.0 or higher is required');
+    expect(error.message).not.toContain('is installed');
+  });
+
+  it('includes upgrade hint when provided', () => {
+    const hint = 'Visit https://example.com/upgrade/';
+    const error = new BinaryVersionMismatchError('tool', '1.5.0', '2.0.0', hint);
+
+    expect(error.installationHint).toBe(hint);
+    expect(error.message).toContain('Upgrade: ' + hint);
+  });
+});
+
+describe('ensureBinaryVersion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not throw when version is sufficient', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/node')
+      .mockReturnValueOnce('v18.16.0');
+
+    expect(() => {
+      ensureBinaryVersion('node', '18.0.0');
+    }).not.toThrow();
+  });
+
+  it('throws BinaryVersionMismatchError when version is insufficient', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/python')
+      .mockReturnValueOnce('Python 3.8.5');
+
+    expect(() => {
+      ensureBinaryVersion('python', '3.10.0');
+    }).toThrow(BinaryVersionMismatchError);
+  });
+
+  it('throws BinaryNotAvailableError when binary is missing', () => {
+    vi.mocked(execSync).mockImplementation(() => {
+      throw new Error('not found');
+    });
+
+    expect(() => {
+      ensureBinaryVersion('nonexistent', '1.0.0');
+    }).toThrow(BinaryNotAvailableError);
+  });
+
+  it('includes upgrade hint in error when provided', () => {
+    vi.mocked(execSync)
+      .mockReturnValueOnce('/usr/bin/tool')
+      .mockReturnValueOnce('1.5.0');
+
+    const hint = 'Run: npm install -g tool@latest';
+
+    try {
+      ensureBinaryVersion('tool', '2.0.0', hint);
+      expect.fail('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BinaryVersionMismatchError);
+      expect((error as BinaryVersionMismatchError).installationHint).toBe(hint);
+      expect((error as BinaryVersionMismatchError).message).toContain(hint);
+    }
+  });
+
+  it('throws BinaryNotAvailableError with hint when binary is missing', () => {
+    vi.mocked(execSync).mockImplementation(() => {
+      throw new Error('not found');
+    });
+
+    const hint = 'Visit https://example.com/install/';
+
+    try {
+      ensureBinaryVersion('tool', '1.0.0', hint);
+      expect.fail('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BinaryNotAvailableError);
+      expect((error as BinaryNotAvailableError).installationHint).toBe(hint);
     }
   });
 });

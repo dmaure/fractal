@@ -36,5 +36,9 @@ export {
   checkBinaryAvailable,
   ensureBinaryAvailable,
   BinaryNotAvailableError,
+  checkBinaryVersion,
+  ensureBinaryVersion,
+  BinaryVersionMismatchError,
   type BinaryCheckResult,
+  type BinaryVersionCheckResult,
 } from './bridge/binary-check.js';
