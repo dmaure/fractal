@@ -61,8 +61,14 @@ export async function createProject(
       },
     };
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Error desconocido';
+    let message: string;
+    if (error instanceof Error) {
+      message = error.message;
+    } else if (error && typeof error === 'object' && 'message' in error) {
+      message = String(error.message);
+    } else {
+      message = 'Error desconocido';
+    }
     const step = extractStepFromError(error);
 
     return {

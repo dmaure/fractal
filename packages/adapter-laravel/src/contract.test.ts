@@ -76,7 +76,7 @@ describe('LARAVEL_BACKEND_DEPLOY_RUNTIME', () => {
       'app',
       'nginx',
       'db',
-      'cache',
+      'redis',
       'worker',
       'scheduler',
     ]);

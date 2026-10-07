@@ -152,7 +152,7 @@ function generateTurboConfig(): string {
   return JSON.stringify(
     {
       $schema: 'https://turbo.build/schema.json',
-      pipeline: {
+      tasks: {
         build: {
           dependsOn: ['^build'],
           outputs: ['dist/**', 'public/build/**'],

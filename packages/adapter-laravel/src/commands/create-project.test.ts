@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdir, rm, readdir } from 'node:fs/promises';
+import { mkdir, rm, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createProject } from './create-project.js';
@@ -202,11 +202,14 @@ describe('createProject', () => {
       }
     });
 
-    it('propaga errores de generación con step', async () => {
+    it('propaga errores de generación con step y mensaje legible', async () => {
+      const invalidPath = join(testDir, 'file-not-dir');
+      await writeFile(invalidPath, 'content');
+
       const payload: CreateProjectPayload = {
         name: 'test-error',
         topology: 'monolith',
-        destinationPath: '/path/que/no/existe/y/no/se/puede/crear',
+        destinationPath: invalidPath,
         target: 'laravel',
       };
 
@@ -214,8 +217,8 @@ describe('createProject', () => {
 
       expect(response.success).toBe(false);
       if (!response.success) {
-        expect(response.error.message).toBeTruthy();
-        expect(response.error.step).toBeTruthy();
+        expect(response.error.message).toContain('Error al generar monolito');
+        expect(response.error.step).toBe('generación-monolito');
       }
     });
   });

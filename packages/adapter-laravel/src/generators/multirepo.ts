@@ -25,7 +25,10 @@ import { generateReadme } from '../stubs/readme.js';
  * 
  * @param name - Nombre del proyecto
  * @param destinationPath - Path absoluto donde generar los proyectos
- * @returns Path base donde se generaron ambos proyectos
+ * @returns Path base (directorio padre) donde se generaron ambos proyectos.
+ *          Nota: a diferencia de monolith/monorepo que devuelven el path del
+ *          proyecto generado, multirepo devuelve el directorio padre que contiene
+ *          {name}-api/ y {name}-web/
  */
 export async function generateMultirepo(
   name: string,

@@ -48,7 +48,7 @@ export const LARAVEL_RUNTIME_REQUIREMENTS: RuntimeRequirements = {
  * @see ADR-0006 — runtime Docker Compose
  */
 export const LARAVEL_BACKEND_DEPLOY_RUNTIME: DeployRuntime = {
-  services: ['app', 'nginx', 'db', 'cache', 'worker', 'scheduler'],
+  services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
   buildCommand: 'composer install --no-dev --optimize-autoloader',
   migrateCommand: 'php artisan migrate --force',
   port: 8000,

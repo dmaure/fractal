@@ -11,5 +11,9 @@
  */
 
 export { createProject } from './commands/create-project.js';
-export { getAdapterContract } from './contract.js';
+export {
+  getAdapterContract,
+  LARAVEL_BACKEND_DEPLOY_RUNTIME,
+  LARAVEL_FRONTEND_DEPLOY_RUNTIME,
+} from './contract.js';
 export type { LaravelAdapterContract } from './contract.js';
