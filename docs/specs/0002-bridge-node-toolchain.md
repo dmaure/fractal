@@ -3,15 +3,14 @@
 **Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-09
-**Última revisión:** 2026-09-27 — sigue en **Aprobado**. El mecanismo del
-bridge está implementado en `packages/core/src/bridge` (detección de binario
-ausente, timeout, lock `.fractal.lock` con PID) y tiene tests
+**Última revisión:** 2026-10-06 — el mecanismo del bridge está implementado
+en `packages/core/src/bridge` (detección de binario ausente y chequeo de
+versión mínima, timeout, lock `.fractal.lock` con PID) y tiene tests
 (`bridge/timeout.spec.ts`, `lock/lock-manager.spec.ts`,
-`test/adapter-bridge.test.ts`, `test/binary-check.test.ts`). Pendiente para
-poder marcarlo Implementado: AC-4 sigue "Implementado parcialmente" (el
-chequeo de versión mínima depende de SPEC-0006, ahora Aprobado → ver su ticket
-propuesto T3) y falta la documentación de usuario del contrato (AC-6). El M1
-mergeado (FRA-37/FRA-38/FRA-36) es del lado deploy, no toca este bridge.
+`test/adapter-bridge.test.ts`, `test/binary-check.test.ts`). AC-4 completo
+(FRA-41, T3 de SPEC-0006). Pendiente: documentación de usuario del contrato
+(AC-6). El M1 mergeado (FRA-37/FRA-38/FRA-36) es del lado deploy, no toca
+este bridge.
 **Issue:** #
 
 ---
@@ -85,17 +84,26 @@ que la sostenga.
 - **Entonces** el CLI lo detecta antes de intentar ejecutar nada y muestra
   instrucciones claras (qué falta, o qué versión mínima se necesita)
 
-**Estado de implementación:** Implementado parcialmente.
+**Estado de implementación:** Implementado (FRA-41).
 
 La detección de binario ausente está implementada mediante
 `checkBinaryAvailable()` y `ensureBinaryAvailable()` en
 `packages/core/src/bridge/binary-check.ts`. El mecanismo es framework-agnostic
 y usa detección multiplataforma (which/where).
 
-El chequeo de versión mínima queda pendiente de SPEC-0006 v0 (contrato del
-adapter), que debe definir cómo un adapter declara formalmente su versión
-mínima. Una vez existente ese contrato, se agregará
-`checkBinaryVersion(binaryName, minVersion)` en este mismo módulo.
+El chequeo de versión mínima está implementado mediante:
+- `checkBinaryVersion(binaryName, minVersion)` y `ensureBinaryVersion(...)`:
+  funciones de bajo nivel que verifican un binario individual contra una
+  versión mínima.
+- `checkRuntimeRequirements(requirements)` y `ensureRuntimeRequirements(...)`:
+  funciones de integración que leen la declaración `RuntimeRequirements` del
+  contrato del adapter (SPEC-0006 AC-2) y verifican todos los binarios
+  declarados.
+
+El parsing y comparación de versiones es robusto (soporta distintos formatos
+semver) y multiplataforma (intenta múltiples flags de versión). Los mensajes de
+error son claros e indican qué versión está instalada y qué versión mínima se
+requiere.
 
 ### AC-5: Timeout ante proceso colgado
 - **Dado** que la toolchain del target no responde

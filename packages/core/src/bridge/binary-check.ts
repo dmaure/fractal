@@ -3,7 +3,8 @@
  * Framework-agnostic: does not know which specific binaries are needed.
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
+import type { RuntimeRequirements } from '../types/adapter-contract.js';
 
 export interface BinaryCheckResult {
   available: boolean;
@@ -29,7 +30,7 @@ export function checkBinaryAvailable(binaryName: string): BinaryCheckResult {
   const command = isWindows ? 'where' : 'which';
   
   try {
-    const output = execSync(`${command} ${binaryName}`, {
+    const output = execFileSync(command, [binaryName], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -86,5 +87,309 @@ export function ensureBinaryAvailable(
   
   if (!result.available) {
     throw new BinaryNotAvailableError(binaryName, installationHint);
+  }
+}
+
+/**
+ * Result of a binary version check.
+ */
+export interface BinaryVersionCheckResult {
+  sufficient: boolean;
+  installedVersion?: string;
+  requiredVersion: string;
+  error?: string;
+}
+
+/**
+ * Parses a semantic version string into major, minor, and patch components.
+ * Handles common version formats: "1.2.3", "v1.2.3", "1.2", "1".
+ * 
+ * Note: Pre-release tags (e.g., "1.2.3-beta") are treated as the base version
+ * (1.2.3) for comparison purposes. This is permissive: a pre-release will pass
+ * a minimum version check for its base version.
+ * 
+ * @param version - Version string to parse
+ * @returns Array of [major, minor, patch] or null if parsing fails
+ */
+function parseSemver(version: string): [number, number, number] | null {
+  const cleaned = version.trim().replace(/^v/, '');
+  const parts = cleaned.split(/[.-]/);
+  
+  const major = parseInt(parts[0], 10);
+  const minor = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+  const patch = parts.length > 2 ? parseInt(parts[2], 10) : 0;
+  
+  if (isNaN(major)) {
+    return null;
+  }
+  
+  return [
+    major,
+    isNaN(minor) ? 0 : minor,
+    isNaN(patch) ? 0 : patch,
+  ];
+}
+
+/**
+ * Compares two semantic versions.
+ * 
+ * @param installed - Installed version string
+ * @param required - Required version string
+ * @returns true if installed >= required, false otherwise
+ */
+function compareVersions(installed: string, required: string): boolean {
+  const installedParts = parseSemver(installed);
+  const requiredParts = parseSemver(required);
+  
+  if (!installedParts || !requiredParts) {
+    return false;
+  }
+  
+  const [iMajor, iMinor, iPatch] = installedParts;
+  const [rMajor, rMinor, rPatch] = requiredParts;
+  
+  if (iMajor !== rMajor) {
+    return iMajor > rMajor;
+  }
+  if (iMinor !== rMinor) {
+    return iMinor > rMinor;
+  }
+  return iPatch >= rPatch;
+}
+
+/**
+ * Gets the version of a binary by running it with --version flag.
+ * Tries common version flags in order.
+ * Executes without shell to avoid issues with spaces/metacharacters.
+ * 
+ * @param binaryName - Name of the binary
+ * @returns Version string or null if unable to determine
+ */
+function getBinaryVersion(binaryName: string): string | null {
+  const versionFlags = ['--version', '-v', '-V', 'version'];
+  
+  for (const flag of versionFlags) {
+    try {
+      const output = execFileSync(binaryName, [flag], {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 5000,
+      });
+      
+      const lines = output.trim().split('\n');
+      const firstLine = lines[0];
+      
+      const versionMatch = firstLine.match(/(\d+\.\d+(?:\.\d+)?)/);
+      if (versionMatch) {
+        return versionMatch[1];
+      }
+    } catch {
+      continue;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Checks if a binary meets the minimum version requirement.
+ * Framework-agnostic: does not know which specific versions are needed.
+ * 
+ * @param binaryName - Name of the binary to check (e.g., "node", "python")
+ * @param minVersion - Minimum required version in semver format (e.g., "8.2.0")
+ * @returns Result object with version check status and details
+ * 
+ * @example
+ * const result = checkBinaryVersion("node", "18.0.0");
+ * if (!result.sufficient) {
+ *   console.error(`Version ${result.installedVersion} is below required ${result.requiredVersion}`);
+ * }
+ */
+export function checkBinaryVersion(
+  binaryName: string,
+  minVersion: string
+): BinaryVersionCheckResult {
+  const availabilityCheck = checkBinaryAvailable(binaryName);
+  
+  if (!availabilityCheck.available) {
+    return {
+      sufficient: false,
+      requiredVersion: minVersion,
+      error: `Binary "${binaryName}" not found in PATH`,
+    };
+  }
+  
+  const installedVersion = getBinaryVersion(binaryName);
+  
+  if (!installedVersion) {
+    return {
+      sufficient: false,
+      requiredVersion: minVersion,
+      error: `Unable to determine version of "${binaryName}"`,
+    };
+  }
+  
+  const sufficient = compareVersions(installedVersion, minVersion);
+  
+  return {
+    sufficient,
+    installedVersion,
+    requiredVersion: minVersion,
+    error: sufficient
+      ? undefined
+      : `Binary "${binaryName}" version ${installedVersion} is below required ${minVersion}`,
+  };
+}
+
+/**
+ * Error thrown when a binary version is insufficient.
+ * Contains user-friendly upgrade instructions.
+ */
+export class BinaryVersionMismatchError extends Error {
+  constructor(
+    public readonly binaryName: string,
+    public readonly installedVersion: string | undefined,
+    public readonly requiredVersion: string,
+    public readonly installationHint?: string
+  ) {
+    const versionInfo = installedVersion
+      ? `version ${installedVersion} is installed, but version ${requiredVersion} or higher is required`
+      : `version ${requiredVersion} or higher is required`;
+    
+    const message = installationHint
+      ? `Binary "${binaryName}" ${versionInfo}.\n\nUpgrade: ${installationHint}`
+      : `Binary "${binaryName}" ${versionInfo}.\n\nPlease upgrade "${binaryName}" to version ${requiredVersion} or higher.`;
+    
+    super(message);
+    this.name = 'BinaryVersionMismatchError';
+  }
+}
+
+/**
+ * Checks binary version and throws if insufficient.
+ * This is the function to be called before invoking an adapter.
+ * 
+ * @param binaryName - Name of the binary to check
+ * @param minVersion - Minimum required version in semver format
+ * @param installationHint - Optional upgrade instructions for the user
+ * @throws {BinaryNotAvailableError} If the binary is not available
+ * @throws {BinaryVersionMismatchError} If the version is insufficient
+ * 
+ * @example
+ * // Before invoking an adapter:
+ * ensureBinaryVersion("node", "18.0.0", "Visit https://nodejs.org/");
+ */
+export function ensureBinaryVersion(
+  binaryName: string,
+  minVersion: string,
+  installationHint?: string
+): void {
+  const result = checkBinaryVersion(binaryName, minVersion);
+  
+  if (!result.sufficient) {
+    if (!result.installedVersion) {
+      throw new BinaryNotAvailableError(binaryName, installationHint);
+    }
+    
+    throw new BinaryVersionMismatchError(
+      binaryName,
+      result.installedVersion,
+      minVersion,
+      installationHint
+    );
+  }
+}
+
+/**
+ * Result of checking all runtime requirements from an adapter contract.
+ */
+export interface RuntimeRequirementsCheckResult {
+  allSatisfied: boolean;
+  results: Array<{
+    binaryName: string;
+    displayName?: string;
+    satisfied: boolean;
+    installedVersion?: string;
+    requiredVersion: string;
+    error?: string;
+  }>;
+}
+
+/**
+ * Checks all binary requirements from an adapter's runtime requirements.
+ * This is the primary integration point between the adapter contract (SPEC-0006 AC-2)
+ * and the binary checking mechanism (SPEC-0002 AC-4).
+ * 
+ * Framework-agnostic: reads the requirements from the contract without knowing
+ * which specific binaries are needed by each target.
+ * 
+ * @param requirements - Runtime requirements from the adapter contract
+ * @returns Result object with check status for all binaries
+ * 
+ * @example
+ * const requirements: RuntimeRequirements = {
+ *   binaries: [
+ *     { name: 'node', minVersion: '18.0.0', displayName: 'Node.js' },
+ *     { name: 'npm', minVersion: '9.0.0' }
+ *   ]
+ * };
+ * 
+ * const result = checkRuntimeRequirements(requirements);
+ * if (!result.allSatisfied) {
+ *   // Handle missing or insufficient binaries
+ * }
+ */
+export function checkRuntimeRequirements(
+  requirements: RuntimeRequirements
+): RuntimeRequirementsCheckResult {
+  const results = requirements.binaries.map((binary) => {
+    const checkResult = checkBinaryVersion(binary.name, binary.minVersion);
+    
+    return {
+      binaryName: binary.name,
+      displayName: binary.displayName,
+      satisfied: checkResult.sufficient,
+      installedVersion: checkResult.installedVersion,
+      requiredVersion: binary.minVersion,
+      error: checkResult.error,
+    };
+  });
+  
+  return {
+    allSatisfied: results.every((r) => r.satisfied),
+    results,
+  };
+}
+
+/**
+ * Checks all binary requirements and throws if any are not satisfied.
+ * This is the enforcement version of checkRuntimeRequirements.
+ * 
+ * @param requirements - Runtime requirements from the adapter contract
+ * @param installationHint - Optional installation/upgrade instructions
+ * @throws {BinaryNotAvailableError} If any required binary is not available
+ * @throws {BinaryVersionMismatchError} If any binary version is insufficient
+ * 
+ * @example
+ * const requirements: RuntimeRequirements = {
+ *   binaries: [
+ *     { name: 'python', minVersion: '3.10.0', displayName: 'Python' },
+ *     { name: 'pip', minVersion: '22.0.0', displayName: 'pip' }
+ *   ]
+ * };
+ * 
+ * // Before invoking adapter:
+ * ensureRuntimeRequirements(requirements, "Visit https://python.org/downloads/");
+ */
+export function ensureRuntimeRequirements(
+  requirements: RuntimeRequirements,
+  installationHint?: string
+): void {
+  for (const binary of requirements.binaries) {
+    ensureBinaryVersion(
+      binary.name,
+      binary.minVersion,
+      installationHint
+    );
   }
 }
