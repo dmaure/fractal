@@ -16,6 +16,13 @@ function cleanTestDir() {
 beforeEach(() => {
   cleanTestDir();
   mkdirSync(TEST_DIR, { recursive: true });
+  
+  // Configurar identidad de git para los tests
+  process.env.GIT_AUTHOR_NAME = 'Fractal Test';
+  process.env.GIT_AUTHOR_EMAIL = 'test@fractal.dev';
+  process.env.GIT_COMMITTER_NAME = 'Fractal Test';
+  process.env.GIT_COMMITTER_EMAIL = 'test@fractal.dev';
+  
   vi.spyOn(process, 'exit').mockImplementation((() => {
     throw new Error('process.exit called');
   }) as any);
@@ -25,6 +32,13 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanTestDir();
+  
+  // Limpiar variables de entorno de git
+  delete process.env.GIT_AUTHOR_NAME;
+  delete process.env.GIT_AUTHOR_EMAIL;
+  delete process.env.GIT_COMMITTER_NAME;
+  delete process.env.GIT_COMMITTER_EMAIL;
+  
   vi.restoreAllMocks();
 });
 
