@@ -9,7 +9,7 @@
  * @see docs/adr/0002-arquitectura-multi-target.md
  */
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -81,17 +81,44 @@ export interface AdapterResolutionResult {
 /**
  * Busca el directorio que contiene los paquetes @fractal/*.
  * 
- * Sube desde la ubicación del CLI (packages/core) buscando node_modules/@fractal/.
+ * Sube desde la ubicación del CLI (packages/core) buscando:
+ * 1. node_modules/@fractal/ (instalación normal)
+ * 2. packages/ (desarrollo en workspace)
  */
 function findFractalPackagesDirectory(startPath: string): string | null {
   let currentPath = startPath;
   
-  // Subir hasta encontrar node_modules/@fractal o llegar a la raíz
+  // Subir hasta encontrar node_modules/@fractal, packages/, o llegar a la raíz
   for (let i = 0; i < 10; i++) {
-    const candidatePath = join(currentPath, 'node_modules', '@fractal');
+    // Intentar node_modules/@fractal primero (instalación normal)
+    const nodeModulesPath = join(currentPath, 'node_modules', '@fractal');
+    if (existsSync(nodeModulesPath)) {
+      // Verificar que tenga al menos un adapter antes de retornar
+      try {
+        const entries = readdirSync(nodeModulesPath);
+        const hasAdapters = entries.some(e => e.startsWith('adapter-'));
+        if (hasAdapters) {
+          return nodeModulesPath;
+        }
+        // Si no tiene adapters, continuar buscando
+      } catch {
+        // Error al leer, continuar buscando
+      }
+    }
     
-    if (existsSync(candidatePath)) {
-      return candidatePath;
+    // Intentar packages/ (desarrollo en workspace)
+    const packagesPath = join(currentPath, 'packages');
+    if (existsSync(packagesPath)) {
+      // Verificar que sea realmente un workspace válido buscando adapter-*
+      try {
+        const entries = readdirSync(packagesPath);
+        const hasAdapters = entries.some(e => e.startsWith('adapter-'));
+        if (hasAdapters) {
+          return packagesPath;
+        }
+      } catch {
+        // Ignorar errores de lectura y continuar subiendo
+      }
     }
     
     const parentPath = dirname(currentPath);
@@ -165,19 +192,27 @@ export function resolveAdapters(cliPath: string): AdapterResolutionResult {
     };
   }
   
-  // Listar paquetes en @fractal
-  let packages: string[];
+  // Listar paquetes en el directorio (puede ser @fractal o packages)
+  let entries: string[];
   try {
-    packages = readdirSync(fractalDir);
+    entries = readdirSync(fractalDir);
   } catch (error) {
     return {
       adapters: [],
-      error: `Error al leer el directorio @fractal: ${error instanceof Error ? error.message : String(error)}`,
+      error: `Error al leer el directorio de adapters: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
   
-  // Filtrar paquetes adapter-*
-  const adapterPackages = packages.filter(pkg => pkg.startsWith('adapter-'));
+  // Filtrar solo directorios adapter-*
+  const adapterPackages = entries.filter(entry => {
+    if (!entry.startsWith('adapter-')) return false;
+    const fullPath = join(fractalDir, entry);
+    try {
+      return statSync(fullPath).isDirectory();
+    } catch {
+      return false;
+    }
+  });
   
   // Resolver cada adapter
   const adapters: ResolvedAdapter[] = [];
