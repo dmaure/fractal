@@ -28,6 +28,9 @@
   ],
   "author": "Fractal",
   "license": "MIT",
+  "dependencies": {
+    "@fractal/adapter-laravel": "workspace:*"
+  },
   "devDependencies": {
     "@fractal/core": "workspace:*",
     "@types/node": "^20.0.0",

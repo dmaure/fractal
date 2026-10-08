@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@fractal/adapter-laravel':
+        specifier: workspace:*
+        version: link:packages/adapter-laravel
     devDependencies:
       '@fractal/core':
         specifier: workspace:*

@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { ProjectTopology } from '../types/topology.js';
@@ -16,8 +16,10 @@ export interface GitInitResult {
  * - Monolito / monorepo desacoplado: un único repo con commit inicial
  * - Multirepo: dos repos separados (api/ y web/), cada uno con su commit inicial
  * 
- * En todos los casos, el commit inicial incluye un .gitignore que excluye
- * `fractal.project.yml` (para multirepo).
+ * Regla de solapamiento con el adapter (FRA-54):
+ * - El adapter es dueño de README.md y .gitignore: no se pisan si ya existen
+ * - El core es dueño de fractal.project.yml (multirepo): se garantiza que esté en .gitignore
+ * - El commit inicial incluye los archivos del adapter, nunca fractal.project.yml
  */
 export function initializeGit(
   projectName: string,
@@ -57,16 +59,22 @@ function initSingleRepository(targetDir: string, topology: ProjectTopology): Git
   // Inicializar git
   execSync('git init', { cwd: targetDir, stdio: 'pipe' });
   
-  // Crear .gitignore con contenido mínimo
-  const gitignoreContent = topology === 'monorepo' 
-    ? `node_modules/\n.env\n.DS_Store\n`
-    : `.env\n.DS_Store\n`;
+  // Crear .gitignore solo si no existe (el adapter es el dueño)
+  const gitignorePath = join(targetDir, '.gitignore');
+  if (!existsSync(gitignorePath)) {
+    const gitignoreContent = topology === 'monorepo' 
+      ? `node_modules/\n.env\n.DS_Store\n`
+      : `.env\n.DS_Store\n`;
+    
+    writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
+  }
   
-  writeFileSync(join(targetDir, '.gitignore'), gitignoreContent, 'utf-8');
-  
-  // Crear README placeholder
-  const readmeContent = `# ${topology === 'monorepo' ? 'Proyecto' : 'Proyecto'} generado con Fractal\n\nTopología: ${topology}\n`;
-  writeFileSync(join(targetDir, 'README.md'), readmeContent, 'utf-8');
+  // Crear README solo si no existe (el adapter es el dueño)
+  const readmePath = join(targetDir, 'README.md');
+  if (!existsSync(readmePath)) {
+    const readmeContent = `# Proyecto generado con Fractal\n\nTopología: ${topology}\n`;
+    writeFileSync(readmePath, readmeContent, 'utf-8');
+  }
   
   // Commit inicial
   execSync('git add .', { cwd: targetDir, stdio: 'pipe' });
@@ -129,13 +137,31 @@ function initRepositoryWithManifest(
   // Inicializar git
   execSync('git init', { cwd: repoDir, stdio: 'pipe' });
   
-  // Crear .gitignore que excluye fractal.project.yml
-  const gitignoreContent = `node_modules/\n.env\n.DS_Store\nfractal.project.yml\n`;
-  writeFileSync(join(repoDir, '.gitignore'), gitignoreContent, 'utf-8');
+  // Garantizar que .gitignore contenga fractal.project.yml
+  const gitignorePath = join(repoDir, '.gitignore');
+  if (existsSync(gitignorePath)) {
+    // .gitignore ya existe (creado por el adapter), añadir fractal.project.yml si no está
+    let gitignoreContent = readFileSync(gitignorePath, 'utf-8');
+    
+    if (!gitignoreContent.includes('fractal.project.yml')) {
+      if (!gitignoreContent.endsWith('\n')) {
+        gitignoreContent += '\n';
+      }
+      gitignoreContent += 'fractal.project.yml\n';
+      writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
+    }
+  } else {
+    // .gitignore no existe, crearlo con contenido mínimo
+    const gitignoreContent = `node_modules/\n.env\n.DS_Store\nfractal.project.yml\n`;
+    writeFileSync(gitignorePath, gitignoreContent, 'utf-8');
+  }
   
-  // Crear README placeholder
-  const readmeContent = `# ${projectName} (${role})\n\nProyecto generado con Fractal — topología multirepo\n`;
-  writeFileSync(join(repoDir, 'README.md'), readmeContent, 'utf-8');
+  // Crear README solo si no existe (el adapter es el dueño)
+  const readmePath = join(repoDir, 'README.md');
+  if (!existsSync(readmePath)) {
+    const readmeContent = `# ${projectName} (${role})\n\nProyecto generado con Fractal — topología multirepo\n`;
+    writeFileSync(readmePath, readmeContent, 'utf-8');
+  }
   
   // Commit inicial (sin el manifiesto, que está en .gitignore)
   execSync('git add .', { cwd: repoDir, stdio: 'pipe' });

@@ -2,7 +2,8 @@
  * Generador de proyecto Laravel en topología multirepo.
  * 
  * Dos carpetas de proyecto separadas (api/ y web/), cada una su propio
- * repositorio git, con manifiestos fractal.project.yml para coordinación.
+ * repositorio git. El manifiesto fractal.project.yml es responsabilidad
+ * del core (ADR-0012), no del adapter.
  * 
  * @see ADR-0010 — topología multirepo
  * @see ADR-0012 — deploy multirepo: coordinación en el primer deploy
@@ -20,8 +21,8 @@ import { generateReadme } from '../stubs/readme.js';
 /**
  * Genera un proyecto Laravel en topología multirepo.
  * 
- * Crea dos carpetas separadas: {name}-api/ y {name}-web/, cada una
- * con su propio repositorio git y manifiesto de proyecto.
+ * Crea dos carpetas separadas: {name}-api/ y {name}-web/. El manifiesto
+ * fractal.project.yml es generado posteriormente por el core (ADR-0012).
  * 
  * @param name - Nombre del proyecto
  * @param destinationPath - Path absoluto donde generar los proyectos
@@ -70,11 +71,6 @@ async function generateApiRepo(apiPath: string, name: string): Promise<void> {
     generateReadme(`${name}-api`, 'multirepo-api')
   );
 
-  await writeFile(
-    join(apiPath, 'fractal.project.yml'),
-    generateProjectManifest('api')
-  );
-
   const appPath = join(apiPath, 'app');
   await mkdir(join(appPath, 'Http', 'Controllers', 'Api'), {
     recursive: true,
@@ -110,11 +106,6 @@ async function generateWebRepo(webPath: string, name: string): Promise<void> {
     generateReadme(`${name}-web`, 'multirepo-web')
   );
 
-  await writeFile(
-    join(webPath, 'fractal.project.yml'),
-    generateProjectManifest('web')
-  );
-
   const srcPath = join(webPath, 'src');
   await mkdir(srcPath, { recursive: true });
 
@@ -129,23 +120,6 @@ async function generateWebRepo(webPath: string, name: string): Promise<void> {
     join(webPath, 'public', 'health.txt'),
     'ok'
   );
-}
-
-function generateProjectManifest(role: 'api' | 'web'): string {
-  return `# Manifiesto de proyecto Fractal
-# Usado por 'fractal deploy' para coordinar el deploy multirepo
-# @see ADR-0012
-
-role: ${role}
-
-# Se completa en el primer 'fractal deploy' con las URLs reales
-sibling:
-  git_url: null
-  domain: null
-
-# Estado de orquestación inicial
-orchestration_state: pending
-`;
 }
 
 function generateHealthController(): string {
