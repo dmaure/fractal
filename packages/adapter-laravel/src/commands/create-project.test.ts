@@ -150,7 +150,7 @@ describe('createProject', () => {
       expect(files).toContain('test-multirepo-web');
     });
 
-    it('incluye manifiestos fractal.project.yml en ambos repos', async () => {
+    it('NO incluye manifiestos fractal.project.yml (responsabilidad del core)', async () => {
       const payload: CreateProjectPayload = {
         name: 'test-manifest',
         topology: 'multirepo',
@@ -163,8 +163,9 @@ describe('createProject', () => {
       const apiFiles = await readdir(join(testDir, 'test-manifest-api'));
       const webFiles = await readdir(join(testDir, 'test-manifest-web'));
 
-      expect(apiFiles).toContain('fractal.project.yml');
-      expect(webFiles).toContain('fractal.project.yml');
+      // El adapter ya no escribe fractal.project.yml (ADR-0012)
+      expect(apiFiles).not.toContain('fractal.project.yml');
+      expect(webFiles).not.toContain('fractal.project.yml');
     });
 
     it('genera health.txt en el package web/', async () => {

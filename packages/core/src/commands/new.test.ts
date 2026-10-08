@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { newCommand } from './new.js';
 import type { NewCommandOptions } from '../types/new-command.js';
+import * as adapterResolver from '../adapter-resolver.js';
+import * as adapterBridge from '../adapter-bridge.js';
 
 const TEST_DIR = join(process.cwd(), 'test-integration');
 
@@ -16,6 +18,59 @@ function cleanTestDir() {
 beforeEach(() => {
   cleanTestDir();
   mkdirSync(TEST_DIR, { recursive: true });
+  
+  // Configurar identidad de git para los tests
+  process.env.GIT_AUTHOR_NAME = 'Fractal Test';
+  process.env.GIT_AUTHOR_EMAIL = 'test@fractal.dev';
+  process.env.GIT_COMMITTER_NAME = 'Fractal Test';
+  process.env.GIT_COMMITTER_EMAIL = 'test@fractal.dev';
+  
+  // Mockear el resolver de adapters para retornar un adapter ficticio
+  vi.spyOn(adapterResolver, 'resolveSingleAdapter').mockReturnValue({
+    packageName: '@fractal/adapter-test',
+    target: 'test',
+    packagePath: '/fake/path',
+    bridgeEntryPath: '/fake/path/bridge.js',
+    command: [process.execPath, '/fake/path/bridge.js'],
+  });
+  
+  // Mockear invokeAdapter para simular respuestas exitosas
+  vi.spyOn(adapterBridge, 'invokeAdapter').mockImplementation(async (command, payload: any) => {
+    if (payload.action === 'get-contract') {
+      return {
+        success: true,
+        data: {
+          version: '0',
+          runtimeRequirements: { binaries: [] },
+          deployRuntime: {
+            services: ['app'],
+            port: 8000,
+            healthcheck: { path: '/health' },
+          },
+        },
+      };
+    }
+    if (payload.action === 'create-project') {
+      // Simular creación de estructura mínima para que los tests pasen
+      const projectPath = join(payload.destinationPath, payload.name);
+      if (payload.topology === 'multirepo') {
+        // En multirepo se crean -api y -web
+        mkdirSync(join(payload.destinationPath, `${payload.name}-api`), { recursive: true });
+        mkdirSync(join(payload.destinationPath, `${payload.name}-web`), { recursive: true });
+      } else {
+        mkdirSync(projectPath, { recursive: true });
+      }
+      return {
+        success: true,
+        data: {
+          projectPath: payload.topology === 'multirepo' ? payload.destinationPath : projectPath,
+          message: 'Proyecto generado',
+        },
+      };
+    }
+    return { success: false, error: { message: 'Acción desconocida' } };
+  });
+  
   vi.spyOn(process, 'exit').mockImplementation((() => {
     throw new Error('process.exit called');
   }) as any);
@@ -25,6 +80,13 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanTestDir();
+  
+  // Limpiar variables de entorno de git
+  delete process.env.GIT_AUTHOR_NAME;
+  delete process.env.GIT_AUTHOR_EMAIL;
+  delete process.env.GIT_COMMITTER_NAME;
+  delete process.env.GIT_COMMITTER_EMAIL;
+  
   vi.restoreAllMocks();
 });
 
@@ -44,7 +106,7 @@ describe('newCommand', () => {
     process.chdir(originalCwd);
     
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('Parámetros validados')
+      expect.stringContaining('Proyecto creado exitosamente')
     );
   });
   

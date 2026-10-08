@@ -5,6 +5,14 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "fractal-adapter-laravel": "./dist/bridge-entry.js"
+  },
+  "fractal": {
+    "adapter": true,
+    "target": "laravel",
+    "bridge": "dist/bridge-entry.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
