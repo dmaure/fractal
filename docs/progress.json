@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-09-28",
+  "actualizado": "2026-10-08",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -52,5 +52,20 @@
       ["CORE", "ARAI"],
       ["DEP", "DEPLOY"]
     ]
-  }
+  },
+  "specs": [
+    {
+      "id": "SPEC-0006",
+      "label": "Contrato del adapter v0",
+      "milestone": "M2",
+      "estado": "en_curso",
+      "tareas": [
+        { "id": "T1", "ticket": "FRA-39", "label": "Tipos TS del contrato v0 en core", "estado": "completado" },
+        { "id": "T2", "ticket": "FRA-40", "label": "Consumir declaracion de runtime en deploy", "estado": "completado" },
+        { "id": "T3", "ticket": "FRA-41", "label": "Chequeo de version minima de runtime", "estado": "completado" },
+        { "id": "T4", "ticket": "FRA-42", "label": "Crear proyecto base en adapter-laravel", "estado": "completado" },
+        { "id": "NEW-ADAPTER", "label": "Conectar `fractal new` al adapter", "estado": "pendiente" }
+      ]
+    }
+  ]
 }

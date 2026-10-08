@@ -69,6 +69,11 @@ no solo como un diff total.
 - Snapshots actualizados
 - Test e2e pasa
 - Spec actualizado si el código divergió de lo escrito
+- Si el cambio afecta el estado de un milestone, una capacidad o un spec:
+  actualizar `docs/progress.json` (fuente de verdad del estado, SPEC-0031),
+  correr `fractal status --write` y commitear el `docs/MAPA_DE_PROGRESO.md`
+  regenerado en el mismo PR. La CI (`fractal status --check`) bloquea el merge
+  si el mapa quedó desincronizado.
 
 ## PR y code review
 

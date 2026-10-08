@@ -202,6 +202,15 @@ Todas las mañanas (después del mapa de estado), el orquestador responde
    - **Probado por línea de comando**: el orquestador corre el comando
      real (dogfood) y confirma que funciona, más allá de que pasen los
      tests.
+   - **`docs/progress.json` refleja lo recién mergeado**: el estado del
+     milestone, la capacidad o el spec que el merge cambió quedó actualizado en
+     `docs/progress.json` —la fuente de verdad del estado (SPEC-0031)— y
+     `docs/MAPA_DE_PROGRESO.md` fue regenerado. Si no coincide (un merge movió
+     el estado real pero el JSON quedó viejo), el orquestador crea un ticket en
+     `Todo` con el schema de `AGENT_PLAYBOOK.md` para actualizar
+     `docs/progress.json` y regenerar el mapa (`fractal status --write`);
+     pasarlo a `READY FOR AI` le toca a Claude o a Diego (sección 2). No edita
+     `docs/progress.json` por su cuenta (regla 4).
 3. **Si no está cerrado:** listar qué falta, con evidencia (salida del
    comando, AC sin test, etc.). Si falta un ticket para algo concreto
    (bug encontrado en el dogfood, AC sin cubrir), crearlo en `Todo` con el
