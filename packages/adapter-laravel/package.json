@@ -12,8 +12,17 @@
     }
   },
   "scripts": {
-    "build": "echo 'Build pendiente'",
-    "test": "echo 'Tests pendiente'"
+    "build": "rm -rf dist && tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@fractal/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
   },
   "keywords": [
     "fractal",
