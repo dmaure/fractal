@@ -53,6 +53,57 @@ fi
   chmodSync(join(binDir, 'composer'), 0o755);
 }
 
+/**
+ * Crea un PATH aislado con solo los binarios mínimos necesarios:
+ * - node (symlink a process.execPath)
+ * - git (symlink a git del sistema)
+ * - which (symlink necesario para checkBinaryAvailable)
+ * - binarios adicionales pasados como parámetro
+ * 
+ * Esto asegura que no se filtren binarios del PATH original del host.
+ */
+function createIsolatedPath(isolatedDir: string, nodePath: string, additionalBinaries: Record<string, string> = {}): string {
+  mkdirSync(isolatedDir, { recursive: true });
+  
+  // Crear symlink a node
+  try {
+    execSync(`ln -sf "${nodePath}" "${join(isolatedDir, 'node')}"`, { stdio: 'pipe' });
+  } catch (error) {
+    // Fallback: copiar el binario si el symlink falla
+    execSync(`cp "${nodePath}" "${join(isolatedDir, 'node')}"`, { stdio: 'pipe' });
+    chmodSync(join(isolatedDir, 'node'), 0o755);
+  }
+  
+  // Crear symlink a git (necesario para git init)
+  try {
+    const gitPath = execSync('which git', { encoding: 'utf-8' }).trim();
+    execSync(`ln -sf "${gitPath}" "${join(isolatedDir, 'git')}"`, { stdio: 'pipe' });
+  } catch (error) {
+    // Si no hay git en el sistema, no es crítico para este test
+  }
+  
+  // Crear symlink a which (necesario para checkBinaryAvailable)
+  try {
+    const whichPath = execSync('which which', { encoding: 'utf-8' }).trim();
+    execSync(`ln -sf "${whichPath}" "${join(isolatedDir, 'which')}"`, { stdio: 'pipe' });
+  } catch (error) {
+    // Si no hay which, intentar con /usr/bin/which
+    try {
+      execSync(`ln -sf /usr/bin/which "${join(isolatedDir, 'which')}"`, { stdio: 'pipe' });
+    } catch (e) {
+      // Si tampoco funciona, no es crítico
+    }
+  }
+  
+  // Agregar binarios adicionales (stubs)
+  for (const [name, content] of Object.entries(additionalBinaries)) {
+    writeFileSync(join(isolatedDir, name), content, 'utf-8');
+    chmodSync(join(isolatedDir, name), 0o755);
+  }
+  
+  return isolatedDir;
+}
+
 describe('fractal new E2E', () => {
   let testDir: string;
   let workspaceRoot: string;
@@ -240,26 +291,39 @@ describe('fractal new E2E', () => {
       const cliPath = join(workspaceRoot, 'packages/core/dist/cli.js');
       const projectPath = join(testDir, 'test-version-php');
       
-      // Crear stub de PHP con versión vieja
-      const oldBinDir = join(testDir, 'old-bin');
-      createFakeBinaries(oldBinDir, '7.4.0', '2.7.0');
-      
-      // Reemplazar PATH con versión vieja (manteniendo acceso a node)
-      const savedPath = process.env.PATH;
-      process.env.PATH = `${oldBinDir}:${originalPath}`;
+      // Crear PATH aislado con PHP viejo y Composer bueno
+      const isolatedDir = join(testDir, 'isolated-old-php');
+      const phpStub = `#!/bin/bash
+if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+  echo "PHP 7.4.0 (cli) (built: Jan  1 2024 00:00:00) ( NTS )"
+else
+  echo "PHP stub - not a real PHP interpreter"
+  exit 1
+fi
+`;
+      const composerStub = `#!/bin/bash
+if [ "$1" = "--version" ] || [ "$1" = "-V" ]; then
+  echo "Composer version 2.7.0 2024-01-01 00:00:00"
+else
+  echo "Composer stub - not a real Composer"
+  exit 1
+fi
+`;
+      createIsolatedPath(isolatedDir, nodePath, { php: phpStub, composer: composerStub });
       
       let error: any;
       try {
         execSync(
-          `node ${cliPath} new ${projectPath} --topology monolith`,
-          { cwd: workspaceRoot, stdio: 'pipe' }
+          `${nodePath} ${cliPath} new ${projectPath} --topology monolith`,
+          { 
+            cwd: workspaceRoot, 
+            stdio: 'pipe',
+            env: { ...process.env, PATH: isolatedDir }
+          }
         );
       } catch (e) {
         error = e;
       }
-      
-      // Restaurar PATH inmediatamente
-      process.env.PATH = savedPath;
       
       // Verificar que falló
       expect(error).toBeDefined();
@@ -279,26 +343,39 @@ describe('fractal new E2E', () => {
       const cliPath = join(workspaceRoot, 'packages/core/dist/cli.js');
       const projectPath = join(testDir, 'test-version-composer');
       
-      // Crear stub de Composer con versión vieja
-      const oldBinDir = join(testDir, 'old-bin-composer');
-      createFakeBinaries(oldBinDir, '8.3.0', '1.10.0');
-      
-      // Reemplazar PATH con versión vieja (manteniendo acceso a node)
-      const savedPath = process.env.PATH;
-      process.env.PATH = `${oldBinDir}:${originalPath}`;
+      // Crear PATH aislado con PHP bueno y Composer viejo
+      const isolatedDir = join(testDir, 'isolated-old-composer');
+      const phpStub = `#!/bin/bash
+if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+  echo "PHP 8.3.0 (cli) (built: Jan  1 2024 00:00:00) ( NTS )"
+else
+  echo "PHP stub - not a real PHP interpreter"
+  exit 1
+fi
+`;
+      const composerStub = `#!/bin/bash
+if [ "$1" = "--version" ] || [ "$1" = "-V" ]; then
+  echo "Composer version 1.10.0 2024-01-01 00:00:00"
+else
+  echo "Composer stub - not a real Composer"
+  exit 1
+fi
+`;
+      createIsolatedPath(isolatedDir, nodePath, { php: phpStub, composer: composerStub });
       
       let error: any;
       try {
         execSync(
           `${nodePath} ${cliPath} new ${projectPath} --topology monolith`,
-          { cwd: workspaceRoot, stdio: 'pipe' }
+          { 
+            cwd: workspaceRoot, 
+            stdio: 'pipe',
+            env: { ...process.env, PATH: isolatedDir }
+          }
         );
       } catch (e) {
         error = e;
       }
-      
-      // Restaurar PATH inmediatamente
-      process.env.PATH = savedPath;
       
       // Verificar que falló
       expect(error).toBeDefined();
@@ -318,26 +395,31 @@ describe('fractal new E2E', () => {
       const cliPath = join(workspaceRoot, 'packages/core/dist/cli.js');
       const projectPath = join(testDir, 'test-no-php');
       
-      // Crear un directorio bin vacío (sin php ni composer, pero manteniendo node)
-      const emptyBinDir = join(testDir, 'empty-bin');
-      mkdirSync(emptyBinDir, { recursive: true });
-      
-      // Reemplazar PATH con directorio vacío + acceso a node
-      const savedPath = process.env.PATH;
-      process.env.PATH = `${emptyBinDir}:${originalPath}`;
+      // Crear PATH aislado sin PHP (solo node, git y composer)
+      const isolatedDir = join(testDir, 'isolated-no-php');
+      const composerStub = `#!/bin/bash
+if [ "$1" = "--version" ] || [ "$1" = "-V" ]; then
+  echo "Composer version 2.7.0 2024-01-01 00:00:00"
+else
+  echo "Composer stub - not a real Composer"
+  exit 1
+fi
+`;
+      createIsolatedPath(isolatedDir, nodePath, { composer: composerStub });
       
       let error: any;
       try {
         execSync(
           `${nodePath} ${cliPath} new ${projectPath} --topology monolith`,
-          { cwd: workspaceRoot, stdio: 'pipe' }
+          { 
+            cwd: workspaceRoot, 
+            stdio: 'pipe',
+            env: { ...process.env, PATH: isolatedDir }
+          }
         );
       } catch (e) {
         error = e;
       }
-      
-      // Restaurar PATH inmediatamente
-      process.env.PATH = savedPath;
       
       // Verificar que falló
       expect(error).toBeDefined();
