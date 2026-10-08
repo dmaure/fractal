@@ -66,6 +66,12 @@ falta — no se fuerza.
 - Todo PR sigue el formato de `docs/PROCESO.md`: declara el spec o ticket
   que implementa, los criterios de aceptación cubiertos, los ADRs creados
   si los hubo, y el checklist completo.
+- Si el trabajo cambia el estado de un milestone, una capacidad o un spec,
+  se actualiza `docs/progress.json` —la fuente de verdad del estado
+  (SPEC-0031)— en el **mismo PR**, se corre `fractal status --write` para
+  regenerar `docs/MAPA_DE_PROGRESO.md` y se commitea el mapa regenerado. La CI
+  (`fractal status --check`) bloquea el merge si el mapa quedó desincronizado;
+  no se deja la actualización del estado para un PR posterior.
 
 ### Abrir el PR
 
@@ -105,7 +111,10 @@ ronda.
 3. **Alcance:** nada fuera de lo que pide el ticket, y ninguna decisión
    técnica no cubierta por el spec o un ADR.
 4. **Checklist de `docs/PROCESO.md`:** snapshots, e2e, docs, spec
-   actualizado si el código divergió.
+   actualizado si el código divergió, y —si el PR cambió el estado de un
+   milestone, una capacidad o un spec— `docs/progress.json` actualizado en el
+   mismo PR, con `docs/MAPA_DE_PROGRESO.md` regenerado (`fractal status
+   --write`) y la CI de `fractal status --check` en verde.
 5. **Corrección y legibilidad:** bugs, casos borde, tests que no prueban
    lo que dicen probar.
 6. **Archivos sensibles:** si el PR toca `docs/ORCHESTRATOR_PLAYBOOK.md`,

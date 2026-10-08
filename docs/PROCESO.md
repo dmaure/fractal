@@ -133,6 +133,7 @@ SPEC-XXXX
 - [ ] Test e2e pasa
 - [ ] Documentación de usuario actualizada
 - [ ] Spec actualizado si el código divergió
+- [ ] Si el PR cambia el estado de un milestone/capacidad/spec, actualicé `docs/progress.json`, corrí `fractal status --write` y commiteé el `MAPA_DE_PROGRESO.md` regenerado
 ```
 
 ---
@@ -147,6 +148,9 @@ Una capability está terminada cuando:
 4. El lint de acoplamiento pasa
 5. La documentación de usuario existe
 6. El spec está marcado como Implementado
+7. Si cambió el estado de un milestone/capacidad/spec, `docs/progress.json` —
+   la fuente de verdad del estado (SPEC-0031)— quedó actualizado en el mismo PR,
+   con el `MAPA_DE_PROGRESO.md` regenerado vía `fractal status --write`
 
 ---
 
