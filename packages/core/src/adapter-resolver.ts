@@ -23,7 +23,7 @@ export interface AdapterMetadata {
   adapter: boolean;
   
   /**
-   * Identificador del framework/target (e.g., "laravel", "rails").
+   * Identificador del framework/target (e.g., "framework-a", "framework-b").
    */
   target: string;
   
@@ -38,7 +38,7 @@ export interface AdapterMetadata {
  */
 export interface ResolvedAdapter {
   /**
-   * Nombre del paquete npm (e.g., "@fractal/adapter-laravel").
+   * Nombre del paquete npm (e.g., "@fractal/adapter-example").
    */
   packageName: string;
   
