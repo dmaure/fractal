@@ -1,4 +1,4 @@
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import type { NewCommandOptions, ValidatedNewParams } from '../types/new-command.js';
@@ -14,11 +14,13 @@ import type { AdapterContract, CreateProjectPayload } from '../types/adapter-con
 /**
  * Comando `fractal new`.
  * 
- * Valida parámetros, pregunta topología si no está especificada,
- * valida el directorio destino, y prepara los parámetros para generación.
- * 
- * Este ticket NO invoca el adapter real todavía — termina en
- * "parámetros validados, listo para generar".
+ * Flujo completo:
+ * 1. Valida parámetros y directorio destino
+ * 2. Pregunta topología si no está especificada
+ * 3. Resuelve el adapter disponible
+ * 4. Verifica requisitos de runtime (versiones mínimas de binarios)
+ * 5. Invoca al adapter para generar la estructura del proyecto
+ * 6. Inicializa git según la topología
  */
 export async function newCommand(
   projectName: string,
@@ -56,7 +58,7 @@ export async function newCommand(
   }
   
   const params: ValidatedNewParams = {
-    projectName,
+    projectName: basename(targetDir),
     targetDir,
     topology,
     target: 'default',
@@ -148,9 +150,7 @@ async function generateProject(params: ValidatedNewParams): Promise<void> {
   // 4. Invocar generación de proyecto
   console.log(chalk.blue('\n🏗️  Generando estructura del proyecto...'));
   
-  const destinationPath = params.topology === 'multirepo' 
-    ? dirname(params.targetDir)
-    : dirname(params.targetDir);
+  const destinationPath = dirname(params.targetDir);
   
   const createProjectPayload: CreateProjectPayload = {
     name: params.projectName,
