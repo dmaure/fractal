@@ -100,13 +100,6 @@ describe('E2E con PHP y Composer reales', () => {
         const appKey = 'base64:' + Buffer.from(crypto.randomBytes(32)).toString('base64');
         await execAsync(`echo "APP_KEY=${appKey}" > .env`, { cwd: projectPath, shell: '/bin/bash' });
 
-        // Ahora correr composer install normal para que corra package:discover con .env listo
-        console.log('   Ejecutando composer dump-autoload...');
-        await execAsync('composer dump-autoload --no-interaction', {
-          cwd: projectPath,
-          env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
-        });
-
         // php artisan --version
         console.log('   Ejecutando php artisan --version...');
         const { stdout: version, code: versionCode } = await execAsync(
