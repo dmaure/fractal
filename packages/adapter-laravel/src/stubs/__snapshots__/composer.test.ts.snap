@@ -44,11 +44,11 @@ exports[`generateComposerJson > genera composer.json válido para monolith 1`] =
     "optimize-autoloader": true,
     "preferred-install": "dist",
     "sort-packages": true,
-    "allow-plugins": true
-  },
-  "policy": {
-    "advisories": {
-      "block": false
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
     }
   },
   "minimum-stability": "stable",
@@ -100,11 +100,11 @@ exports[`generateComposerJson > genera composer.json válido para monorepo 1`] =
     "optimize-autoloader": true,
     "preferred-install": "dist",
     "sort-packages": true,
-    "allow-plugins": true
-  },
-  "policy": {
-    "advisories": {
-      "block": false
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
     }
   },
   "minimum-stability": "stable",
@@ -156,11 +156,11 @@ exports[`generateComposerJson > genera composer.json válido para multirepo-api 
     "optimize-autoloader": true,
     "preferred-install": "dist",
     "sort-packages": true,
-    "allow-plugins": true
-  },
-  "policy": {
-    "advisories": {
-      "block": false
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
     }
   },
   "minimum-stability": "stable",

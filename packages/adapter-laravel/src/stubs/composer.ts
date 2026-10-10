@@ -53,10 +53,10 @@ export function generateComposerJson(
       'preferred-install': 'dist',
       'sort-packages': true,
       'allow-plugins': true,
-    },
-    policy: {
-      advisories: {
-        block: false,
+      policy: {
+        advisories: {
+          block: false,
+        },
       },
     },
     'minimum-stability': 'stable',
