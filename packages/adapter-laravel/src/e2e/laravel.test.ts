@@ -6,11 +6,11 @@
  * disponibles, los tests se saltean con mensaje explícito.
  * 
  * En CI, estos tests corren con PHP 8.2+ y Composer 2.5+ instalados
- * (ver .github/workflows/e2e-laravel.yml).
+ * (ver .github/workflows/ci.yml).
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { describe, it, expect } from 'vitest';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { exec } from 'node:child_process';
@@ -48,37 +48,34 @@ async function getComposerVersion(): Promise<string | null> {
   }
 }
 
+// Detectar PHP y Composer a nivel de módulo, antes de la colección de tests
+const phpAvailable = await checkCommand('php');
+const composerAvailable = await checkCommand('composer');
+
+if (phpAvailable && composerAvailable) {
+  const phpVersion = await getPhpVersion();
+  const composerVersion = await getComposerVersion();
+  console.log('\n✅ PHP y Composer disponibles:');
+  console.log(`   ${phpVersion}`);
+  console.log(`   ${composerVersion}\n`);
+} else {
+  console.log('\n⚠️  PHP o Composer no disponibles — tests E2E saltados');
+  console.log('   Para ejecutar estos tests localmente, instala PHP 8.2+ y Composer 2.5+');
+  console.log('   En CI, estos tests corren en .github/workflows/ci.yml (job e2e-laravel)\n');
+}
+
 describe('E2E con PHP y Composer reales', () => {
-  let phpAvailable: boolean;
-  let composerAvailable: boolean;
-  let tempDir: string;
-
-  beforeAll(async () => {
-    phpAvailable = await checkCommand('php');
-    composerAvailable = await checkCommand('composer');
-
-    if (phpAvailable && composerAvailable) {
-      const phpVersion = await getPhpVersion();
-      const composerVersion = await getComposerVersion();
-      console.log('\n✅ PHP y Composer disponibles:');
-      console.log(`   ${phpVersion}`);
-      console.log(`   ${composerVersion}\n`);
-    } else {
-      console.log('\n⚠️  PHP o Composer no disponibles — tests E2E saltados');
-      console.log('   Para ejecutar estos tests localmente, instala PHP 8.2+ y Composer 2.5+');
-      console.log('   En CI, estos tests corren en .github/workflows/e2e-laravel.yml\n');
-    }
-
-    tempDir = join(tmpdir(), `fractal-e2e-${Date.now()}`);
-    await mkdir(tempDir, { recursive: true });
-  });
+  const tempDir = join(tmpdir(), `fractal-e2e-${Date.now()}`);
 
   describe('Monolito', () => {
-    it.skipIf(!phpAvailable || !composerAvailable)(
-      'genera proyecto Laravel ejecutable',
-      { timeout: 120000 },
-      async () => {
-        const projectPath = await generateMonolith('test-monolith', tempDir);
+    it('genera proyecto Laravel ejecutable', { timeout: 120000 }, async (ctx) => {
+      if (!phpAvailable || !composerAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      await mkdir(tempDir, { recursive: true });
+      const projectPath = await generateMonolith('test-monolith', tempDir);
 
         // Configurar git para composer install (laravel/framework requiere git)
         await execAsync('git config --global user.email "test@fractal.test"', {
@@ -147,16 +144,18 @@ describe('E2E con PHP y Composer reales', () => {
 
         // Limpiar
         await rm(projectPath, { recursive: true, force: true });
-      }
-    );
+      });
   });
 
   describe('Monorepo', () => {
-    it.skipIf(!phpAvailable || !composerAvailable)(
-      'genera proyecto Laravel ejecutable en api/',
-      { timeout: 120000 },
-      async () => {
-        const projectPath = await generateMonorepo('test-monorepo', tempDir);
+    it('genera proyecto Laravel ejecutable en api/', { timeout: 120000 }, async (ctx) => {
+      if (!phpAvailable || !composerAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      await mkdir(tempDir, { recursive: true });
+      const projectPath = await generateMonorepo('test-monorepo', tempDir);
         const apiPath = join(projectPath, 'api');
 
         await execAsync('git config --global user.email "test@fractal.test"', {
@@ -190,16 +189,18 @@ describe('E2E con PHP y Composer reales', () => {
         expect(routeList).toContain('api/health');
 
         await rm(projectPath, { recursive: true, force: true });
-      }
-    );
+      });
   });
 
   describe('Multirepo', () => {
-    it.skipIf(!phpAvailable || !composerAvailable)(
-      'genera proyecto Laravel ejecutable en {nombre}-api/',
-      { timeout: 120000 },
-      async () => {
-        await generateMultirepo('test-multirepo', tempDir);
+    it('genera proyecto Laravel ejecutable en {nombre}-api/', { timeout: 120000 }, async (ctx) => {
+      if (!phpAvailable || !composerAvailable) {
+        ctx.skip();
+        return;
+      }
+
+      await mkdir(tempDir, { recursive: true });
+      await generateMultirepo('test-multirepo', tempDir);
         const apiPath = join(tempDir, 'test-multirepo-api');
 
         await execAsync('git config --global user.email "test@fractal.test"', {
@@ -234,7 +235,6 @@ describe('E2E con PHP y Composer reales', () => {
 
         await rm(apiPath, { recursive: true, force: true });
         await rm(join(tempDir, 'test-multirepo-web'), { recursive: true, force: true });
-      }
-    );
+      });
   });
 });
