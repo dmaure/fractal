@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import * as crypto from 'node:crypto';
 import { generateMonolith } from '../generators/monolith.js';
 import { generateMonorepo } from '../generators/monorepo.js';
 import { generateMultirepo } from '../generators/multirepo.js';
@@ -95,15 +96,16 @@ describe('E2E con PHP y Composer reales', () => {
         // Con --no-scripts no se corre post-autoload-dump, pero sí instala packages
         expect(composerOut).toMatch(/Package operations|Nothing to install|Installing dependencies/i);
 
-        // Crear .env
-        await execAsync('cp .env.example .env', { cwd: projectPath });
+        // Crear .env con APP_KEY
+        const appKey = 'base64:' + Buffer.from(crypto.randomBytes(32)).toString('base64');
+        await execAsync(`echo "APP_KEY=${appKey}" > .env`, { cwd: projectPath, shell: '/bin/bash' });
 
-        // php artisan key:generate
-        console.log('   Ejecutando php artisan key:generate...');
-        const { stdout: keyGen } = await execAsync('php artisan key:generate', {
+        // Ahora correr composer install normal para que corra package:discover con .env listo
+        console.log('   Ejecutando composer dump-autoload...');
+        await execAsync('composer dump-autoload --no-interaction', {
           cwd: projectPath,
+          env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
-        expect(keyGen).toContain('Application key set successfully');
 
         // php artisan --version
         console.log('   Ejecutando php artisan --version...');
