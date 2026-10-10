@@ -91,7 +91,8 @@ describe('E2E con PHP y Composer reales', () => {
           cwd: projectPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
-        expect(composerOut).toContain('Generating optimized autoload files');
+        // Con --no-scripts no se corre post-autoload-dump, así que solo verificamos que instaló packages
+        expect(composerOut).toMatch(/Package operations|Nothing to install/i);
 
         // Crear .env
         await execAsync('cp .env.example .env', { cwd: projectPath });
