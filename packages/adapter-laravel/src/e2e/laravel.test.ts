@@ -100,6 +100,12 @@ describe('E2E con PHP y Composer reales', () => {
         const appKey = 'base64:' + Buffer.from(crypto.randomBytes(32)).toString('base64');
         await execAsync(`echo "APP_KEY=${appKey}" > .env`, { cwd: projectPath, shell: '/bin/bash' });
 
+        // Crear packages.php vacío para evitar necesitar package:discover
+        await execAsync('mkdir -p bootstrap/cache && echo "<?php return [];" > bootstrap/cache/packages.php', {
+          cwd: projectPath,
+          shell: '/bin/bash'
+        });
+
         // php artisan --version
         console.log('   Ejecutando php artisan --version...');
         const { stdout: version, code: versionCode } = await execAsync(
