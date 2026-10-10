@@ -5,22 +5,9 @@
 import { describe, it, expect } from 'vitest';
 import { generatePackageJson } from './package.js';
 
+// El contenido completo de cada variante se cubre en el snapshot del árbol
+// (create-project.tree.test.ts); aquí solo aserciones de comportamiento.
 describe('generatePackageJson', () => {
-  it('genera package.json válido para monolith', () => {
-    const result = generatePackageJson('test-project', 'monolith');
-    expect(result).toMatchSnapshot();
-  });
-
-  it('genera package.json válido para monorepo-web', () => {
-    const result = generatePackageJson('test-web', 'monorepo-web');
-    expect(result).toMatchSnapshot();
-  });
-
-  it('genera package.json válido para multirepo-web', () => {
-    const result = generatePackageJson('test-web', 'multirepo-web');
-    expect(result).toMatchSnapshot();
-  });
-
   it('normaliza nombres de proyecto', () => {
     const result = generatePackageJson('Test Project!', 'monolith');
     const parsed = JSON.parse(result);

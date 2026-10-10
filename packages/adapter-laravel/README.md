@@ -117,17 +117,39 @@ El adapter genera la estructura de Laravel 11:
 
 ## Tests
 
-Cada stub tiene test de snapshot (Artículo X de la Constitución):
-
 ```bash
 pnpm test
 ```
 
-Los snapshots se actualizan con:
+### Snapshots del árbol generado (Artículo X de la Constitución)
+
+El test `src/commands/create-project.tree.test.ts` captura, para las tres
+topologías (monolith, monorepo, multirepo), **la estructura** (lista ordenada
+de paths relativos) y **el contenido** (cada archivo) del árbol que genera
+`createProject`. Es la fuente de verdad del contenido generado: cualquier
+cambio a un stub rompe su snapshot. Los snapshots son deterministas (se
+generan en un tempdir y solo se capturan paths relativos POSIX; sin paths
+absolutos, timestamps ni valores de máquina).
+
+Los tests por-stub (`src/stubs/*.test.ts`) conservan solo aserciones de
+comportamiento (`toContain` / `JSON.parse`); su contenido ya no se snapshotea
+por separado para no duplicar lo que captura el árbol.
+
+### Actualizar snapshots
+
+Cuando un cambio a un stub es intencional, regenerá los snapshots con:
 
 ```bash
-pnpm test -- --update-snapshot
+# desde la raíz del monorepo
+pnpm --filter @fractal/adapter-laravel test -u
+
+# o dentro del paquete (equivalente)
+pnpm test -- --update-snapshot   # atajo de vitest: vitest -u
 ```
+
+**Revisá siempre el diff resultante en el `.snap` antes de commitear**: el
+diff es la evidencia de que solo cambió lo que esperabas. Un snapshot
+actualizado sin revisar puede esconder una regresión en el árbol generado.
 
 ## Referencias
 
