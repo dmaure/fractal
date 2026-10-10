@@ -43,3 +43,14 @@ return [
 ];
 `;
 }
+
+/**
+ * Genera bootstrap/cache/.gitignore para Laravel 11.
+ * 
+ * Ignora todo el contenido de cache/ excepto el propio .gitignore.
+ */
+export function generateBootstrapCacheGitignore(): string {
+  return `*
+!.gitignore
+`;
+}

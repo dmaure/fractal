@@ -15,7 +15,6 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import * as crypto from 'node:crypto';
 import { generateMonolith } from '../generators/monolith.js';
 import { generateMonorepo } from '../generators/monorepo.js';
 import { generateMultirepo } from '../generators/multirepo.js';
@@ -88,23 +87,21 @@ describe('E2E con PHP y Composer reales', () => {
 
         // composer install
         console.log('   Ejecutando composer install...');
-        const composerResult = await execAsync('composer install --no-interaction --no-scripts 2>&1', {
+        const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
           cwd: projectPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
-        const composerOut = composerResult.stdout + composerResult.stderr;
-        // Con --no-scripts no se corre post-autoload-dump, pero sí instala packages
-        expect(composerOut).toMatch(/Package operations|Nothing to install|Installing dependencies/i);
+        expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
 
-        // Crear .env con APP_KEY
-        const appKey = 'base64:' + Buffer.from(crypto.randomBytes(32)).toString('base64');
-        await execAsync(`echo "APP_KEY=${appKey}" > .env`, { cwd: projectPath, shell: '/bin/bash' });
+        // Crear .env
+        await execAsync('cp .env.example .env', { cwd: projectPath });
 
-        // Crear packages.php vacío para evitar necesitar package:discover
-        await execAsync('mkdir -p bootstrap/cache && echo "<?php return [];" > bootstrap/cache/packages.php', {
+        // php artisan key:generate
+        console.log('   Ejecutando php artisan key:generate...');
+        const { stdout: keyGen } = await execAsync('php artisan key:generate', {
           cwd: projectPath,
-          shell: '/bin/bash'
         });
+        expect(keyGen).toContain('Application key set successfully');
 
         // php artisan --version
         console.log('   Ejecutando php artisan --version...');
@@ -169,20 +166,16 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         console.log('   Ejecutando composer install en api/...');
-        await execAsync('composer install --no-interaction --no-scripts', {
+        const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
+        expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
 
-        // Crear .env con APP_KEY
-        const appKey = 'base64:' + Buffer.from(crypto.randomBytes(32)).toString('base64');
-        await execAsync(`echo "APP_KEY=${appKey}" > .env`, { cwd: apiPath, shell: '/bin/bash' });
+        await execAsync('cp .env.example .env', { cwd: apiPath });
 
-        // Crear packages.php vacío para evitar necesitar package:discover
-        await execAsync('mkdir -p bootstrap/cache && echo "<?php return [];" > bootstrap/cache/packages.php', {
-          cwd: apiPath,
-          shell: '/bin/bash'
-        });
+        console.log('   Ejecutando php artisan key:generate...');
+        await execAsync('php artisan key:generate', { cwd: apiPath });
 
         console.log('   Ejecutando php artisan --version...');
         const { stdout: version } = await execAsync('php artisan --version', {
@@ -219,20 +212,16 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         console.log('   Ejecutando composer install en test-multirepo-api/...');
-        await execAsync('composer install --no-interaction --no-scripts', {
+        const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
+        expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
 
-        // Crear .env con APP_KEY
-        const appKey = 'base64:' + Buffer.from(crypto.randomBytes(32)).toString('base64');
-        await execAsync(`echo "APP_KEY=${appKey}" > .env`, { cwd: apiPath, shell: '/bin/bash' });
+        await execAsync('cp .env.example .env', { cwd: apiPath });
 
-        // Crear packages.php vacío para evitar necesitar package:discover
-        await execAsync('mkdir -p bootstrap/cache && echo "<?php return [];" > bootstrap/cache/packages.php', {
-          cwd: apiPath,
-          shell: '/bin/bash'
-        });
+        console.log('   Ejecutando php artisan key:generate...');
+        await execAsync('php artisan key:generate', { cwd: apiPath });
 
         console.log('   Ejecutando php artisan --version...');
         const { stdout: version } = await execAsync('php artisan --version', {

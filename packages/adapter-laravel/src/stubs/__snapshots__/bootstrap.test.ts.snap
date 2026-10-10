@@ -23,6 +23,12 @@ return Application::configure(basePath: dirname(__DIR__))
 "
 `;
 
+exports[`bootstrap > generateBootstrapCacheGitignore > genera bootstrap/cache/.gitignore válido 1`] = `
+"*
+!.gitignore
+"
+`;
+
 exports[`bootstrap > generateBootstrapProviders > genera el stub de bootstrap/providers.php 1`] = `
 "<?php
 

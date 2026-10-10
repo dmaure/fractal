@@ -16,7 +16,7 @@ import { generateEnvExample } from '../stubs/env.js';
 import { generateGitignore } from '../stubs/gitignore.js';
 import { generateReadme } from '../stubs/readme.js';
 import { generateArtisan } from '../stubs/artisan.js';
-import { generateBootstrapApp, generateBootstrapProviders } from '../stubs/bootstrap.js';
+import { generateBootstrapApp, generateBootstrapProviders, generateBootstrapCacheGitignore } from '../stubs/bootstrap.js';
 import { generateConfigApp, generateConfigDatabase } from '../stubs/config.js';
 import { generateAppServiceProvider } from '../stubs/providers.js';
 import { generateDatabaseGitignore } from '../stubs/database.js';
@@ -108,6 +108,12 @@ async function generateBootstrapDirectory(projectPath: string): Promise<void> {
   await writeFile(
     join(bootstrapPath, 'providers.php'),
     generateBootstrapProviders()
+  );
+
+  await mkdir(join(bootstrapPath, 'cache'), { recursive: true });
+  await writeFile(
+    join(bootstrapPath, 'cache', '.gitignore'),
+    generateBootstrapCacheGitignore()
   );
 }
 

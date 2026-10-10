@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateBootstrapApp, generateBootstrapProviders } from './bootstrap.js';
+import { generateBootstrapApp, generateBootstrapProviders, generateBootstrapCacheGitignore } from './bootstrap.js';
 
 describe('bootstrap', () => {
   describe('generateBootstrapApp', () => {
@@ -31,6 +31,13 @@ describe('bootstrap', () => {
     it('registra AppServiceProvider', () => {
       const result = generateBootstrapProviders();
       expect(result).toContain('App\\Providers\\AppServiceProvider::class');
+    });
+  });
+
+  describe('generateBootstrapCacheGitignore', () => {
+    it('genera bootstrap/cache/.gitignore válido', () => {
+      const result = generateBootstrapCacheGitignore();
+      expect(result).toMatchSnapshot();
     });
   });
 });
