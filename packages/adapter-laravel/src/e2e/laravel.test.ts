@@ -87,6 +87,11 @@ describe('E2E con PHP y Composer reales', () => {
 
         // Crear .env ANTES de composer install (package:discover lo necesita)
         await execAsync('cp .env.example .env', { cwd: projectPath });
+        // Generar APP_KEY válido para que Laravel pueda arrancar
+        await execAsync('php -r "echo \'APP_KEY=base64:\' . base64_encode(random_bytes(32)) . PHP_EOL;" >> .env', {
+          cwd: projectPath,
+          shell: '/bin/bash'
+        });
 
         // composer install
         console.log('   Ejecutando composer install...');
@@ -166,6 +171,10 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         await execAsync('cp .env.example .env', { cwd: apiPath });
+        await execAsync('php -r "echo \'APP_KEY=base64:\' . base64_encode(random_bytes(32)) . PHP_EOL;" >> .env', {
+          cwd: apiPath,
+          shell: '/bin/bash'
+        });
 
         console.log('   Ejecutando composer install en api/...');
         const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
@@ -212,6 +221,10 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         await execAsync('cp .env.example .env', { cwd: apiPath });
+        await execAsync('php -r "echo \'APP_KEY=base64:\' . base64_encode(random_bytes(32)) . PHP_EOL;" >> .env', {
+          cwd: apiPath,
+          shell: '/bin/bash'
+        });
 
         console.log('   Ejecutando composer install en test-multirepo-api/...');
         const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
