@@ -100,11 +100,13 @@ describe('E2E con PHP y Composer reales', () => {
 
         // composer install
         console.log('   Ejecutando composer install...');
-        const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
+        const { stdout: composerOut, stderr: composerErr } = await execAsync('composer install --no-interaction', {
           cwd: projectPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
-        expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
+        // Composer 2.x escribe "Generating optimized autoload files" en stderr
+        // (reserva stdout para salida parseable). Verificamos ambos flujos.
+        expect(composerOut + composerErr).toMatch(/Generating optimized autoload|Nothing to install/i);
 
         // php artisan key:generate
         console.log('   Ejecutando php artisan key:generate...');
@@ -127,7 +129,11 @@ describe('E2E con PHP y Composer reales', () => {
         const { stdout: routeList } = await execAsync('php artisan route:list --json', {
           cwd: projectPath,
         });
-        expect(routeList).toContain('api/health');
+        // `route:list --json` serializa con json_encode, que escapa las
+        // barras (api/health -> api\/health). Parseamos el JSON y verificamos
+        // la ruta por su uri real en vez de hacer un match textual frágil.
+        const routes = JSON.parse(routeList) as Array<{ uri: string }>;
+        expect(routes.some((route) => route.uri === 'api/health')).toBe(true);
 
         // Iniciar servidor en background y probar /api/health
         console.log('   Iniciando servidor Laravel...');
@@ -186,11 +192,13 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         console.log('   Ejecutando composer install en api/...');
-        const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
+        const { stdout: composerOut, stderr: composerErr } = await execAsync('composer install --no-interaction', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
-        expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
+        // Composer 2.x escribe "Generating optimized autoload files" en stderr
+        // (reserva stdout para salida parseable). Verificamos ambos flujos.
+        expect(composerOut + composerErr).toMatch(/Generating optimized autoload|Nothing to install/i);
 
         console.log('   Ejecutando php artisan key:generate...');
         await execAsync('php artisan key:generate', { cwd: apiPath });
@@ -205,7 +213,11 @@ describe('E2E con PHP y Composer reales', () => {
         const { stdout: routeList } = await execAsync('php artisan route:list --json', {
           cwd: apiPath,
         });
-        expect(routeList).toContain('api/health');
+        // `route:list --json` serializa con json_encode, que escapa las
+        // barras (api/health -> api\/health). Parseamos el JSON y verificamos
+        // la ruta por su uri real en vez de hacer un match textual frágil.
+        const routes = JSON.parse(routeList) as Array<{ uri: string }>;
+        expect(routes.some((route) => route.uri === 'api/health')).toBe(true);
 
         await rm(projectPath, { recursive: true, force: true });
       });
@@ -240,11 +252,13 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         console.log('   Ejecutando composer install en test-multirepo-api/...');
-        const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
+        const { stdout: composerOut, stderr: composerErr } = await execAsync('composer install --no-interaction', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
-        expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
+        // Composer 2.x escribe "Generating optimized autoload files" en stderr
+        // (reserva stdout para salida parseable). Verificamos ambos flujos.
+        expect(composerOut + composerErr).toMatch(/Generating optimized autoload|Nothing to install/i);
 
         console.log('   Ejecutando php artisan key:generate...');
         await execAsync('php artisan key:generate', { cwd: apiPath });
@@ -259,7 +273,11 @@ describe('E2E con PHP y Composer reales', () => {
         const { stdout: routeList } = await execAsync('php artisan route:list --json', {
           cwd: apiPath,
         });
-        expect(routeList).toContain('api/health');
+        // `route:list --json` serializa con json_encode, que escapa las
+        // barras (api/health -> api\/health). Parseamos el JSON y verificamos
+        // la ruta por su uri real en vez de hacer un match textual frágil.
+        const routes = JSON.parse(routeList) as Array<{ uri: string }>;
+        expect(routes.some((route) => route.uri === 'api/health')).toBe(true);
 
         await rm(apiPath, { recursive: true, force: true });
         await rm(join(tempDir, 'test-multirepo-web'), { recursive: true, force: true });

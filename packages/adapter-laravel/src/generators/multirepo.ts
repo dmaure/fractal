@@ -33,7 +33,7 @@ import {
   generateStorageFrameworkViewsGitignore,
   generateStorageLogsGitignore,
 } from '../stubs/storage.js';
-import { generateConsoleRoutes } from '../stubs/routes.js';
+import { generateConsoleRoutes, generateApiWebRoutes } from '../stubs/routes.js';
 
 /**
  * Genera un proyecto Laravel en topología multirepo.
@@ -117,6 +117,7 @@ async function generateApiRepo(apiPath: string, name: string): Promise<void> {
   const routesPath = join(apiPath, 'routes');
   await mkdir(routesPath, { recursive: true });
   await writeFile(join(routesPath, 'api.php'), generateApiRoutes());
+  await writeFile(join(routesPath, 'web.php'), generateApiWebRoutes());
   await writeFile(join(routesPath, 'console.php'), generateConsoleRoutes());
 }
 

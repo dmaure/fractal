@@ -90,11 +90,15 @@ return [
     |--------------------------------------------------------------------------
     | Autoloaded Service Providers
     |--------------------------------------------------------------------------
+    |
+    | En Laravel 11 los service providers del framework se cargan desde
+    | ServiceProvider::defaultProviders() y los de la aplicación desde
+    | bootstrap/providers.php. NO se declara aquí la clave 'providers':
+    | si estuviera presente (incluso como [] vacío) reemplazaría la lista
+    | por defecto del framework y no se registrarían servicios base como
+    | 'files', 'db', etc., rompiendo \`artisan package:discover\`.
+    |
     */
-
-    'providers' => [
-        // Providers are now loaded from bootstrap/providers.php (Laravel 11)
-    ],
 
     /*
     |--------------------------------------------------------------------------
