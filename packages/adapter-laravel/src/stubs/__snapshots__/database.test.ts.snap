@@ -1,0 +1,7 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`database > generateDatabaseGitignore > genera el .gitignore de database/ 1`] = `
+"*.sqlite
+*.sqlite-journal
+"
+`;

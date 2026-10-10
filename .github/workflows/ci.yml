@@ -36,3 +36,35 @@ jobs:
 
       - name: fractal status --check
         run: pnpm status:check
+
+  e2e-laravel:
+    name: E2E Laravel (PHP 8.2)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, json, sqlite3, pdo_sqlite
+          tools: composer:v2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run E2E tests
+        run: cd packages/adapter-laravel && pnpm test src/e2e/laravel.test.ts

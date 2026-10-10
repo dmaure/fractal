@@ -64,7 +64,8 @@
         { "id": "T2", "ticket": "FRA-40", "label": "Consumir declaracion de runtime en deploy", "estado": "completado" },
         { "id": "T3", "ticket": "FRA-41", "label": "Chequeo de version minima de runtime", "estado": "completado" },
         { "id": "T4", "ticket": "FRA-42", "label": "Crear proyecto base en adapter-laravel", "estado": "completado" },
-        { "id": "NEW-ADAPTER", "label": "Conectar `fractal new` al adapter", "estado": "pendiente" }
+        { "id": "T5", "ticket": "FRA-52", "label": "Esqueleto Laravel ejecutable (artisan, bootstrap, config)", "estado": "completado" },
+        { "id": "T6", "ticket": "FRA-54", "label": "Conectar `fractal new` al adapter", "estado": "completado" }
       ]
     }
   ]
