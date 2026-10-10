@@ -87,12 +87,13 @@ describe('E2E con PHP y Composer reales', () => {
 
         // composer install
         console.log('   Ejecutando composer install...');
-        const { stdout: composerOut } = await execAsync('composer install --no-interaction --no-scripts', {
+        const composerResult = await execAsync('composer install --no-interaction --no-scripts 2>&1', {
           cwd: projectPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
-        // Con --no-scripts no se corre post-autoload-dump, así que solo verificamos que instaló packages
-        expect(composerOut).toMatch(/Package operations|Nothing to install/i);
+        const composerOut = composerResult.stdout + composerResult.stderr;
+        // Con --no-scripts no se corre post-autoload-dump, pero sí instala packages
+        expect(composerOut).toMatch(/Package operations|Nothing to install|Installing dependencies/i);
 
         // Crear .env
         await execAsync('cp .env.example .env', { cwd: projectPath });
