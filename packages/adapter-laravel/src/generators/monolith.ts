@@ -8,13 +8,30 @@
  * @see ADR-0005 — frontend React + Vite + Sanctum Bearer
  */
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { generateComposerJson } from '../stubs/composer.js';
 import { generatePackageJson } from '../stubs/package.js';
 import { generateEnvExample } from '../stubs/env.js';
 import { generateGitignore } from '../stubs/gitignore.js';
 import { generateReadme } from '../stubs/readme.js';
+import { generateArtisan } from '../stubs/artisan.js';
+import { generateBootstrapApp, generateBootstrapProviders } from '../stubs/bootstrap.js';
+import { generateConfigApp, generateConfigDatabase } from '../stubs/config.js';
+import { generateAppServiceProvider } from '../stubs/providers.js';
+import { generateDatabaseGitignore } from '../stubs/database.js';
+import {
+  generateStorageAppGitignore,
+  generateStorageAppPublicGitignore,
+  generateStorageFrameworkGitignore,
+  generateStorageFrameworkCacheGitignore,
+  generateStorageFrameworkCacheDataGitignore,
+  generateStorageFrameworkSessionsGitignore,
+  generateStorageFrameworkTestingGitignore,
+  generateStorageFrameworkViewsGitignore,
+  generateStorageLogsGitignore,
+} from '../stubs/storage.js';
+import { generateConsoleRoutes } from '../stubs/routes.js';
 
 /**
  * Genera un proyecto Laravel en topología monolito.
@@ -33,7 +50,11 @@ export async function generateMonolith(
     await mkdir(projectPath, { recursive: true });
 
     await generateBaseStructure(projectPath, name);
+    await generateBootstrapDirectory(projectPath);
+    await generateConfigDirectory(projectPath);
     await generateAppDirectory(projectPath);
+    await generateDatabaseDirectory(projectPath);
+    await generateStorageDirectory(projectPath);
     await generateResourcesDirectory(projectPath);
     await generatePublicDirectory(projectPath);
     await generateRoutesDirectory(projectPath);
@@ -69,6 +90,100 @@ async function generateBaseStructure(
     join(projectPath, 'README.md'),
     generateReadme(name, 'monolith')
   );
+
+  const artisanPath = join(projectPath, 'artisan');
+  await writeFile(artisanPath, generateArtisan());
+  await chmod(artisanPath, 0o755);
+}
+
+async function generateBootstrapDirectory(projectPath: string): Promise<void> {
+  const bootstrapPath = join(projectPath, 'bootstrap');
+  await mkdir(bootstrapPath, { recursive: true });
+
+  await writeFile(
+    join(bootstrapPath, 'app.php'),
+    generateBootstrapApp()
+  );
+
+  await writeFile(
+    join(bootstrapPath, 'providers.php'),
+    generateBootstrapProviders()
+  );
+}
+
+async function generateConfigDirectory(projectPath: string): Promise<void> {
+  const configPath = join(projectPath, 'config');
+  await mkdir(configPath, { recursive: true });
+
+  await writeFile(
+    join(configPath, 'app.php'),
+    generateConfigApp()
+  );
+
+  await writeFile(
+    join(configPath, 'database.php'),
+    generateConfigDatabase()
+  );
+}
+
+async function generateDatabaseDirectory(projectPath: string): Promise<void> {
+  const databasePath = join(projectPath, 'database');
+  await mkdir(join(databasePath, 'migrations'), { recursive: true });
+  await mkdir(join(databasePath, 'seeders'), { recursive: true });
+
+  await writeFile(
+    join(databasePath, '.gitignore'),
+    generateDatabaseGitignore()
+  );
+}
+
+async function generateStorageDirectory(projectPath: string): Promise<void> {
+  const storagePath = join(projectPath, 'storage');
+
+  await mkdir(join(storagePath, 'app', 'public'), { recursive: true });
+  await writeFile(
+    join(storagePath, 'app', '.gitignore'),
+    generateStorageAppGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'app', 'public', '.gitignore'),
+    generateStorageAppPublicGitignore()
+  );
+
+  await mkdir(join(storagePath, 'framework', 'cache', 'data'), { recursive: true });
+  await mkdir(join(storagePath, 'framework', 'sessions'), { recursive: true });
+  await mkdir(join(storagePath, 'framework', 'testing'), { recursive: true });
+  await mkdir(join(storagePath, 'framework', 'views'), { recursive: true });
+  await writeFile(
+    join(storagePath, 'framework', '.gitignore'),
+    generateStorageFrameworkGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'cache', '.gitignore'),
+    generateStorageFrameworkCacheGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'cache', 'data', '.gitignore'),
+    generateStorageFrameworkCacheDataGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'sessions', '.gitignore'),
+    generateStorageFrameworkSessionsGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'testing', '.gitignore'),
+    generateStorageFrameworkTestingGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'views', '.gitignore'),
+    generateStorageFrameworkViewsGitignore()
+  );
+
+  await mkdir(join(storagePath, 'logs'), { recursive: true });
+  await writeFile(
+    join(storagePath, 'logs', '.gitignore'),
+    generateStorageLogsGitignore()
+  );
 }
 
 async function generateAppDirectory(projectPath: string): Promise<void> {
@@ -79,7 +194,13 @@ async function generateAppDirectory(projectPath: string): Promise<void> {
     recursive: true,
   });
   await mkdir(join(appPath, 'Models'), { recursive: true });
-  await mkdir(join(appPath, 'Providers'), { recursive: true });
+  
+  const providersPath = join(appPath, 'Providers');
+  await mkdir(providersPath, { recursive: true });
+  await writeFile(
+    join(providersPath, 'AppServiceProvider.php'),
+    generateAppServiceProvider()
+  );
 
   await writeFile(
     join(appPath, 'Http', 'Controllers', 'Api', 'HealthController.php'),
@@ -116,6 +237,7 @@ async function generateRoutesDirectory(projectPath: string): Promise<void> {
 
   await writeFile(join(routesPath, 'api.php'), generateApiRoutes());
   await writeFile(join(routesPath, 'web.php'), generateWebRoutes());
+  await writeFile(join(routesPath, 'console.php'), generateConsoleRoutes());
 }
 
 function generateHealthController(): string {
