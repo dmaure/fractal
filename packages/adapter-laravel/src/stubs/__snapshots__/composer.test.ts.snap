@@ -12,7 +12,7 @@ exports[`generateComposerJson > genera composer.json válido para monolith 1`] =
   "license": "MIT",
   "require": {
     "php": "^8.2",
-    "laravel/framework": "^11.31",
+    "laravel/framework": "^11.0",
     "laravel/sanctum": "^4.0"
   },
   "require-dev": {
@@ -43,7 +43,11 @@ exports[`generateComposerJson > genera composer.json válido para monolith 1`] =
   "config": {
     "optimize-autoloader": true,
     "preferred-install": "dist",
-    "sort-packages": true
+    "sort-packages": true,
+    "allow-plugins": true,
+    "audit": {
+      "block": false
+    }
   },
   "minimum-stability": "stable",
   "prefer-stable": true
@@ -62,7 +66,7 @@ exports[`generateComposerJson > genera composer.json válido para monorepo 1`] =
   "license": "MIT",
   "require": {
     "php": "^8.2",
-    "laravel/framework": "^11.31",
+    "laravel/framework": "^11.0",
     "laravel/sanctum": "^4.0"
   },
   "require-dev": {
@@ -93,7 +97,11 @@ exports[`generateComposerJson > genera composer.json válido para monorepo 1`] =
   "config": {
     "optimize-autoloader": true,
     "preferred-install": "dist",
-    "sort-packages": true
+    "sort-packages": true,
+    "allow-plugins": true,
+    "audit": {
+      "block": false
+    }
   },
   "minimum-stability": "stable",
   "prefer-stable": true
@@ -112,7 +120,7 @@ exports[`generateComposerJson > genera composer.json válido para multirepo-api 
   "license": "MIT",
   "require": {
     "php": "^8.2",
-    "laravel/framework": "^11.31",
+    "laravel/framework": "^11.0",
     "laravel/sanctum": "^4.0"
   },
   "require-dev": {
@@ -143,7 +151,11 @@ exports[`generateComposerJson > genera composer.json válido para multirepo-api 
   "config": {
     "optimize-autoloader": true,
     "preferred-install": "dist",
-    "sort-packages": true
+    "sort-packages": true,
+    "allow-plugins": true,
+    "audit": {
+      "block": false
+    }
   },
   "minimum-stability": "stable",
   "prefer-stable": true

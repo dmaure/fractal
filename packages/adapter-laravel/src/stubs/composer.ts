@@ -52,6 +52,10 @@ export function generateComposerJson(
       'optimize-autoloader': true,
       'preferred-install': 'dist',
       'sort-packages': true,
+      'allow-plugins': true,
+      'audit': {
+        'block': false,
+      },
     },
     'minimum-stability': 'stable',
     'prefer-stable': true,

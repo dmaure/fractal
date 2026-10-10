@@ -89,7 +89,7 @@ describe('E2E con PHP y Composer reales', () => {
         console.log('   Ejecutando composer install...');
         const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
           cwd: projectPath,
-          env: { ...process.env, COMPOSER_NO_INTERACTION: '1', COMPOSER_AUDIT_BLOCK: '0' },
+          env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
         expect(composerOut).toContain('Generating optimized autoload files');
 
@@ -166,7 +166,7 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         console.log('   Ejecutando composer install en api/...');
-        await execAsync('composer install --no-interaction --no-audit', {
+        await execAsync('composer install --no-interaction', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
@@ -211,7 +211,7 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         console.log('   Ejecutando composer install en test-multirepo-api/...');
-        await execAsync('composer install --no-interaction --no-audit', {
+        await execAsync('composer install --no-interaction', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
