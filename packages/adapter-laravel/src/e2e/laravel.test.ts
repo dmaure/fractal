@@ -174,10 +174,15 @@ describe('E2E con PHP y Composer reales', () => {
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
 
-        await execAsync('cp .env.example .env', { cwd: apiPath });
+        // Crear .env con APP_KEY
+        const appKey = 'base64:' + Buffer.from(crypto.randomBytes(32)).toString('base64');
+        await execAsync(`echo "APP_KEY=${appKey}" > .env`, { cwd: apiPath, shell: '/bin/bash' });
 
-        console.log('   Ejecutando php artisan key:generate...');
-        await execAsync('php artisan key:generate', { cwd: apiPath });
+        // Crear packages.php vacío para evitar necesitar package:discover
+        await execAsync('mkdir -p bootstrap/cache && echo "<?php return [];" > bootstrap/cache/packages.php', {
+          cwd: apiPath,
+          shell: '/bin/bash'
+        });
 
         console.log('   Ejecutando php artisan --version...');
         const { stdout: version } = await execAsync('php artisan --version', {
@@ -219,10 +224,15 @@ describe('E2E con PHP y Composer reales', () => {
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
 
-        await execAsync('cp .env.example .env', { cwd: apiPath });
+        // Crear .env con APP_KEY
+        const appKey = 'base64:' + Buffer.from(crypto.randomBytes(32)).toString('base64');
+        await execAsync(`echo "APP_KEY=${appKey}" > .env`, { cwd: apiPath, shell: '/bin/bash' });
 
-        console.log('   Ejecutando php artisan key:generate...');
-        await execAsync('php artisan key:generate', { cwd: apiPath });
+        // Crear packages.php vacío para evitar necesitar package:discover
+        await execAsync('mkdir -p bootstrap/cache && echo "<?php return [];" > bootstrap/cache/packages.php', {
+          cwd: apiPath,
+          shell: '/bin/bash'
+        });
 
         console.log('   Ejecutando php artisan --version...');
         const { stdout: version } = await execAsync('php artisan --version', {
