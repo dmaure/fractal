@@ -140,7 +140,11 @@ por separado para no duplicar lo que captura el árbol.
 Cuando un cambio a un stub es intencional, regenerá los snapshots con:
 
 ```bash
-pnpm test -- --update-snapshot   # o el atajo de vitest: -u
+# desde la raíz del monorepo
+pnpm --filter @fractal/adapter-laravel test -u
+
+# o dentro del paquete (equivalente)
+pnpm test -- --update-snapshot   # atajo de vitest: vitest -u
 ```
 
 **Revisá siempre el diff resultante en el `.snap` antes de commitear**: el
