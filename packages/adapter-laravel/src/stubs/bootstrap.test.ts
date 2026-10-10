@@ -1,13 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { generateBootstrapApp, generateBootstrapProviders, generateBootstrapCacheGitignore } from './bootstrap.js';
+import { generateBootstrapApp, generateBootstrapProviders } from './bootstrap.js';
 
+// El contenido completo de cada stub se cubre en el snapshot del árbol
+// (create-project.tree.test.ts); aquí solo aserciones de comportamiento.
 describe('bootstrap', () => {
   describe('generateBootstrapApp', () => {
-    it('genera el stub de bootstrap/app.php', () => {
-      const result = generateBootstrapApp();
-      expect(result).toMatchSnapshot();
-    });
-
     it('configura routing con rutas api, web y console', () => {
       const result = generateBootstrapApp();
       expect(result).toContain('withRouting');
@@ -23,21 +20,9 @@ describe('bootstrap', () => {
   });
 
   describe('generateBootstrapProviders', () => {
-    it('genera el stub de bootstrap/providers.php', () => {
-      const result = generateBootstrapProviders();
-      expect(result).toMatchSnapshot();
-    });
-
     it('registra AppServiceProvider', () => {
       const result = generateBootstrapProviders();
       expect(result).toContain('App\\Providers\\AppServiceProvider::class');
-    });
-  });
-
-  describe('generateBootstrapCacheGitignore', () => {
-    it('genera bootstrap/cache/.gitignore válido', () => {
-      const result = generateBootstrapCacheGitignore();
-      expect(result).toMatchSnapshot();
     });
   });
 });

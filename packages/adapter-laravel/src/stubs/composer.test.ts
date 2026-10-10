@@ -5,22 +5,9 @@
 import { describe, it, expect } from 'vitest';
 import { generateComposerJson } from './composer.js';
 
+// El contenido completo de cada variante se cubre en el snapshot del árbol
+// (create-project.tree.test.ts); aquí solo aserciones de comportamiento.
 describe('generateComposerJson', () => {
-  it('genera composer.json válido para monolith', () => {
-    const result = generateComposerJson('test-project', 'monolith');
-    expect(result).toMatchSnapshot();
-  });
-
-  it('genera composer.json válido para monorepo', () => {
-    const result = generateComposerJson('test-project', 'monorepo');
-    expect(result).toMatchSnapshot();
-  });
-
-  it('genera composer.json válido para multirepo-api', () => {
-    const result = generateComposerJson('test-project', 'multirepo-api');
-    expect(result).toMatchSnapshot();
-  });
-
   it('normaliza nombres de proyecto con caracteres especiales', () => {
     const result = generateComposerJson('Test Project!', 'monolith');
     const parsed = JSON.parse(result);

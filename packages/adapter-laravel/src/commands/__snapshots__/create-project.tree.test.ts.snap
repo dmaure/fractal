@@ -1,0 +1,2238 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`árbol generado por createProject (estructura + contenido) > monolith > contenido 1`] = `
+{
+  "demo/.env.example": "APP_NAME="demo"
+APP_ENV=local
+APP_KEY=
+APP_DEBUG=true
+APP_URL=http://localhost
+
+LOG_CHANNEL=stack
+LOG_LEVEL=debug
+
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=demo
+DB_USERNAME=root
+DB_PASSWORD=
+
+BROADCAST_DRIVER=log
+CACHE_DRIVER=redis
+FILESYSTEM_DISK=local
+QUEUE_CONNECTION=redis
+SESSION_DRIVER=redis
+SESSION_LIFETIME=120
+
+REDIS_HOST=cache
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+MAIL_MAILER=smtp
+MAIL_HOST=mailpit
+MAIL_PORT=1025
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_ENCRYPTION=null
+MAIL_FROM_ADDRESS="hello@example.com"
+MAIL_FROM_NAME="\${APP_NAME}"
+",
+  "demo/.gitignore": "# Laravel
+/vendor
+/node_modules
+/public/hot
+/public/storage
+/public/build
+/storage/*.key
+.env
+.env.backup
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fractal
+.fractal.lock
+",
+  "demo/README.md": "# demo
+
+Proyecto Laravel en topología monolito, generado por Fractal.
+
+## Instalación
+
+\`\`\`bash
+composer install
+cp .env.example .env
+php artisan key:generate
+\`\`\`
+
+## Desarrollo
+
+\`\`\`bash
+php artisan serve
+\`\`\`
+
+La aplicación estará disponible en http://localhost:8000
+
+## Tests
+
+\`\`\`bash
+php artisan test
+\`\`\`
+
+
+## Deploy
+
+Este proyecto está configurado para desplegarse con \`fractal deploy\`.
+
+## Documentación
+
+- [Fractal](https://github.com/dmaure/fractal)
+- [Laravel](https://laravel.com/docs)
+",
+  "demo/app/Http/Controllers/Api/HealthController.php": "<?php
+
+namespace App\\Http\\Controllers\\Api;
+
+use Illuminate\\Http\\JsonResponse;
+
+class HealthController
+{
+    public function check(): JsonResponse
+    {
+        return response()->json([
+            'status' => 'healthy',
+            'timestamp' => now()->toIso8601String(),
+        ]);
+    }
+}
+",
+  "demo/app/Providers/AppServiceProvider.php": "<?php
+
+namespace App\\Providers;
+
+use Illuminate\\Support\\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        //
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        //
+    }
+}
+",
+  "demo/artisan": "#!/usr/bin/env php
+<?php
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/vendor/autoload.php';
+
+$app = require_once __DIR__.'/bootstrap/app.php';
+
+$kernel = $app->make(Illuminate\\Contracts\\Console\\Kernel::class);
+
+$status = $kernel->handle(
+    $input = new Symfony\\Component\\Console\\Input\\ArgvInput,
+    new Symfony\\Component\\Console\\Output\\ConsoleOutput
+);
+
+$kernel->terminate($input, $status);
+
+exit($status);
+",
+  "demo/bootstrap/app.php": "<?php
+
+use Illuminate\\Foundation\\Application;
+use Illuminate\\Foundation\\Configuration\\Exceptions;
+use Illuminate\\Foundation\\Configuration\\Middleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware) {
+        //
+    })
+    ->withExceptions(function (Exceptions $exceptions) {
+        //
+    })->create();
+",
+  "demo/bootstrap/cache/.gitignore": "*
+!.gitignore
+",
+  "demo/bootstrap/providers.php": "<?php
+
+return [
+    App\\Providers\\AppServiceProvider::class,
+];
+",
+  "demo/composer.json": "{
+  "name": "fractal/demo",
+  "type": "project",
+  "description": "Proyecto Laravel generado por Fractal (monolith)",
+  "keywords": [
+    "laravel",
+    "fractal"
+  ],
+  "license": "MIT",
+  "require": {
+    "php": "^8.2",
+    "laravel/framework": "^11.0",
+    "laravel/sanctum": "^4.0"
+  },
+  "require-dev": {
+    "laravel/pint": "^1.0",
+    "phpunit/phpunit": "^11.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\\\": "app/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\\\": "tests/"
+    }
+  },
+  "scripts": {
+    "post-autoload-dump": [
+      "Illuminate\\\\Foundation\\\\ComposerScripts::postAutoloadDump",
+      "@php artisan package:discover --ansi"
+    ]
+  },
+  "extra": {
+    "laravel": {
+      "dont-discover": []
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}",
+  "demo/config/app.php": "<?php
+
+use Illuminate\\Support\\Facades\\Facade;
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Name
+    |--------------------------------------------------------------------------
+    */
+
+    'name' => env('APP_NAME', 'Fractal Laravel'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Environment
+    |--------------------------------------------------------------------------
+    */
+
+    'env' => env('APP_ENV', 'production'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Debug Mode
+    |--------------------------------------------------------------------------
+    */
+
+    'debug' => (bool) env('APP_DEBUG', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application URL
+    |--------------------------------------------------------------------------
+    */
+
+    'url' => env('APP_URL', 'http://localhost'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Timezone
+    |--------------------------------------------------------------------------
+    */
+
+    'timezone' => 'UTC',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Locale Configuration
+    |--------------------------------------------------------------------------
+    */
+
+    'locale' => 'en',
+
+    'fallback_locale' => 'en',
+
+    'faker_locale' => 'en_US',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Encryption Key
+    |--------------------------------------------------------------------------
+    */
+
+    'key' => env('APP_KEY'),
+
+    'cipher' => 'AES-256-CBC',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Maintenance Mode Driver
+    |--------------------------------------------------------------------------
+    */
+
+    'maintenance' => [
+        'driver' => 'file',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Autoloaded Service Providers
+    |--------------------------------------------------------------------------
+    |
+    | En Laravel 11 los service providers del framework se cargan desde
+    | ServiceProvider::defaultProviders() y los de la aplicación desde
+    | bootstrap/providers.php. NO se declara aquí la clave 'providers':
+    | si estuviera presente (incluso como [] vacío) reemplazaría la lista
+    | por defecto del framework y no se registrarían servicios base como
+    | 'files', 'db', etc., rompiendo \`artisan package:discover\`.
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Class Aliases
+    |--------------------------------------------------------------------------
+    */
+
+    'aliases' => Facade::defaultAliases()->merge([
+        // Custom aliases
+    ])->toArray(),
+
+];
+",
+  "demo/config/database.php": "<?php
+
+use Illuminate\\Support\\Str;
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default Database Connection Name
+    |--------------------------------------------------------------------------
+    */
+
+    'default' => env('DB_CONNECTION', 'sqlite'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Database Connections
+    |--------------------------------------------------------------------------
+    */
+
+    'connections' => [
+
+        'sqlite' => [
+            'driver' => 'sqlite',
+            'url' => env('DB_URL'),
+            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+        ],
+
+        'mysql' => [
+            'driver' => 'mysql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        'mariadb' => [
+            'driver' => 'mariadb',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        'pgsql' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
+        'sqlsrv' => [
+            'driver' => 'sqlsrv',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', 'localhost'),
+            'port' => env('DB_PORT', '1433'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Migration Repository Table
+    |--------------------------------------------------------------------------
+    */
+
+    'migrations' => [
+        'table' => 'migrations',
+        'update_date_on_publish' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Redis Databases
+    |--------------------------------------------------------------------------
+    */
+
+    'redis' => [
+
+        'client' => env('REDIS_CLIENT', 'phpredis'),
+
+        'options' => [
+            'cluster' => env('REDIS_CLUSTER', 'redis'),
+            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
+        ],
+
+        'default' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
+        ],
+
+        'cache' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_CACHE_DB', '1'),
+        ],
+
+    ],
+
+];
+",
+  "demo/database/.gitignore": "*.sqlite
+*.sqlite-journal
+",
+  "demo/package.json": "{
+  "name": "demo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}",
+  "demo/public/index.php": "<?php
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/../vendor/autoload.php';
+
+$app = require_once __DIR__.'/../bootstrap/app.php';
+
+$kernel = $app->make(Illuminate\\Contracts\\Http\\Kernel::class);
+
+$response = $kernel->handle(
+    $request = Illuminate\\Http\\Request::capture()
+);
+
+$response->send();
+
+$kernel->terminate($request, $response);
+",
+  "demo/resources/css/app.css": "body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+",
+  "demo/resources/js/app.tsx": "import React from 'react';
+import ReactDOM from 'react-dom/client';
+import '../css/app.css';
+
+function App() {
+  return (
+    <div className="container">
+      <h1>Fractal Laravel App</h1>
+      <p>Tu aplicación está lista para desarrollar.</p>
+    </div>
+  );
+}
+
+const root = document.getElementById('root');
+if (root) {
+  ReactDOM.createRoot(root).render(<App />);
+}
+",
+  "demo/routes/api.php": "<?php
+
+use App\\Http\\Controllers\\Api\\HealthController;
+use Illuminate\\Support\\Facades\\Route;
+
+Route::get('/health', [HealthController::class, 'check']);
+",
+  "demo/routes/console.php": "<?php
+
+use Illuminate\\Foundation\\Inspiring;
+use Illuminate\\Support\\Facades\\Artisan;
+
+Artisan::command('inspire', function () {
+    $this->comment(Inspiring::quote());
+})->purpose('Display an inspiring quote')->hourly();
+",
+  "demo/routes/web.php": "<?php
+
+use Illuminate\\Support\\Facades\\Route;
+
+Route::get('/{any}', function () {
+    return view('app');
+})->where('any', '.*');
+",
+  "demo/storage/app/.gitignore": "*
+!public/
+!.gitignore
+",
+  "demo/storage/app/public/.gitignore": "*
+!.gitignore
+",
+  "demo/storage/framework/.gitignore": "compiled.php
+config.php
+down
+events.scanned.php
+maintenance.php
+routes.php
+routes.scanned.php
+schedule-*
+services.json
+",
+  "demo/storage/framework/cache/.gitignore": "*
+!data/
+!.gitignore
+",
+  "demo/storage/framework/cache/data/.gitignore": "*
+!.gitignore
+",
+  "demo/storage/framework/sessions/.gitignore": "*
+!.gitignore
+",
+  "demo/storage/framework/testing/.gitignore": "*
+!.gitignore
+",
+  "demo/storage/framework/views/.gitignore": "*
+!.gitignore
+",
+  "demo/storage/logs/.gitignore": "*
+!.gitignore
+",
+}
+`;
+
+exports[`árbol generado por createProject (estructura + contenido) > monolith > estructura 1`] = `
+[
+  "demo/",
+  "demo/.env.example",
+  "demo/.gitignore",
+  "demo/README.md",
+  "demo/app/",
+  "demo/app/Http/",
+  "demo/app/Http/Controllers/",
+  "demo/app/Http/Controllers/Api/",
+  "demo/app/Http/Controllers/Api/HealthController.php",
+  "demo/app/Models/",
+  "demo/app/Providers/",
+  "demo/app/Providers/AppServiceProvider.php",
+  "demo/artisan",
+  "demo/bootstrap/",
+  "demo/bootstrap/app.php",
+  "demo/bootstrap/cache/",
+  "demo/bootstrap/cache/.gitignore",
+  "demo/bootstrap/providers.php",
+  "demo/composer.json",
+  "demo/config/",
+  "demo/config/app.php",
+  "demo/config/database.php",
+  "demo/database/",
+  "demo/database/.gitignore",
+  "demo/database/migrations/",
+  "demo/database/seeders/",
+  "demo/package.json",
+  "demo/public/",
+  "demo/public/index.php",
+  "demo/resources/",
+  "demo/resources/css/",
+  "demo/resources/css/app.css",
+  "demo/resources/js/",
+  "demo/resources/js/app.tsx",
+  "demo/routes/",
+  "demo/routes/api.php",
+  "demo/routes/console.php",
+  "demo/routes/web.php",
+  "demo/storage/",
+  "demo/storage/app/",
+  "demo/storage/app/.gitignore",
+  "demo/storage/app/public/",
+  "demo/storage/app/public/.gitignore",
+  "demo/storage/framework/",
+  "demo/storage/framework/.gitignore",
+  "demo/storage/framework/cache/",
+  "demo/storage/framework/cache/.gitignore",
+  "demo/storage/framework/cache/data/",
+  "demo/storage/framework/cache/data/.gitignore",
+  "demo/storage/framework/sessions/",
+  "demo/storage/framework/sessions/.gitignore",
+  "demo/storage/framework/testing/",
+  "demo/storage/framework/testing/.gitignore",
+  "demo/storage/framework/views/",
+  "demo/storage/framework/views/.gitignore",
+  "demo/storage/logs/",
+  "demo/storage/logs/.gitignore",
+]
+`;
+
+exports[`árbol generado por createProject (estructura + contenido) > monorepo > contenido 1`] = `
+{
+  "demo/.gitignore": "# Laravel
+/vendor
+/node_modules
+/public/hot
+/public/storage
+/public/build
+/storage/*.key
+.env
+.env.backup
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fractal
+.fractal.lock
+",
+  "demo/README.md": "# demo
+
+Proyecto Laravel en topología monorepo desacoplado, generado por Fractal.
+
+## Instalación
+
+\`\`\`bash
+pnpm install
+\`\`\`
+
+## Desarrollo
+
+Ejecuta ambos packages en paralelo:
+
+\`\`\`bash
+pnpm dev
+\`\`\`
+
+- API: http://localhost:8000
+- Web: http://localhost:3000
+
+## Build
+
+\`\`\`bash
+pnpm build
+\`\`\`
+
+
+## Deploy
+
+Este proyecto está configurado para desplegarse con \`fractal deploy\`.
+
+## Documentación
+
+- [Fractal](https://github.com/dmaure/fractal)
+- [Laravel](https://laravel.com/docs)
+",
+  "demo/api/.env.example": "APP_NAME="demo-api"
+APP_ENV=local
+APP_KEY=
+APP_DEBUG=true
+APP_URL=http://localhost
+
+LOG_CHANNEL=stack
+LOG_LEVEL=debug
+
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=demo_api
+DB_USERNAME=root
+DB_PASSWORD=
+
+BROADCAST_DRIVER=log
+CACHE_DRIVER=redis
+FILESYSTEM_DISK=local
+QUEUE_CONNECTION=redis
+SESSION_DRIVER=redis
+SESSION_LIFETIME=120
+
+REDIS_HOST=cache
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+MAIL_MAILER=smtp
+MAIL_HOST=mailpit
+MAIL_PORT=1025
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_ENCRYPTION=null
+MAIL_FROM_ADDRESS="hello@example.com"
+MAIL_FROM_NAME="\${APP_NAME}"
+",
+  "demo/api/app/Http/Controllers/Api/HealthController.php": "<?php
+
+namespace App\\Http\\Controllers\\Api;
+
+use Illuminate\\Http\\JsonResponse;
+
+class HealthController
+{
+    public function check(): JsonResponse
+    {
+        return response()->json([
+            'status' => 'healthy',
+            'timestamp' => now()->toIso8601String(),
+        ]);
+    }
+}
+",
+  "demo/api/app/Providers/AppServiceProvider.php": "<?php
+
+namespace App\\Providers;
+
+use Illuminate\\Support\\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        //
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        //
+    }
+}
+",
+  "demo/api/artisan": "#!/usr/bin/env php
+<?php
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/vendor/autoload.php';
+
+$app = require_once __DIR__.'/bootstrap/app.php';
+
+$kernel = $app->make(Illuminate\\Contracts\\Console\\Kernel::class);
+
+$status = $kernel->handle(
+    $input = new Symfony\\Component\\Console\\Input\\ArgvInput,
+    new Symfony\\Component\\Console\\Output\\ConsoleOutput
+);
+
+$kernel->terminate($input, $status);
+
+exit($status);
+",
+  "demo/api/bootstrap/app.php": "<?php
+
+use Illuminate\\Foundation\\Application;
+use Illuminate\\Foundation\\Configuration\\Exceptions;
+use Illuminate\\Foundation\\Configuration\\Middleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware) {
+        //
+    })
+    ->withExceptions(function (Exceptions $exceptions) {
+        //
+    })->create();
+",
+  "demo/api/bootstrap/cache/.gitignore": "*
+!.gitignore
+",
+  "demo/api/bootstrap/providers.php": "<?php
+
+return [
+    App\\Providers\\AppServiceProvider::class,
+];
+",
+  "demo/api/composer.json": "{
+  "name": "fractal/demo-api",
+  "type": "project",
+  "description": "Proyecto Laravel generado por Fractal (monorepo)",
+  "keywords": [
+    "laravel",
+    "fractal"
+  ],
+  "license": "MIT",
+  "require": {
+    "php": "^8.2",
+    "laravel/framework": "^11.0",
+    "laravel/sanctum": "^4.0"
+  },
+  "require-dev": {
+    "laravel/pint": "^1.0",
+    "phpunit/phpunit": "^11.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\\\": "app/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\\\": "tests/"
+    }
+  },
+  "scripts": {
+    "post-autoload-dump": [
+      "Illuminate\\\\Foundation\\\\ComposerScripts::postAutoloadDump",
+      "@php artisan package:discover --ansi"
+    ]
+  },
+  "extra": {
+    "laravel": {
+      "dont-discover": []
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}",
+  "demo/api/config/app.php": "<?php
+
+use Illuminate\\Support\\Facades\\Facade;
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Name
+    |--------------------------------------------------------------------------
+    */
+
+    'name' => env('APP_NAME', 'Fractal Laravel'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Environment
+    |--------------------------------------------------------------------------
+    */
+
+    'env' => env('APP_ENV', 'production'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Debug Mode
+    |--------------------------------------------------------------------------
+    */
+
+    'debug' => (bool) env('APP_DEBUG', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application URL
+    |--------------------------------------------------------------------------
+    */
+
+    'url' => env('APP_URL', 'http://localhost'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Timezone
+    |--------------------------------------------------------------------------
+    */
+
+    'timezone' => 'UTC',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Locale Configuration
+    |--------------------------------------------------------------------------
+    */
+
+    'locale' => 'en',
+
+    'fallback_locale' => 'en',
+
+    'faker_locale' => 'en_US',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Encryption Key
+    |--------------------------------------------------------------------------
+    */
+
+    'key' => env('APP_KEY'),
+
+    'cipher' => 'AES-256-CBC',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Maintenance Mode Driver
+    |--------------------------------------------------------------------------
+    */
+
+    'maintenance' => [
+        'driver' => 'file',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Autoloaded Service Providers
+    |--------------------------------------------------------------------------
+    |
+    | En Laravel 11 los service providers del framework se cargan desde
+    | ServiceProvider::defaultProviders() y los de la aplicación desde
+    | bootstrap/providers.php. NO se declara aquí la clave 'providers':
+    | si estuviera presente (incluso como [] vacío) reemplazaría la lista
+    | por defecto del framework y no se registrarían servicios base como
+    | 'files', 'db', etc., rompiendo \`artisan package:discover\`.
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Class Aliases
+    |--------------------------------------------------------------------------
+    */
+
+    'aliases' => Facade::defaultAliases()->merge([
+        // Custom aliases
+    ])->toArray(),
+
+];
+",
+  "demo/api/config/database.php": "<?php
+
+use Illuminate\\Support\\Str;
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default Database Connection Name
+    |--------------------------------------------------------------------------
+    */
+
+    'default' => env('DB_CONNECTION', 'sqlite'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Database Connections
+    |--------------------------------------------------------------------------
+    */
+
+    'connections' => [
+
+        'sqlite' => [
+            'driver' => 'sqlite',
+            'url' => env('DB_URL'),
+            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+        ],
+
+        'mysql' => [
+            'driver' => 'mysql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        'mariadb' => [
+            'driver' => 'mariadb',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        'pgsql' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
+        'sqlsrv' => [
+            'driver' => 'sqlsrv',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', 'localhost'),
+            'port' => env('DB_PORT', '1433'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Migration Repository Table
+    |--------------------------------------------------------------------------
+    */
+
+    'migrations' => [
+        'table' => 'migrations',
+        'update_date_on_publish' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Redis Databases
+    |--------------------------------------------------------------------------
+    */
+
+    'redis' => [
+
+        'client' => env('REDIS_CLIENT', 'phpredis'),
+
+        'options' => [
+            'cluster' => env('REDIS_CLUSTER', 'redis'),
+            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
+        ],
+
+        'default' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
+        ],
+
+        'cache' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_CACHE_DB', '1'),
+        ],
+
+    ],
+
+];
+",
+  "demo/api/database/.gitignore": "*.sqlite
+*.sqlite-journal
+",
+  "demo/api/routes/api.php": "<?php
+
+use App\\Http\\Controllers\\Api\\HealthController;
+use Illuminate\\Support\\Facades\\Route;
+
+Route::get('/health', [HealthController::class, 'check']);
+",
+  "demo/api/routes/console.php": "<?php
+
+use Illuminate\\Foundation\\Inspiring;
+use Illuminate\\Support\\Facades\\Artisan;
+
+Artisan::command('inspire', function () {
+    $this->comment(Inspiring::quote());
+})->purpose('Display an inspiring quote')->hourly();
+",
+  "demo/api/routes/web.php": "<?php
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Topología desacoplada: el SPA se sirve desde el paquete web/ y el backend
+| solo expone su API bajo /api (ver routes/api.php). Este archivo existe
+| porque bootstrap/app.php registra el grupo de rutas web; no declara rutas
+| de aplicación.
+|
+*/
+",
+  "demo/api/storage/app/.gitignore": "*
+!public/
+!.gitignore
+",
+  "demo/api/storage/app/public/.gitignore": "*
+!.gitignore
+",
+  "demo/api/storage/framework/.gitignore": "compiled.php
+config.php
+down
+events.scanned.php
+maintenance.php
+routes.php
+routes.scanned.php
+schedule-*
+services.json
+",
+  "demo/api/storage/framework/cache/.gitignore": "*
+!data/
+!.gitignore
+",
+  "demo/api/storage/framework/cache/data/.gitignore": "*
+!.gitignore
+",
+  "demo/api/storage/framework/sessions/.gitignore": "*
+!.gitignore
+",
+  "demo/api/storage/framework/testing/.gitignore": "*
+!.gitignore
+",
+  "demo/api/storage/framework/views/.gitignore": "*
+!.gitignore
+",
+  "demo/api/storage/logs/.gitignore": "*
+!.gitignore
+",
+  "demo/package.json": "{
+  "name": "demo",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}",
+  "demo/turbo.json": "{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        "public/build/**"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ]
+    }
+  }
+}",
+  "demo/web/index.html": "<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>demo</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+",
+  "demo/web/package.json": "{
+  "name": "demo-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}",
+  "demo/web/src/App.css": "body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+",
+  "demo/web/src/App.tsx": "import React from 'react';
+import './App.css';
+
+function App() {
+  return (
+    <div className="container">
+      <h1>Fractal Laravel App (Monorepo)</h1>
+      <p>Tu aplicación está lista para desarrollar.</p>
+    </div>
+  );
+}
+
+export default App;
+",
+  "demo/web/src/main.tsx": "import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const root = document.getElementById('root');
+if (root) {
+  ReactDOM.createRoot(root).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
+",
+  "demo/web/vite.config.ts": "import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+  },
+});
+",
+}
+`;
+
+exports[`árbol generado por createProject (estructura + contenido) > monorepo > estructura 1`] = `
+[
+  "demo/",
+  "demo/.gitignore",
+  "demo/README.md",
+  "demo/api/",
+  "demo/api/.env.example",
+  "demo/api/app/",
+  "demo/api/app/Http/",
+  "demo/api/app/Http/Controllers/",
+  "demo/api/app/Http/Controllers/Api/",
+  "demo/api/app/Http/Controllers/Api/HealthController.php",
+  "demo/api/app/Providers/",
+  "demo/api/app/Providers/AppServiceProvider.php",
+  "demo/api/artisan",
+  "demo/api/bootstrap/",
+  "demo/api/bootstrap/app.php",
+  "demo/api/bootstrap/cache/",
+  "demo/api/bootstrap/cache/.gitignore",
+  "demo/api/bootstrap/providers.php",
+  "demo/api/composer.json",
+  "demo/api/config/",
+  "demo/api/config/app.php",
+  "demo/api/config/database.php",
+  "demo/api/database/",
+  "demo/api/database/.gitignore",
+  "demo/api/database/migrations/",
+  "demo/api/database/seeders/",
+  "demo/api/routes/",
+  "demo/api/routes/api.php",
+  "demo/api/routes/console.php",
+  "demo/api/routes/web.php",
+  "demo/api/storage/",
+  "demo/api/storage/app/",
+  "demo/api/storage/app/.gitignore",
+  "demo/api/storage/app/public/",
+  "demo/api/storage/app/public/.gitignore",
+  "demo/api/storage/framework/",
+  "demo/api/storage/framework/.gitignore",
+  "demo/api/storage/framework/cache/",
+  "demo/api/storage/framework/cache/.gitignore",
+  "demo/api/storage/framework/cache/data/",
+  "demo/api/storage/framework/cache/data/.gitignore",
+  "demo/api/storage/framework/sessions/",
+  "demo/api/storage/framework/sessions/.gitignore",
+  "demo/api/storage/framework/testing/",
+  "demo/api/storage/framework/testing/.gitignore",
+  "demo/api/storage/framework/views/",
+  "demo/api/storage/framework/views/.gitignore",
+  "demo/api/storage/logs/",
+  "demo/api/storage/logs/.gitignore",
+  "demo/package.json",
+  "demo/turbo.json",
+  "demo/web/",
+  "demo/web/index.html",
+  "demo/web/package.json",
+  "demo/web/public/",
+  "demo/web/src/",
+  "demo/web/src/App.css",
+  "demo/web/src/App.tsx",
+  "demo/web/src/main.tsx",
+  "demo/web/vite.config.ts",
+]
+`;
+
+exports[`árbol generado por createProject (estructura + contenido) > multirepo > contenido 1`] = `
+{
+  "demo-api/.env.example": "APP_NAME="demo-api"
+APP_ENV=local
+APP_KEY=
+APP_DEBUG=true
+APP_URL=http://localhost
+
+LOG_CHANNEL=stack
+LOG_LEVEL=debug
+
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=demo_api
+DB_USERNAME=root
+DB_PASSWORD=
+
+BROADCAST_DRIVER=log
+CACHE_DRIVER=redis
+FILESYSTEM_DISK=local
+QUEUE_CONNECTION=redis
+SESSION_DRIVER=redis
+SESSION_LIFETIME=120
+
+REDIS_HOST=cache
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+MAIL_MAILER=smtp
+MAIL_HOST=mailpit
+MAIL_PORT=1025
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_ENCRYPTION=null
+MAIL_FROM_ADDRESS="hello@example.com"
+MAIL_FROM_NAME="\${APP_NAME}"
+",
+  "demo-api/.gitignore": "# Laravel
+/vendor
+/node_modules
+/public/hot
+/public/storage
+/public/build
+/storage/*.key
+.env
+.env.backup
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fractal
+.fractal.lock
+",
+  "demo-api/README.md": "# demo-api
+
+API Laravel del proyecto multirepo, generado por Fractal.
+
+## Instalación
+
+\`\`\`bash
+composer install
+cp .env.example .env
+php artisan key:generate
+\`\`\`
+
+## Desarrollo
+
+\`\`\`bash
+php artisan serve
+\`\`\`
+
+La aplicación estará disponible en http://localhost:8000
+
+## Tests
+
+\`\`\`bash
+php artisan test
+\`\`\`
+
+
+## Deploy
+
+Este proyecto está configurado para desplegarse con \`fractal deploy\`.
+
+## Documentación
+
+- [Fractal](https://github.com/dmaure/fractal)
+- [Laravel](https://laravel.com/docs)
+",
+  "demo-api/app/Http/Controllers/Api/HealthController.php": "<?php
+
+namespace App\\Http\\Controllers\\Api;
+
+use Illuminate\\Http\\JsonResponse;
+
+class HealthController
+{
+    public function check(): JsonResponse
+    {
+        return response()->json([
+            'status' => 'healthy',
+            'timestamp' => now()->toIso8601String(),
+        ]);
+    }
+}
+",
+  "demo-api/app/Providers/AppServiceProvider.php": "<?php
+
+namespace App\\Providers;
+
+use Illuminate\\Support\\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        //
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        //
+    }
+}
+",
+  "demo-api/artisan": "#!/usr/bin/env php
+<?php
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/vendor/autoload.php';
+
+$app = require_once __DIR__.'/bootstrap/app.php';
+
+$kernel = $app->make(Illuminate\\Contracts\\Console\\Kernel::class);
+
+$status = $kernel->handle(
+    $input = new Symfony\\Component\\Console\\Input\\ArgvInput,
+    new Symfony\\Component\\Console\\Output\\ConsoleOutput
+);
+
+$kernel->terminate($input, $status);
+
+exit($status);
+",
+  "demo-api/bootstrap/app.php": "<?php
+
+use Illuminate\\Foundation\\Application;
+use Illuminate\\Foundation\\Configuration\\Exceptions;
+use Illuminate\\Foundation\\Configuration\\Middleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware) {
+        //
+    })
+    ->withExceptions(function (Exceptions $exceptions) {
+        //
+    })->create();
+",
+  "demo-api/bootstrap/cache/.gitignore": "*
+!.gitignore
+",
+  "demo-api/bootstrap/providers.php": "<?php
+
+return [
+    App\\Providers\\AppServiceProvider::class,
+];
+",
+  "demo-api/composer.json": "{
+  "name": "fractal/demo-api",
+  "type": "project",
+  "description": "Proyecto Laravel generado por Fractal (multirepo-api)",
+  "keywords": [
+    "laravel",
+    "fractal"
+  ],
+  "license": "MIT",
+  "require": {
+    "php": "^8.2",
+    "laravel/framework": "^11.0",
+    "laravel/sanctum": "^4.0"
+  },
+  "require-dev": {
+    "laravel/pint": "^1.0",
+    "phpunit/phpunit": "^11.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\\\": "app/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\\\": "tests/"
+    }
+  },
+  "scripts": {
+    "post-autoload-dump": [
+      "Illuminate\\\\Foundation\\\\ComposerScripts::postAutoloadDump",
+      "@php artisan package:discover --ansi"
+    ]
+  },
+  "extra": {
+    "laravel": {
+      "dont-discover": []
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}",
+  "demo-api/config/app.php": "<?php
+
+use Illuminate\\Support\\Facades\\Facade;
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Name
+    |--------------------------------------------------------------------------
+    */
+
+    'name' => env('APP_NAME', 'Fractal Laravel'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Environment
+    |--------------------------------------------------------------------------
+    */
+
+    'env' => env('APP_ENV', 'production'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Debug Mode
+    |--------------------------------------------------------------------------
+    */
+
+    'debug' => (bool) env('APP_DEBUG', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application URL
+    |--------------------------------------------------------------------------
+    */
+
+    'url' => env('APP_URL', 'http://localhost'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Timezone
+    |--------------------------------------------------------------------------
+    */
+
+    'timezone' => 'UTC',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Locale Configuration
+    |--------------------------------------------------------------------------
+    */
+
+    'locale' => 'en',
+
+    'fallback_locale' => 'en',
+
+    'faker_locale' => 'en_US',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Encryption Key
+    |--------------------------------------------------------------------------
+    */
+
+    'key' => env('APP_KEY'),
+
+    'cipher' => 'AES-256-CBC',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Maintenance Mode Driver
+    |--------------------------------------------------------------------------
+    */
+
+    'maintenance' => [
+        'driver' => 'file',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Autoloaded Service Providers
+    |--------------------------------------------------------------------------
+    |
+    | En Laravel 11 los service providers del framework se cargan desde
+    | ServiceProvider::defaultProviders() y los de la aplicación desde
+    | bootstrap/providers.php. NO se declara aquí la clave 'providers':
+    | si estuviera presente (incluso como [] vacío) reemplazaría la lista
+    | por defecto del framework y no se registrarían servicios base como
+    | 'files', 'db', etc., rompiendo \`artisan package:discover\`.
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Class Aliases
+    |--------------------------------------------------------------------------
+    */
+
+    'aliases' => Facade::defaultAliases()->merge([
+        // Custom aliases
+    ])->toArray(),
+
+];
+",
+  "demo-api/config/database.php": "<?php
+
+use Illuminate\\Support\\Str;
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default Database Connection Name
+    |--------------------------------------------------------------------------
+    */
+
+    'default' => env('DB_CONNECTION', 'sqlite'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Database Connections
+    |--------------------------------------------------------------------------
+    */
+
+    'connections' => [
+
+        'sqlite' => [
+            'driver' => 'sqlite',
+            'url' => env('DB_URL'),
+            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+        ],
+
+        'mysql' => [
+            'driver' => 'mysql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        'mariadb' => [
+            'driver' => 'mariadb',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
+        'pgsql' => [
+            'driver' => 'pgsql',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
+        'sqlsrv' => [
+            'driver' => 'sqlsrv',
+            'url' => env('DB_URL'),
+            'host' => env('DB_HOST', 'localhost'),
+            'port' => env('DB_PORT', '1433'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Migration Repository Table
+    |--------------------------------------------------------------------------
+    */
+
+    'migrations' => [
+        'table' => 'migrations',
+        'update_date_on_publish' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Redis Databases
+    |--------------------------------------------------------------------------
+    */
+
+    'redis' => [
+
+        'client' => env('REDIS_CLIENT', 'phpredis'),
+
+        'options' => [
+            'cluster' => env('REDIS_CLUSTER', 'redis'),
+            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
+        ],
+
+        'default' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
+        ],
+
+        'cache' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_CACHE_DB', '1'),
+        ],
+
+    ],
+
+];
+",
+  "demo-api/database/.gitignore": "*.sqlite
+*.sqlite-journal
+",
+  "demo-api/routes/api.php": "<?php
+
+use App\\Http\\Controllers\\Api\\HealthController;
+use Illuminate\\Support\\Facades\\Route;
+
+Route::get('/health', [HealthController::class, 'check']);
+",
+  "demo-api/routes/console.php": "<?php
+
+use Illuminate\\Foundation\\Inspiring;
+use Illuminate\\Support\\Facades\\Artisan;
+
+Artisan::command('inspire', function () {
+    $this->comment(Inspiring::quote());
+})->purpose('Display an inspiring quote')->hourly();
+",
+  "demo-api/routes/web.php": "<?php
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Topología desacoplada: el SPA se sirve desde el paquete web/ y el backend
+| solo expone su API bajo /api (ver routes/api.php). Este archivo existe
+| porque bootstrap/app.php registra el grupo de rutas web; no declara rutas
+| de aplicación.
+|
+*/
+",
+  "demo-api/storage/app/.gitignore": "*
+!public/
+!.gitignore
+",
+  "demo-api/storage/app/public/.gitignore": "*
+!.gitignore
+",
+  "demo-api/storage/framework/.gitignore": "compiled.php
+config.php
+down
+events.scanned.php
+maintenance.php
+routes.php
+routes.scanned.php
+schedule-*
+services.json
+",
+  "demo-api/storage/framework/cache/.gitignore": "*
+!data/
+!.gitignore
+",
+  "demo-api/storage/framework/cache/data/.gitignore": "*
+!.gitignore
+",
+  "demo-api/storage/framework/sessions/.gitignore": "*
+!.gitignore
+",
+  "demo-api/storage/framework/testing/.gitignore": "*
+!.gitignore
+",
+  "demo-api/storage/framework/views/.gitignore": "*
+!.gitignore
+",
+  "demo-api/storage/logs/.gitignore": "*
+!.gitignore
+",
+  "demo-web/.gitignore": "# Laravel
+/vendor
+/node_modules
+/public/hot
+/public/storage
+/public/build
+/storage/*.key
+.env
+.env.backup
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fractal
+.fractal.lock
+",
+  "demo-web/README.md": "# demo-web
+
+Frontend (SPA React) del proyecto multirepo, generado por Fractal.
+
+## Instalación
+
+\`\`\`bash
+npm install
+\`\`\`
+
+## Desarrollo
+
+\`\`\`bash
+npm run dev
+\`\`\`
+
+La aplicación estará disponible en http://localhost:3000
+
+## Build
+
+\`\`\`bash
+npm run build
+\`\`\`
+
+
+## Deploy
+
+Este proyecto está configurado para desplegarse con \`fractal deploy\`.
+
+## Documentación
+
+- [Fractal](https://github.com/dmaure/fractal)
+- [Laravel](https://laravel.com/docs)
+",
+  "demo-web/index.html": "<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>demo</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+",
+  "demo-web/package.json": "{
+  "name": "demo-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}",
+  "demo-web/public/health.txt": "ok",
+  "demo-web/src/App.css": "body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+",
+  "demo-web/src/App.tsx": "import React from 'react';
+import './App.css';
+
+function App() {
+  return (
+    <div className="container">
+      <h1>Fractal Laravel App (Multirepo - Web)</h1>
+      <p>Tu aplicación está lista para desarrollar.</p>
+    </div>
+  );
+}
+
+export default App;
+",
+  "demo-web/src/main.tsx": "import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const root = document.getElementById('root');
+if (root) {
+  ReactDOM.createRoot(root).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
+",
+  "demo-web/vite.config.ts": "import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+  },
+  build: {
+    outDir: 'dist',
+  },
+});
+",
+}
+`;
+
+exports[`árbol generado por createProject (estructura + contenido) > multirepo > estructura 1`] = `
+[
+  "demo-api/",
+  "demo-api/.env.example",
+  "demo-api/.gitignore",
+  "demo-api/README.md",
+  "demo-api/app/",
+  "demo-api/app/Http/",
+  "demo-api/app/Http/Controllers/",
+  "demo-api/app/Http/Controllers/Api/",
+  "demo-api/app/Http/Controllers/Api/HealthController.php",
+  "demo-api/app/Providers/",
+  "demo-api/app/Providers/AppServiceProvider.php",
+  "demo-api/artisan",
+  "demo-api/bootstrap/",
+  "demo-api/bootstrap/app.php",
+  "demo-api/bootstrap/cache/",
+  "demo-api/bootstrap/cache/.gitignore",
+  "demo-api/bootstrap/providers.php",
+  "demo-api/composer.json",
+  "demo-api/config/",
+  "demo-api/config/app.php",
+  "demo-api/config/database.php",
+  "demo-api/database/",
+  "demo-api/database/.gitignore",
+  "demo-api/database/migrations/",
+  "demo-api/database/seeders/",
+  "demo-api/routes/",
+  "demo-api/routes/api.php",
+  "demo-api/routes/console.php",
+  "demo-api/routes/web.php",
+  "demo-api/storage/",
+  "demo-api/storage/app/",
+  "demo-api/storage/app/.gitignore",
+  "demo-api/storage/app/public/",
+  "demo-api/storage/app/public/.gitignore",
+  "demo-api/storage/framework/",
+  "demo-api/storage/framework/.gitignore",
+  "demo-api/storage/framework/cache/",
+  "demo-api/storage/framework/cache/.gitignore",
+  "demo-api/storage/framework/cache/data/",
+  "demo-api/storage/framework/cache/data/.gitignore",
+  "demo-api/storage/framework/sessions/",
+  "demo-api/storage/framework/sessions/.gitignore",
+  "demo-api/storage/framework/testing/",
+  "demo-api/storage/framework/testing/.gitignore",
+  "demo-api/storage/framework/views/",
+  "demo-api/storage/framework/views/.gitignore",
+  "demo-api/storage/logs/",
+  "demo-api/storage/logs/.gitignore",
+  "demo-web/",
+  "demo-web/.gitignore",
+  "demo-web/README.md",
+  "demo-web/index.html",
+  "demo-web/package.json",
+  "demo-web/public/",
+  "demo-web/public/health.txt",
+  "demo-web/src/",
+  "demo-web/src/App.css",
+  "demo-web/src/App.tsx",
+  "demo-web/src/main.tsx",
+  "demo-web/vite.config.ts",
+]
+`;

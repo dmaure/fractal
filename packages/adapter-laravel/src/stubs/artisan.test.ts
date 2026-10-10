@@ -2,11 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { generateArtisan } from './artisan.js';
 
 describe('artisan', () => {
-  it('genera el stub de artisan', () => {
-    const result = generateArtisan();
-    expect(result).toMatchSnapshot();
-  });
-
+  // El contenido completo del stub se cubre en el snapshot del árbol
+  // (create-project.tree.test.ts); aquí solo aserciones de comportamiento.
   it('incluye el shebang PHP', () => {
     const result = generateArtisan();
     expect(result).toContain('#!/usr/bin/env php');
