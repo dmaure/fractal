@@ -8,13 +8,30 @@
  * @see ADR-0005 — frontend React + Vite + Sanctum Bearer
  */
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { generateComposerJson } from '../stubs/composer.js';
 import { generatePackageJson } from '../stubs/package.js';
 import { generateEnvExample } from '../stubs/env.js';
 import { generateGitignore } from '../stubs/gitignore.js';
 import { generateReadme } from '../stubs/readme.js';
+import { generateArtisan } from '../stubs/artisan.js';
+import { generateBootstrapApp, generateBootstrapProviders, generateBootstrapCacheGitignore } from '../stubs/bootstrap.js';
+import { generateConfigApp, generateConfigDatabase } from '../stubs/config.js';
+import { generateAppServiceProvider } from '../stubs/providers.js';
+import { generateDatabaseGitignore } from '../stubs/database.js';
+import {
+  generateStorageAppGitignore,
+  generateStorageAppPublicGitignore,
+  generateStorageFrameworkGitignore,
+  generateStorageFrameworkCacheGitignore,
+  generateStorageFrameworkCacheDataGitignore,
+  generateStorageFrameworkSessionsGitignore,
+  generateStorageFrameworkTestingGitignore,
+  generateStorageFrameworkViewsGitignore,
+  generateStorageLogsGitignore,
+} from '../stubs/storage.js';
+import { generateConsoleRoutes, generateApiWebRoutes } from '../stubs/routes.js';
 
 /**
  * Genera un proyecto Laravel en topología monorepo desacoplado.
@@ -84,10 +101,26 @@ async function generateApiPackage(
     generateEnvExample(`${name}-api`)
   );
 
+  const artisanPath = join(apiPath, 'artisan');
+  await writeFile(artisanPath, generateArtisan());
+  await chmod(artisanPath, 0o755);
+
+  await generateBootstrapDirectory(apiPath);
+  await generateConfigDirectory(apiPath);
+  await generateDatabaseDirectory(apiPath);
+  await generateStorageDirectory(apiPath);
+
   const appPath = join(apiPath, 'app');
   await mkdir(join(appPath, 'Http', 'Controllers', 'Api'), {
     recursive: true,
   });
+  
+  const providersPath = join(appPath, 'Providers');
+  await mkdir(providersPath, { recursive: true });
+  await writeFile(
+    join(providersPath, 'AppServiceProvider.php'),
+    generateAppServiceProvider()
+  );
 
   await writeFile(
     join(appPath, 'Http', 'Controllers', 'Api', 'HealthController.php'),
@@ -97,6 +130,104 @@ async function generateApiPackage(
   const routesPath = join(apiPath, 'routes');
   await mkdir(routesPath, { recursive: true });
   await writeFile(join(routesPath, 'api.php'), generateApiRoutes());
+  await writeFile(join(routesPath, 'web.php'), generateApiWebRoutes());
+  await writeFile(join(routesPath, 'console.php'), generateConsoleRoutes());
+}
+
+async function generateBootstrapDirectory(apiPath: string): Promise<void> {
+  const bootstrapPath = join(apiPath, 'bootstrap');
+  await mkdir(bootstrapPath, { recursive: true });
+
+  await writeFile(
+    join(bootstrapPath, 'app.php'),
+    generateBootstrapApp()
+  );
+
+  await writeFile(
+    join(bootstrapPath, 'providers.php'),
+    generateBootstrapProviders()
+  );
+
+  await mkdir(join(bootstrapPath, 'cache'), { recursive: true });
+  await writeFile(
+    join(bootstrapPath, 'cache', '.gitignore'),
+    generateBootstrapCacheGitignore()
+  );
+}
+
+async function generateConfigDirectory(apiPath: string): Promise<void> {
+  const configPath = join(apiPath, 'config');
+  await mkdir(configPath, { recursive: true });
+
+  await writeFile(
+    join(configPath, 'app.php'),
+    generateConfigApp()
+  );
+
+  await writeFile(
+    join(configPath, 'database.php'),
+    generateConfigDatabase()
+  );
+}
+
+async function generateDatabaseDirectory(apiPath: string): Promise<void> {
+  const databasePath = join(apiPath, 'database');
+  await mkdir(join(databasePath, 'migrations'), { recursive: true });
+  await mkdir(join(databasePath, 'seeders'), { recursive: true });
+
+  await writeFile(
+    join(databasePath, '.gitignore'),
+    generateDatabaseGitignore()
+  );
+}
+
+async function generateStorageDirectory(apiPath: string): Promise<void> {
+  const storagePath = join(apiPath, 'storage');
+
+  await mkdir(join(storagePath, 'app', 'public'), { recursive: true });
+  await writeFile(
+    join(storagePath, 'app', '.gitignore'),
+    generateStorageAppGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'app', 'public', '.gitignore'),
+    generateStorageAppPublicGitignore()
+  );
+
+  await mkdir(join(storagePath, 'framework', 'cache', 'data'), { recursive: true });
+  await mkdir(join(storagePath, 'framework', 'sessions'), { recursive: true });
+  await mkdir(join(storagePath, 'framework', 'testing'), { recursive: true });
+  await mkdir(join(storagePath, 'framework', 'views'), { recursive: true });
+  await writeFile(
+    join(storagePath, 'framework', '.gitignore'),
+    generateStorageFrameworkGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'cache', '.gitignore'),
+    generateStorageFrameworkCacheGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'cache', 'data', '.gitignore'),
+    generateStorageFrameworkCacheDataGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'sessions', '.gitignore'),
+    generateStorageFrameworkSessionsGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'testing', '.gitignore'),
+    generateStorageFrameworkTestingGitignore()
+  );
+  await writeFile(
+    join(storagePath, 'framework', 'views', '.gitignore'),
+    generateStorageFrameworkViewsGitignore()
+  );
+
+  await mkdir(join(storagePath, 'logs'), { recursive: true });
+  await writeFile(
+    join(storagePath, 'logs', '.gitignore'),
+    generateStorageLogsGitignore()
+  );
 }
 
 async function generateWebPackage(

@@ -1,197 +1,138 @@
-# @fractal/adapter-laravel
+# adapter-laravel
 
-Adapter para Laravel que implementa el contrato v0 de Fractal.
+Adapter de Fractal para Laravel 11.
 
-Este paquete contiene **todo** el conocimiento de Laravel, cumpliendo con el Artículo II de la Constitución: `packages/core` y `packages/deploy` no contienen ninguna referencia a Laravel.
+Este paquete implementa el contrato de adapter (SPEC-0006) para generar proyectos Laravel idiomáticos en tres topologías: monolito, monorepo desacoplado y multirepo.
 
-## Contrato del Adapter v0
+## Estructura generada
 
-Implementa [SPEC-0006: Contrato del adapter v0](../../docs/specs/0006-contrato-adapter-v0.md).
+El adapter genera un proyecto Laravel 11 ejecutable con:
 
-### AC-1: Comando "crear proyecto base"
+### Archivos de configuración
+- `composer.json` — dependencias Laravel 11 (laravel/framework ^11.0, laravel/sanctum ^4.0)
+- `package.json` — dependencias del SPA React + Vite
+- `.env.example` — variables de entorno sin credenciales reales
+- `.gitignore` — incluye `.env`, `vendor/`, `node_modules/`, etc.
+- `README.md` — instrucciones de inicio
 
-```typescript
-import { createProject } from '@fractal/adapter-laravel';
+### Esqueleto Laravel ejecutable
+- `artisan` — CLI de Laravel (ejecutable con `php artisan`)
+- `bootstrap/app.php` — configuración de la aplicación Laravel 11
+- `bootstrap/providers.php` — registro de service providers
+- `config/app.php` — configuración principal
+- `config/database.php` — configuración de base de datos
+- `app/Providers/AppServiceProvider.php` — service provider base
+- `app/Http/Controllers/Api/HealthController.php` — endpoint /api/health
+- `routes/api.php` — rutas API (incluye /api/health)
+- `routes/web.php` — rutas web (SPA catch-all)
+- `routes/console.php` — comandos Artisan custom
+- `database/migrations/` — directorio de migraciones (vacío inicialmente)
+- `database/seeders/` — directorio de seeders (vacío inicialmente)
+- `storage/` — estructura completa con .gitignore en cada subdirectorio
 
-const response = await createProject({
-  name: 'mi-proyecto',
-  topology: 'monolith', // 'monolith' | 'monorepo' | 'multirepo'
-  destinationPath: '/path/to/destination',
-  target: 'laravel',
-});
+### Frontend (topología monolito)
+- `resources/js/app.tsx` — componente React principal
+- `resources/css/app.css` — estilos base
+- `public/index.php` — entry point Laravel
 
-if (response.success) {
-  console.log(`Proyecto generado en: ${response.data.projectPath}`);
-} else {
-  console.error(`Error: ${response.error.message}`);
-}
+### Frontend (topologías monorepo/multirepo)
+- `web/src/App.tsx` — componente React principal
+- `web/src/main.tsx` — entry point React
+- `web/src/App.css` — estilos base
+- `web/vite.config.ts` — configuración Vite
+- `web/index.html` — HTML del SPA
+
+## Cómo levantar un proyecto generado
+
+### Monolito
+
+```bash
+cd mi-proyecto
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan serve
 ```
 
-### AC-2: Declaración de versión mínima de runtime
+El endpoint `/api/health` responde en `http://localhost:8000/api/health`.
 
-El adapter declara los requisitos de runtime para proyectos Laravel:
+Verificar rutas con:
 
-- **PHP**: >= 8.2.0
-- **Composer**: >= 2.5.0
-
-```typescript
-import { getAdapterContract } from '@fractal/adapter-laravel';
-
-const contract = getAdapterContract();
-console.log(contract.runtimeRequirements.binaries);
-// [
-//   { name: 'php', minVersion: '8.2.0', displayName: 'PHP' },
-//   { name: 'composer', minVersion: '2.5.0', displayName: 'Composer' }
-// ]
+```bash
+php artisan route:list
 ```
 
-### AC-3: Declaración de runtime de deploy
+### Monorepo desacoplado
 
-El adapter expone dos configuraciones de runtime según el contexto:
+```bash
+cd mi-proyecto
 
-**Backend completo** (monolith, monorepo api/):
-```typescript
-{
-  services: ['app', 'nginx', 'db', 'cache', 'worker', 'scheduler'],
-  buildCommand: 'composer install --no-dev --optimize-autoloader',
-  migrateCommand: 'php artisan migrate --force',
-  port: 8000,
-  healthcheck: { path: '/api/health' }
-}
-```
+# Backend
+cd api
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan serve  # http://localhost:8000
+cd ..
 
-**Frontend estático** (multirepo web/):
-```typescript
-{
-  services: ['nginx'],
-  buildCommand: 'npm run build',
-  port: 80,
-  healthcheck: { path: '/health.txt' }
-}
-```
-
-## Topologías soportadas
-
-Implementa [ADR-0010: Topología del proyecto generado](../../docs/adr/0010-topologia-proyecto-generado-sin-inertia.md).
-
-### Monolith
-
-Un repositorio sin packages separados. El SPA (React + Vite) vive en `resources/js` y consume rutas bajo `/api` del mismo Laravel.
-
-**Estructura generada:**
-```
-mi-proyecto/
-├── app/
-│   └── Http/Controllers/Api/
-├── resources/
-│   ├── js/
-│   └── css/
-├── public/
-├── routes/
-│   ├── api.php
-│   └── web.php
-├── composer.json
-├── package.json
-└── .env.example
-```
-
-### Monorepo
-
-Un repositorio con `api/` (Laravel) y `web/` (SPA Vite) como packages, orquestados con Turborepo.
-
-**Estructura generada:**
-```
-mi-proyecto/
-├── api/
-│   ├── app/
-│   ├── routes/
-│   ├── composer.json
-│   └── .env.example
-├── web/
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│   └── vite.config.ts
-├── turbo.json
-└── package.json (raíz)
+# Frontend
+cd web
+npm install
+npm run dev  # http://localhost:3000
 ```
 
 ### Multirepo
 
-Dos carpetas de proyecto separadas, cada una su propio repositorio git.
+Igual que monorepo, pero `api/` y `web/` son repositorios git independientes (`mi-proyecto-api/` y `mi-proyecto-web/`).
 
-**Estructura generada:**
-```
-mi-proyecto-api/
-├── app/
-├── routes/
-├── composer.json
-├── .env.example
-└── fractal.project.yml
+## Decisiones de diseño
 
-mi-proyecto-web/
-├── src/
-├── public/
-│   └── health.txt
-├── package.json
-├── vite.config.ts
-└── fractal.project.yml
-```
+### Stubs versionados (ADR-0014)
 
-Los archivos `fractal.project.yml` contienen manifiestos para coordinación en el primer `fractal deploy` ([ADR-0012](../../docs/adr/0012-deploy-multirepo-orquestacion-inicial.md)).
+Los archivos del esqueleto Laravel se generan a partir de stubs TypeScript versionados en este paquete, no mediante `composer create-project`. Esto garantiza:
 
-## Stack de frontend
+- **Determinismo:** los snapshots capturan el resultado exacto
+- **Offline-first:** `fractal new` funciona sin red (salvo install de dependencias)
+- **Control de versión:** coherencia con `laravel/framework ^11.0` declarado en `composer.json`
 
-Implementa [ADR-0005: Frontend Laravel](../../docs/adr/0005-frontend-laravel.md):
+### Estructura Laravel 11
 
-- **Framework SPA**: React 18
-- **Build**: Vite 5
-- **Autenticación**: Laravel Sanctum en modo API token (Bearer)
+El adapter genera la estructura de Laravel 11:
 
-Las tres topologías comparten el mismo stack de frontend. Solo difieren en dónde vive el código.
+- `bootstrap/app.php` usa `Application::configure()` en vez del kernel HTTP/Console separado
+- `bootstrap/providers.php` lista los service providers en vez de `config/app.php`
+- Routing declarado en `bootstrap/app.php` con named parameters
 
-## Propagación de errores
+### Seguridad (Artículo VI de la Constitución)
 
-Cumple con [SPEC-0002 AC-3](../../docs/specs/0002-bridge-node-toolchain.md):
+- `.env.example` no contiene `APP_KEY` real — se genera localmente con `php artisan key:generate`
+- `.env` en `.gitignore` desde el primer commit
+- Sin credenciales de bases de datos de ejemplo capaces de llegar a producción
 
-```typescript
-{
-  success: false,
-  error: {
-    message: "Error al generar monolito: EACCES permission denied",
-    step: "generación-monolito"
-  }
-}
-```
+### Frontend React + Sanctum Bearer (ADR-0005)
 
-Los errores son legibles y no exponen stacktraces crudos.
+- SPA React compilado con Vite
+- Autenticación con Laravel Sanctum en modo API token (Bearer)
+- Mismo stack en las tres topologías; solo varía la ubicación del código
 
 ## Tests
 
-Este paquete incluye:
-
-- Tests unitarios de cada generador de topología
-- Tests de propagación de errores
-- **Snapshots** de los stubs generados (Artículo X de la Constitución)
+Cada stub tiene test de snapshot (Artículo X de la Constitución):
 
 ```bash
 pnpm test
 ```
 
-## Lint de acoplamiento
-
-El CI verifica que este paquete no filtra conocimiento de Laravel hacia `packages/core` o `packages/deploy`:
+Los snapshots se actualizan con:
 
 ```bash
-pnpm lint:coupling
+pnpm test -- --update-snapshot
 ```
-
-Términos prohibidos fuera de `packages/adapter-*`: `laravel`, `artisan`, `eloquent`, `blade`, `composer`.
 
 ## Referencias
 
-- [SPEC-0006: Contrato del adapter v0](../../docs/specs/0006-contrato-adapter-v0.md)
-- [ADR-0002: Arquitectura multi-target](../../docs/adr/0002-arquitectura-multi-target.md)
-- [ADR-0005: Frontend Laravel](../../docs/adr/0005-frontend-laravel.md)
-- [ADR-0010: Topología del proyecto generado](../../docs/adr/0010-topologia-proyecto-generado-sin-inertia.md)
-- [Constitución de Fractal](../../docs/CONSTITUTION.md)
+- `docs/specs/0006-contrato-adapter-v0.md` — contrato del adapter
+- `docs/specs/0001-fractal-new-laravel-base.md` — especificación de `fractal new`
+- `docs/adr/0014-stubs-laravel-versionados.md` — decisión de usar stubs propios
+- `docs/adr/0010-topologia-proyecto-generado-sin-inertia.md` — topologías soportadas
+- `docs/adr/0005-frontend-laravel.md` — stack frontend React + Sanctum Bearer

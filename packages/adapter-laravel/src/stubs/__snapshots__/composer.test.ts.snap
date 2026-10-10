@@ -17,7 +17,7 @@ exports[`generateComposerJson > genera composer.json válido para monolith 1`] =
   },
   "require-dev": {
     "laravel/pint": "^1.0",
-    "phpunit": "^11.0"
+    "phpunit/phpunit": "^11.0"
   },
   "autoload": {
     "psr-4": {
@@ -43,7 +43,13 @@ exports[`generateComposerJson > genera composer.json válido para monolith 1`] =
   "config": {
     "optimize-autoloader": true,
     "preferred-install": "dist",
-    "sort-packages": true
+    "sort-packages": true,
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
+    }
   },
   "minimum-stability": "stable",
   "prefer-stable": true
@@ -67,7 +73,7 @@ exports[`generateComposerJson > genera composer.json válido para monorepo 1`] =
   },
   "require-dev": {
     "laravel/pint": "^1.0",
-    "phpunit": "^11.0"
+    "phpunit/phpunit": "^11.0"
   },
   "autoload": {
     "psr-4": {
@@ -93,7 +99,13 @@ exports[`generateComposerJson > genera composer.json válido para monorepo 1`] =
   "config": {
     "optimize-autoloader": true,
     "preferred-install": "dist",
-    "sort-packages": true
+    "sort-packages": true,
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
+    }
   },
   "minimum-stability": "stable",
   "prefer-stable": true
@@ -117,7 +129,7 @@ exports[`generateComposerJson > genera composer.json válido para multirepo-api 
   },
   "require-dev": {
     "laravel/pint": "^1.0",
-    "phpunit": "^11.0"
+    "phpunit/phpunit": "^11.0"
   },
   "autoload": {
     "psr-4": {
@@ -143,7 +155,13 @@ exports[`generateComposerJson > genera composer.json válido para multirepo-api 
   "config": {
     "optimize-autoloader": true,
     "preferred-install": "dist",
-    "sort-packages": true
+    "sort-packages": true,
+    "allow-plugins": true,
+    "policy": {
+      "advisories": {
+        "block": false
+      }
+    }
   },
   "minimum-stability": "stable",
   "prefer-stable": true

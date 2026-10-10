@@ -1,0 +1,64 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`storage > generateStorageAppGitignore > genera el stub de storage/app/.gitignore 1`] = `
+"*
+!public/
+!.gitignore
+"
+`;
+
+exports[`storage > generateStorageAppPublicGitignore > genera el stub de storage/app/public/.gitignore 1`] = `
+"*
+!.gitignore
+"
+`;
+
+exports[`storage > generateStorageFrameworkCacheDataGitignore > genera el stub de storage/framework/cache/data/.gitignore 1`] = `
+"*
+!.gitignore
+"
+`;
+
+exports[`storage > generateStorageFrameworkCacheGitignore > genera el stub de storage/framework/cache/.gitignore 1`] = `
+"*
+!data/
+!.gitignore
+"
+`;
+
+exports[`storage > generateStorageFrameworkGitignore > genera el stub de storage/framework/.gitignore 1`] = `
+"compiled.php
+config.php
+down
+events.scanned.php
+maintenance.php
+routes.php
+routes.scanned.php
+schedule-*
+services.json
+"
+`;
+
+exports[`storage > generateStorageFrameworkSessionsGitignore > genera el stub de storage/framework/sessions/.gitignore 1`] = `
+"*
+!.gitignore
+"
+`;
+
+exports[`storage > generateStorageFrameworkTestingGitignore > genera el stub de storage/framework/testing/.gitignore 1`] = `
+"*
+!.gitignore
+"
+`;
+
+exports[`storage > generateStorageFrameworkViewsGitignore > genera el stub de storage/framework/views/.gitignore 1`] = `
+"*
+!.gitignore
+"
+`;
+
+exports[`storage > generateStorageLogsGitignore > genera el stub de storage/logs/.gitignore 1`] = `
+"*
+!.gitignore
+"
+`;
