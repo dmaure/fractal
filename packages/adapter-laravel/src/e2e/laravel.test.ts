@@ -85,6 +85,9 @@ describe('E2E con PHP y Composer reales', () => {
           cwd: projectPath,
         });
 
+        // Crear .env ANTES de composer install (package:discover lo necesita)
+        await execAsync('cp .env.example .env', { cwd: projectPath });
+
         // composer install
         console.log('   Ejecutando composer install...');
         const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
@@ -92,9 +95,6 @@ describe('E2E con PHP y Composer reales', () => {
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
         expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
-
-        // Crear .env
-        await execAsync('cp .env.example .env', { cwd: projectPath });
 
         // php artisan key:generate
         console.log('   Ejecutando php artisan key:generate...');
@@ -165,14 +165,14 @@ describe('E2E con PHP y Composer reales', () => {
           cwd: apiPath,
         });
 
+        await execAsync('cp .env.example .env', { cwd: apiPath });
+
         console.log('   Ejecutando composer install en api/...');
         const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
         expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
-
-        await execAsync('cp .env.example .env', { cwd: apiPath });
 
         console.log('   Ejecutando php artisan key:generate...');
         await execAsync('php artisan key:generate', { cwd: apiPath });
@@ -211,14 +211,14 @@ describe('E2E con PHP y Composer reales', () => {
           cwd: apiPath,
         });
 
+        await execAsync('cp .env.example .env', { cwd: apiPath });
+
         console.log('   Ejecutando composer install en test-multirepo-api/...');
         const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
         expect(composerOut).toMatch(/Generating optimized autoload|Nothing to install/i);
-
-        await execAsync('cp .env.example .env', { cwd: apiPath });
 
         console.log('   Ejecutando php artisan key:generate...');
         await execAsync('php artisan key:generate', { cwd: apiPath });
