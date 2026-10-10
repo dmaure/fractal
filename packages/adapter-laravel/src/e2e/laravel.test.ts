@@ -155,11 +155,31 @@ describe('E2E con PHP y Composer reales', () => {
           expect(health.timestamp).toBeDefined();
           console.log('   ✅ /api/health respondió 200 con payload correcto');
         } finally {
+          // Detener el servidor y ESPERAR a que termine antes de limpiar.
+          // `php artisan serve` sigue escribiendo en storage/ (logs, framework)
+          // mientras vive; si borramos el proyecto con el proceso aún activo,
+          // rmdir falla con ENOTEMPTY por escrituras en vuelo (se observó en CI).
           serverProcess.kill();
+          await new Promise<void>((resolve) => {
+            let settled = false;
+            const done = (): void => {
+              if (settled) return;
+              settled = true;
+              resolve();
+            };
+            serverProcess.once('exit', done);
+            setTimeout(done, 3000);
+          });
         }
 
-        // Limpiar
-        await rm(projectPath, { recursive: true, force: true });
+        // Limpiar (con reintentos: ante escrituras en vuelo en storage/, rm
+        // reintenta ENOTEMPTY/EBUSY con backoff en vez de fallar la primera vez).
+        await rm(projectPath, {
+          recursive: true,
+          force: true,
+          maxRetries: 5,
+          retryDelay: 200,
+        });
       });
   });
 
@@ -219,7 +239,7 @@ describe('E2E con PHP y Composer reales', () => {
         const routes = JSON.parse(routeList) as Array<{ uri: string }>;
         expect(routes.some((route) => route.uri === 'api/health')).toBe(true);
 
-        await rm(projectPath, { recursive: true, force: true });
+        await rm(projectPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
       });
   });
 
@@ -279,8 +299,8 @@ describe('E2E con PHP y Composer reales', () => {
         const routes = JSON.parse(routeList) as Array<{ uri: string }>;
         expect(routes.some((route) => route.uri === 'api/health')).toBe(true);
 
-        await rm(apiPath, { recursive: true, force: true });
-        await rm(join(tempDir, 'test-multirepo-web'), { recursive: true, force: true });
+        await rm(apiPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+        await rm(join(tempDir, 'test-multirepo-web'), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
       });
   });
 });
