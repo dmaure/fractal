@@ -25,7 +25,7 @@ export function generateComposerJson(
     },
     'require-dev': {
       'laravel/pint': '^1.0',
-      phpunit: '^11.0',
+      'phpunit/phpunit': '^11.0',
     },
     autoload: {
       'psr-4': {
