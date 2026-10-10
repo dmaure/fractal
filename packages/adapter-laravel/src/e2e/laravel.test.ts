@@ -87,7 +87,7 @@ describe('E2E con PHP y Composer reales', () => {
 
         // composer install
         console.log('   Ejecutando composer install...');
-        const { stdout: composerOut } = await execAsync('composer install --no-interaction', {
+        const { stdout: composerOut } = await execAsync('composer install --no-interaction --no-scripts', {
           cwd: projectPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
@@ -166,7 +166,7 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         console.log('   Ejecutando composer install en api/...');
-        await execAsync('composer install --no-interaction', {
+        await execAsync('composer install --no-interaction --no-scripts', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
@@ -211,7 +211,7 @@ describe('E2E con PHP y Composer reales', () => {
         });
 
         console.log('   Ejecutando composer install en test-multirepo-api/...');
-        await execAsync('composer install --no-interaction', {
+        await execAsync('composer install --no-interaction --no-scripts', {
           cwd: apiPath,
           env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
         });
