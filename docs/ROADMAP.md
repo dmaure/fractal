@@ -27,7 +27,7 @@ Cada milestone entrega valor verificable por sí solo.
 | ADR-0004: estrategia multi-DB | ✅ |
 | ADR-0006: Docker Compose como runtime | ✅ |
 | ADR-0007: GitHub Actions como CI/CD | ✅ |
-| CI base: lint, tests, matriz de versiones | ⬜ |
+| CI base: lint, tests, matriz de versiones | ✅ |
 | Lint de acoplamiento (Artículo II) | ✅ |
 | Monorepo con workspaces configurado | ✅ |
 | Visibilidad de estado del proyecto (SPEC-0031) | ⬜[^spec0031] |

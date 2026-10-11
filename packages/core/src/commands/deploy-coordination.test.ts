@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ManifestManager, CrossVarWriter } from '@fractal/deploy';
+import type { DeployParams } from '../types/deploy-command.js';
 
 const TEST_DIR = join(process.cwd(), 'test-deploy-coordination');
 
@@ -213,12 +214,13 @@ describe('Deploy command integration', () => {
   });
 
   it('siblingInfo es opcional cuando no es multirepo o ya está resolved', () => {
-    const params = {
+    const params: DeployParams = {
       serverIp: '192.168.1.1',
       sshUser: 'root',
       authMethod: 'key' as const,
       sshKeyPath: '~/.ssh/id_rsa',
       domain: 'example.com',
+      email: 'admin@example.com',
       dnsProvider: 'manual' as const,
       gitRepository: 'https://github.com/user/repo.git',
       productionBranch: 'main',
