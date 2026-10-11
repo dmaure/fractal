@@ -221,6 +221,56 @@ nombres, integridad referencial o compatibilidad de tipo/modificador. Un
 documento bien formado pero semánticamente inválido (p. ej. `type: "banana"`)
 se parsea sin error y será rechazado por el validador.
 
+## Validador semántico FDL (FRA-58)
+
+El validador semántico aplica las reglas VR-1..VR-12 de SPEC-0004 §8 sobre la
+IR tipada (la salida de `parseFdl`). Mientras el parser solo valida la *forma*
+del documento, el validador verifica su *significado*: nombres, catálogos,
+integridad referencial y compatibilidad de defaults.
+
+### `validateFdl(doc)`
+
+```typescript
+import { parseFdl, validateFdl } from '@fractal/core';
+
+const doc = parseFdl(source);
+const result = validateFdl(doc); // FdlValidationResult
+
+if (!result.valid) {
+  for (const v of result.violations) {
+    console.error(`[${v.rule}] ${v.path}: ${v.message}`);
+  }
+}
+```
+
+- **Entrada:** `doc: FdlDocument`, la IR tipada del documento.
+- **Salida:** `FdlValidationResult = { valid: boolean; violations: FdlViolation[] }`.
+  `valid` es `true` sii `violations.length === 0`.
+- **`FdlViolation`:** `{ rule: FdlValidationRule; path: string; message: string }`,
+  con `path` localizado al estilo del parser (p. ej. `entities[0].fields[1].name`).
+- **No es fail-fast:** acumula todas las violaciones (una función de chequeo por
+  regla, en orden VR-1..VR-12).
+
+### Reglas (SPEC-0004 §8)
+
+| Regla | Chequeo |
+| ----- | ------- |
+| VR-1  | Nombres de entidad: no vacíos, identificador válido y únicos en el documento. |
+| VR-2  | Nombres de campo: identificador válido y únicos por entidad; `"id"` solo si `primaryKey: true`. |
+| VR-3  | Tipo en el catálogo y modificadores solo en su tipo (`maxLength`→string, `precision`/`scale`→decimal, `values`→enum). |
+| VR-4  | Un `enum` declara `values` no vacío y sin duplicados; un no-`enum` no declara `values`. |
+| VR-5  | Integridad referencial: el `target` de cada relación nombra una entidad existente. |
+| VR-6  | Nombres de relación únicos por entidad y sin colisión con nombres de campo. |
+| VR-7  | `fdlVersion` soportado (`"0"`). |
+| VR-8  | `kind` de relación dentro de las cardinalidades válidas. |
+| VR-9  | `default` compatible con el `type` del campo (incluye membresía en `values` para `enum`). |
+| VR-10 | Agnosticismo: identificadores estructurales sin vocabulario de framework/ORM (Artículo II). |
+| VR-11 | A lo sumo un campo con `primaryKey: true` por entidad. |
+| VR-12 | Si una relación declara `inverse`, la entidad `target` contiene una relación con ese nombre. |
+
+El pulido de diagnósticos legibles (mensajes ricos, sugerencias) está diferido a
+**T4/FRA-59**; aquí los mensajes son mínimos y estructurados.
+
 ## Uso del Bridge Node → Toolchain
 
 El módulo `adapter-bridge` permite al core invocar la toolchain de cualquier target sin conocerla, delegando ese conocimiento exclusivamente al adapter correspondiente.

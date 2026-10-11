@@ -61,7 +61,8 @@
       "estado": "en_curso",
       "tareas": [
         { "id": "T1", "ticket": "FRA-56", "label": "Tipos / representacion JSON de FDL v0 en core", "estado": "completado" },
-        { "id": "T2", "ticket": "FRA-57", "label": "Parser JSON -> IR tipada de FDL en core", "estado": "completado" }
+        { "id": "T2", "ticket": "FRA-57", "label": "Parser JSON -> IR tipada de FDL en core", "estado": "completado" },
+        { "id": "T3", "ticket": "FRA-58", "label": "Validador semantico de FDL (VR-1..VR-12) en core", "estado": "completado" }
       ]
     },
     {
