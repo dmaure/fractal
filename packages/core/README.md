@@ -157,6 +157,70 @@ fractal status --check
 Usa `pnpm status` desde la raíz del monorepo para ejecutar `fractal status` directamente (ver `package.json`). El dev-tool `pnpm progress` ejecuta `scripts/progress-map.js`, que usa el mismo núcleo compartido `@fractal/core/progress-map` para garantizar que `fractal status --write` y `pnpm progress` produzcan exactamente la misma salida.
 
 
+## FDL parser
+
+El parser de FDL convierte el texto de un documento FDL (JSON) en la
+representación interna (IR) tipada de FDL v0 (los tipos `FdlDocument`,
+`FdlEntity`, `FdlField`, `FdlRelation`, etc., definidos en
+`src/types/fdl.ts`). No tiene gramática ni lexer propios (ADR-0003): hace
+`JSON.parse` y mapea el valor resultante a `FdlDocument`.
+
+### `parseFdl(source)`
+
+```typescript
+import { parseFdl, FdlParseError } from '@fractal/core';
+
+try {
+  const doc = parseFdl(source); // source: string (texto JSON del documento)
+  // doc: FdlDocument tipado, con defaults de §7.3 aplicados
+} catch (error) {
+  if (error instanceof FdlParseError) {
+    console.error(`[${error.code}] ${error.path}: ${error.message}`);
+  }
+}
+```
+
+- **Entrada:** `source: string`, el texto JSON de un documento FDL con el shape
+  de SPEC-0004 §7.
+- **Salida:** `FdlDocument`, la IR tipada del documento.
+- **Claves desconocidas:** se ignoran; la IR producida solo contiene claves
+  conocidas.
+
+### Defaults aplicados (§7.3)
+
+Al construir la IR, los modificadores ausentes se materializan en su valor por
+defecto:
+
+- `field.nullable` → `false`
+- `field.unique` → `false`
+- `field.primaryKey` → `false`
+- `relation.nullable` → `false`
+
+Los demás modificadores (`default`, `maxLength`, `precision`, `scale`,
+`values`, `description`, `inverse`) no tienen default: si están ausentes, se
+omiten de la IR.
+
+### Errores (`FdlParseError`)
+
+`parseFdl` lanza `FdlParseError` ante la primera violación encontrada
+(fail-fast). El error expone:
+
+- `code`: uno de `'INVALID_JSON' | 'MISSING_KEY' | 'INVALID_TYPE'`.
+- `path`: ubicación localizada del error, con la raíz como `(root)`, claves
+  anidadas unidas por `.` e índices de array entre corchetes
+  (p. ej. `entities[0].fields[2].name`).
+
+### Frontera forma / semántica
+
+El parser detecta **solo errores de forma de documento**: JSON inválido, claves
+obligatorias ausentes y tipos de valor JS incorrectos. **No** ejecuta
+validación semántica (VR-1..VR-12), que es alcance de **FRA-58**: no comprueba
+que `field.type` esté en el catálogo, que `relation.kind` sea una cardinalidad
+válida, que `fdlVersion` sea un valor soportado, ni unicidad/validez de
+nombres, integridad referencial o compatibilidad de tipo/modificador. Un
+documento bien formado pero semánticamente inválido (p. ej. `type: "banana"`)
+se parsea sin error y será rechazado por el validador.
+
 ## Uso del Bridge Node → Toolchain
 
 El módulo `adapter-bridge` permite al core invocar la toolchain de cualquier target sin conocerla, delegando ese conocimiento exclusivamente al adapter correspondiente.
