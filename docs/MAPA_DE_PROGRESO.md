@@ -87,8 +87,9 @@ flowchart LR
 - **M1 🟡** — El deploy está mergeado (FRA-36 / FRA-37 / FRA-38), pero su DoD y
   el e2e en CI siguen pendientes; los specs continúan **Aprobados**, no
   Implementados.
-- **M2 🟡** — SPEC-0006 (contrato del adapter) pasó a **Aprobado** y ya tiene
-  tickets creados (FRA-39 a FRA-42); la generación todavía no arrancó.
+- **M2 🟡** — SPEC-0006 (contrato del adapter) quedó **Implementado**
+  (2026-10-11, FRA-55): `fractal new` ya genera las tres topologías contra el
+  contrato. El resto de M2 (FDL, generación de entidades) sigue pendiente.
 - **M3–M6 ⬜** — Pendientes.
 
 ---
@@ -141,8 +142,9 @@ flowchart TD
 Cómo leerlo:
 
 - **`fractal new` y `fractal deploy` 🟡** — trabajo de M1 mergeado, DoD pendiente.
-- **`fractal entity` 🟡** — el contrato del adapter (SPEC-0006) está aprobado, así
-  que la capability cuenta como arrancada; la generación en sí sigue pendiente.
+- **`fractal entity` 🟡** — el contrato del adapter (SPEC-0006) está
+  **Implementado**, así que la capability cuenta como arrancada; la generación
+  de entidades en sí sigue pendiente.
 - **FDL / entidades ⬜** — el modelo intermedio (ADR-0003: entidades, campos,
   relaciones, reglas) está especificado, pero su parser/generación es M2 sin
   entregar.
@@ -163,7 +165,7 @@ tabla solo lo espeja.
 |---|---|---|---|
 | M0 — Fundaciones | ADR-0002/0003/0004/0006/0007 ✅, lint de acoplamiento ✅, monorepo ✅, **CI base** ⬜ | 🟡 (falta CI base) | M0 — Fundaciones |
 | M1 — Esqueleto vertical | SPEC-0001, SPEC-0002, SPEC-0003 | ⬜ (deploy mergeado; DoD/CI e2e pendiente) | M1 — Esqueleto vertical |
-| M2 — FDL y generación de entidades | SPEC-0004 … SPEC-0013 (SPEC-0006 **Aprobado**) | ⬜ | M2 — FDL y generación de entidades |
+| M2 — FDL y generación de entidades | SPEC-0004 … SPEC-0013 (SPEC-0006 **Implementado** ✅) | 🟡 (SPEC-0006 cerrado; resto pendiente) | M2 — FDL y generación de entidades |
 | M3 — Autenticación y autorización | SPEC-0014, SPEC-0015, SPEC-0016 | ⬜ | M3 — Autenticación y autorización |
 | M4 — Adapter Rails | SPEC-0017 … SPEC-0021 | ⬜ | M4 — Adapter Rails |
 | M5 — Módulos avanzados | SPEC-0022 … SPEC-0026 | ⬜ | M5 — Módulos avanzados |

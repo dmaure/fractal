@@ -1,13 +1,14 @@
 # Roadmap
 
-**Última revisión:** 2026-09-27
+**Última revisión:** 2026-10-11
 
 > Mapa visual del avance: ver [`MAPA_DE_PROGRESO.md`](./MAPA_DE_PROGRESO.md).
 
 > Base de esta actualización: ADRs M0 aceptados (0002/0003/0004/0006/0007),
 > estructura de `docs/` y monorepo pnpm ya presentes, y lint de acoplamiento
 > con script propio. M1 de deploy (SPEC-0003) mergeado pero aún Aprobado
-> (falta e2e en CI y docs de usuario); SPEC-0006 pasó a Aprobado (no entregado).
+> (falta e2e en CI y docs de usuario); SPEC-0006 (contrato del adapter) quedó
+> **Implementado** el 2026-10-11 (FRA-55).
 
 Cada milestone entrega valor verificable por sí solo.
 
@@ -66,7 +67,7 @@ invertir en generación de código.
 |---|---|---|
 | SPEC-0004 | Especificación del lenguaje FDL | ⬜ |
 | SPEC-0005 | Parser y validador de FDL | ⬜ |
-| SPEC-0006 | Contrato del adapter | 🟡 |
+| SPEC-0006 | Contrato del adapter | ✅ |
 | SPEC-0007 | Motor de templating de stubs | ⬜ |
 | SPEC-0008 | Entidad: migration, model, factory, seeder | ⬜ |
 | SPEC-0009 | Capas Repository y Service | ⬜ |
@@ -77,16 +78,19 @@ invertir en generación de código.
 
 **Salida:** `fractal entity Producto` genera CRUD completo y desplegable.
 
-> SPEC-0006 (contrato del adapter) pasó a **Aprobado** el 2026-09-27 y arrancó
-> su implementación: sus cuatro tickets están mergeados — T1/FRA-39 (tipos TS
-> del contrato en core), T2/FRA-40 (consumo en `packages/deploy`), T3/FRA-41
-> (chequeo de versión mínima de runtime) y T4/FRA-42 (comando "crear proyecto
-> base" en `adapter-laravel`). Por eso pasa de ⬜ a **🟡 en curso** (glifo
-> intermedio de `MAPA_DE_PROGRESO.md`): todavía **no está entregado** porque
-> falta conectar `fractal new` al adapter (hoy `packages/core/src/commands/new.ts`
-> termina en "parámetros validados" con un TODO), paso sin el cual la capability
-> no funciona de punta a punta. No se marca ✅ hasta cerrar esa conexión y la
-> Definition of Done del spec.
+> SPEC-0006 (contrato del adapter) quedó **Implementado** el 2026-10-11
+> (FRA-55, cierre documental). Sus cuatro tickets base están mergeados —
+> T1/FRA-39 (tipos TS del contrato en core), T2/FRA-40 (consumo en
+> `packages/deploy`), T3/FRA-41 (chequeo de versión mínima de runtime) y
+> T4/FRA-42 (comando "crear proyecto base" en `adapter-laravel`)— y también
+> el trabajo que lo entrega de punta a punta: FRA-52 (esqueleto Laravel
+> ejecutable), FRA-54 (conectar `fractal new` al adapter vía el bridge),
+> FRA-53 (snapshots del árbol por topología) y FRA-51 (`fractal deploy` lee el
+> `deployRuntime` del contrato por target). `fractal new` ya genera las tres
+> topologías contra el contrato y la Definition of Done del §9 del spec se
+> cumple por completo (evidencia en SPEC-0006 §9.1). Por eso pasa de 🟡 a **✅**.
+> Nota: el milestone M2 sigue abierto; SPEC-0006 es la primera de sus specs en
+> cerrarse, el resto (FDL, generación de entidades) continúa pendiente.
 
 ---
 
