@@ -1,13 +1,18 @@
 # SPEC-0006: Contrato del adapter (v0 — alcance mínimo para `fractal new`)
 
-**Estado:** Aprobado
+**Estado:** Implementado
 **Autor:** Diego
 **Fecha:** 2026-08-26
-**Última revisión:** 2026-09-27 — resueltas las 2 preguntas abiertas del §8
-(P1: contrato como tipos TS exportados desde core, migración a JSON Schema
-diferida a M4/adapter Rails; P2: campo único de healthcheck agnóstico al
-runtime — ADR-0013 nginx-only sirve una ruta estática). Pasa de Draft a
-Aprobado.
+**Última revisión:** 2026-10-11 (FRA-55) — **cierre documental**: los cuatro
+tickets del contrato v0 y la conexión de `fractal new` al adapter están
+mergeados (PRs #53, #55, #57, #58, #60, #61, #62, #63), la Definition of Done
+del §9 se cumple en su totalidad (evidencia en §9.1) y se escribió la
+documentación de usuario (`docs/guides/fractal-new.md`). Pasa de Aprobado a
+**Implementado**. Revisión previa 2026-09-27 — resueltas las 2 preguntas
+abiertas del §8 (P1: contrato como tipos TS exportados desde core, migración a
+JSON Schema diferida a M4/adapter Rails; P2: campo único de healthcheck
+agnóstico al runtime — ADR-0013 nginx-only sirve una ruta estática); pasó de
+Draft a Aprobado.
 **Issue:** #
 
 ---
@@ -201,12 +206,40 @@ Ninguna pendiente. Las dos preguntas se resolvieron el 2026-09-27:
 
 ## 9. Definition of Done
 
-- [ ] Todos los criterios de aceptación tienen test automatizado
-- [ ] Tests de snapshot de los stubs actualizados (si aplica)
-- [ ] Test end-to-end pasa
-- [ ] Documentación de usuario escrita
-- [ ] ADRs asociados creados si hubo decisiones técnicas
-- [ ] Este spec marcado como Implementado
+- [x] Todos los criterios de aceptación tienen test automatizado
+  — AC-1..AC-4, ver mapeo de evidencia en §9.1.
+- [x] Tests de snapshot de los stubs actualizados (si aplica)
+  — `packages/adapter-laravel/src/commands/__snapshots__/create-project.tree.test.ts.snap`
+  (estructura + contenido de las tres topologías), FRA-53 (#62).
+- [x] Test end-to-end pasa
+  — `packages/core/src/commands/e2e-new.test.ts` (flujo completo con stubs de
+  php/composer, FRA-54 #60) y `packages/adapter-laravel/src/e2e/laravel.test.ts`
+  (php/composer reales en CI).
+- [x] Documentación de usuario escrita
+  — `docs/guides/fractal-new.md` (FRA-55) y `packages/adapter-laravel/README.md`.
+- [x] ADRs asociados creados si hubo decisiones técnicas
+  — ADR-0013 (nginx-only para frontend estático) y ADR-0014 (stubs Laravel
+  versionados); las decisiones de FRA-51 (semántica de `port`,
+  `postDeployCommands`) quedaron documentadas en §7.1.
+- [x] Este spec marcado como Implementado — ver cabecera (2026-10-11, FRA-55).
+
+---
+
+## 9.1 Cierre — mapeo de evidencia (FRA-55)
+
+Cada criterio de aceptación del §4 queda cubierto por código y tests mergeados
+en `master`. Verificado contra el código, no solo contra los mensajes de commit.
+
+| AC | Qué exige | Evidencia (código + tests) | Tickets / PRs |
+|---|---|---|---|
+| **AC-1** — comando "crear proyecto base" | El adapter genera el proyecto Laravel de la topología pedida y devuelve éxito o error propagable | `packages/adapter-laravel/src/commands/create-project.ts` y los generadores `monolith`/`monorepo`/`multirepo`; tests `create-project.test.ts` y `create-project.tree.test.ts`. `fractal new` invoca `create-project` vía el bridge en `packages/core/src/commands/new.ts`; e2e en `e2e-new.test.ts` | FRA-42 (#58), FRA-52 (#61), FRA-53 (#62), FRA-54 (#60) |
+| **AC-2** — versión mínima de runtime | El adapter declara binarios/versiones y el mecanismo genérico los lee | `LARAVEL_RUNTIME_REQUIREMENTS` (PHP >= 8.2.0, Composer >= 2.5.0) en `packages/adapter-laravel/src/contract.ts`; chequeo genérico `checkRuntimeRequirements`/`checkBinaryVersion` en `packages/core/src/bridge/binary-check.ts`; tests en `contract.test.ts` y los tests de `binary-check` | FRA-39 (#53), FRA-41 (#57) |
+| **AC-3** — runtime de deploy | El contrato expone servicios, build/migrate/post-deploy, puerto y healthcheck por target; `packages/deploy` los consume | `LARAVEL_BACKEND_DEPLOY_RUNTIME` (servicios `['app','nginx','db','redis','worker','scheduler']`) y `LARAVEL_FRONTEND_DEPLOY_RUNTIME` en `contract.ts`; consumo en `packages/deploy/src/runtime` y en los generadores de CI/CD; `fractal deploy` resuelve el `DeployTarget` por rol (§7.1). Tests: `contract.test.ts`, `packages/deploy/src/runtime/*.test.ts`, `packages/core/src/commands/deploy-cicd-generation.test.ts` | FRA-40 (#55), FRA-51 (#63) |
+| **AC-4** — shape del payload documentado | Tipos TS sin ambigüedad del payload; campos obligatorios vs opcionales | Tipos en `packages/core/src/types/adapter-contract.ts`; tests de tipos `adapter-contract.test-d.ts` y `adapter-contract.test.ts`; doc del contrato en `packages/core/docs/adapter-contract-v0.md` | FRA-39 (#53) |
+
+Sin ítems pendientes: las cuatro tareas del §10 (T1–T4) más los tickets de
+cierre de M1→M2 (FRA-51/52/53/54) están mergeados. No queda nada diferido a
+otro ticket.
 
 ---
 

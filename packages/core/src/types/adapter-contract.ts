@@ -195,7 +195,7 @@ export interface DeployRuntime {
    * Lista de servicios que componen el runtime.
    * 
    * Ejemplos:
-   * - Backend completo: ["app", "nginx", "db", "cache", "worker", "scheduler"]
+   * - Backend completo: ["app", "nginx", "db", "redis", "worker", "scheduler"]
    * - Frontend estático: ["nginx"]
    */
   services: ServiceName[];

@@ -175,7 +175,7 @@ type ServiceName = string;
 Backend completo:
 ```typescript
 const backendRuntime: DeployRuntime = {
-  services: ['app', 'nginx', 'db', 'cache', 'worker', 'scheduler'],
+  services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
   buildCommand: 'npm run build',
   migrateCommand: 'npm run migrate',
   port: 8080,
