@@ -27,7 +27,7 @@ Cada milestone entrega valor verificable por sí solo.
 | ADR-0004: estrategia multi-DB | ✅ |
 | ADR-0006: Docker Compose como runtime | ✅ |
 | ADR-0007: GitHub Actions como CI/CD | ✅ |
-| CI base: lint, tests, matriz de versiones | ⬜ |
+| CI base: lint, tests, matriz de versiones | ✅ |
 | Lint de acoplamiento (Artículo II) | ✅ |
 | Monorepo con workspaces configurado | ✅ |
 | Visibilidad de estado del proyecto (SPEC-0031) | ⬜[^spec0031] |
@@ -91,6 +91,12 @@ invertir en generación de código.
 > cumple por completo (evidencia en SPEC-0006 §9.1). Por eso pasa de 🟡 a **✅**.
 > Nota: el milestone M2 sigue abierto; SPEC-0006 es la primera de sus specs en
 > cerrarse, el resto (FDL, generación de entidades) continúa pendiente.
+
+> SPEC-0004 (lenguaje FDL) quedó **redactado en estado Draft** el 2026-10-11
+> (`docs/specs/0004-lenguaje-fdl.md`): define FDL como lenguaje/schema JSON
+> agnóstico (ADR-0003), pendiente de aprobación de Diego (Art. XI). La
+> capability FDL sigue `pendiente` en `docs/progress.json` hasta implementarse;
+> por eso su fila de M2 se mantiene en ⬜.
 
 ---
 
