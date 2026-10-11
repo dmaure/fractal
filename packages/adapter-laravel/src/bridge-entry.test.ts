@@ -79,6 +79,73 @@ describe('bridge-entry', () => {
         },
       });
     });
+
+    it('sin target retorna el runtime de backend (con postDeployCommands)', async () => {
+      const result = await invokeBridgeEntry({ action: 'get-contract' });
+
+      expect(result.exitCode).toBe(0);
+      const response = result.response as {
+        success: boolean;
+        data: { deployRuntime: { services: string[]; port: number; postDeployCommands?: string[] } };
+      };
+      expect(response.success).toBe(true);
+      expect(response.data.deployRuntime.services).toContain('app');
+      expect(response.data.deployRuntime.port).toBe(8000);
+      expect(response.data.deployRuntime.postDeployCommands).toEqual([
+        'php artisan config:clear',
+        'php artisan route:clear',
+        'php artisan view:clear',
+        'php artisan cache:clear',
+      ]);
+    });
+
+    it('con target frontend-static retorna el runtime nginx-only', async () => {
+      const result = await invokeBridgeEntry({
+        action: 'get-contract',
+        target: 'frontend-static',
+      });
+
+      expect(result.exitCode).toBe(0);
+      const response = result.response as {
+        success: boolean;
+        data: { deployRuntime: { services: string[]; port: number; healthcheck: { path: string } } };
+      };
+      expect(response.success).toBe(true);
+      expect(response.data.deployRuntime.services).toEqual(['nginx']);
+      expect(response.data.deployRuntime.port).toBe(80);
+      expect(response.data.deployRuntime.healthcheck.path).toBe('/health.txt');
+    });
+
+    it('con target backend-full retorna el runtime de backend', async () => {
+      const result = await invokeBridgeEntry({
+        action: 'get-contract',
+        target: 'backend-full',
+      });
+
+      expect(result.exitCode).toBe(0);
+      const response = result.response as {
+        success: boolean;
+        data: { deployRuntime: { services: string[] } };
+      };
+      expect(response.success).toBe(true);
+      expect(response.data.deployRuntime.services).toContain('scheduler');
+    });
+
+    it('con target inválido retorna success: false', async () => {
+      const result = await invokeBridgeEntry({
+        action: 'get-contract',
+        target: 'invalid-target',
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.response).toMatchObject({
+        success: false,
+        error: {
+          message: expect.stringContaining('target'),
+          step: 'validación',
+        },
+      });
+    });
   });
 
   describe('create-project', () => {

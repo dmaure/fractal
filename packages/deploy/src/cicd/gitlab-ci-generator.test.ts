@@ -1,6 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import { GitLabCiGenerator } from './gitlab-ci-generator.js';
 import type { DeployConfig } from './types.js';
+import type { DeployRuntime } from '@fractal/core';
+
+/**
+ * Runtimes equivalentes a los que declara el adapter Laravel (FRA-51).
+ * Los comandos del pipeline se derivan de estos runtimes, no se hardcodean.
+ */
+const BACKEND_RUNTIME: DeployRuntime = {
+  services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+  buildCommand: 'composer install --no-dev --optimize-autoloader',
+  migrateCommand: 'php artisan migrate --force',
+  postDeployCommands: [
+    'php artisan config:clear',
+    'php artisan route:clear',
+    'php artisan view:clear',
+    'php artisan cache:clear',
+  ],
+  port: 8000,
+  healthcheck: { path: '/api/health' },
+};
+
+const FRONTEND_RUNTIME: DeployRuntime = {
+  services: ['nginx'],
+  buildCommand: 'npm run build',
+  port: 80,
+  healthcheck: { path: '/health.txt' },
+};
 
 describe('GitLabCiGenerator', () => {
   const generator = new GitLabCiGenerator();
@@ -10,6 +36,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -25,6 +52,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test-web',
         productionBranch: 'main',
         domain: 'app.example.com',
@@ -40,6 +68,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: '',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -55,6 +84,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: '',
         domain: 'api.example.com',
@@ -70,6 +100,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: '',
@@ -85,6 +116,7 @@ describe('GitLabCiGenerator', () => {
       const config = {
         provider: 'gitlab-ci',
         targetType: 'invalid' as any,
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -97,12 +129,78 @@ describe('GitLabCiGenerator', () => {
     });
   });
 
+  describe('commands derived from runtime (FRA-51)', () => {
+    it('should emit migrate and post-deploy commands from the backend runtime', () => {
+      const config: DeployConfig = {
+        provider: 'gitlab-ci',
+        targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
+        projectName: 'myapi',
+        productionBranch: 'production',
+        domain: 'api.example.com',
+        outputPath: '/tmp/test-gitlab-derived-backend.yml',
+      };
+
+      const content = generator.generatePipelineContent(config);
+
+      expect(content).toContain('docker compose exec -T app php artisan migrate --force');
+      expect(content).toContain('docker compose exec -T app php artisan config:clear');
+      expect(content).toContain('docker compose exec -T app php artisan cache:clear');
+      expect(content).toContain('https://api.example.com/api/health');
+    });
+
+    it('should omit migrate and post-deploy commands for a runtime without them', () => {
+      const config: DeployConfig = {
+        provider: 'gitlab-ci',
+        targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
+        projectName: 'myweb',
+        productionBranch: 'main',
+        domain: 'app.example.com',
+        outputPath: '/tmp/test-gitlab-derived-frontend.yml',
+      };
+
+      const content = generator.generatePipelineContent(config);
+
+      expect(content).not.toContain('migrate');
+      expect(content).not.toContain('Comandos post-deploy');
+      expect(content).toContain('https://app.example.com/health.txt');
+    });
+
+    it('should honor a custom runtime (agnostic, non-Laravel)', () => {
+      const customRuntime: DeployRuntime = {
+        services: ['app', 'nginx'],
+        buildCommand: 'make build',
+        migrateCommand: 'bin/migrate',
+        postDeployCommands: ['bin/warm-cache'],
+        port: 3000,
+        healthcheck: { path: '/status' },
+      };
+      const config: DeployConfig = {
+        provider: 'gitlab-ci',
+        targetType: 'backend-full',
+        runtime: customRuntime,
+        projectName: 'custom',
+        productionBranch: 'production',
+        domain: 'custom.example.com',
+        outputPath: '/tmp/test-gitlab-derived-custom.yml',
+      };
+
+      const content = generator.generatePipelineContent(config);
+
+      expect(content).toContain('docker compose exec -T app bin/migrate');
+      expect(content).toContain('docker compose exec -T app bin/warm-cache');
+      expect(content).toContain('https://custom.example.com/status');
+    });
+  });
+
   describe('generate - backend-full', () => {
     it('should generate pipeline for backend-full', async () => {
       const outputPath = '/tmp/test-gitlab-ci-backend-' + Math.random() + '.yml';
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -122,6 +220,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -145,6 +244,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'myweb',
         productionBranch: 'main',
         domain: 'app.example.com',
@@ -165,6 +265,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'myweb',
         productionBranch: 'main',
         domain: 'app.example.com',
@@ -186,6 +287,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -208,6 +310,7 @@ describe('GitLabCiGenerator', () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -223,7 +326,7 @@ describe('GitLabCiGenerator', () => {
 
       expect(result.crossRepoSecrets).toBeDefined();
       expect(result.crossRepoSecrets!.length).toBeGreaterThan(0);
-      
+
       const crossSecret = result.crossRepoSecrets!.find((s) => s.name === 'API_URL');
       expect(crossSecret).toBeDefined();
       expect(crossSecret!.crossRepo).toBe(true);
@@ -236,7 +339,8 @@ describe('GitLabCiGenerator', () => {
     it('should not contain Laravel-specific terms in result', async () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
-        targetType: 'backend-full',
+        targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -244,7 +348,7 @@ describe('GitLabCiGenerator', () => {
       };
 
       const result = await generator.generate(config);
-      
+
       const prohibitedTerms = [
         'laravel',
         'eloquent',
@@ -253,7 +357,7 @@ describe('GitLabCiGenerator', () => {
 
       // Check secrets and content, not filePath (which is just a test artifact)
       const checkContent = JSON.stringify({ secrets: result.secrets, content: result.content }).toLowerCase();
-      
+
       prohibitedTerms.forEach((term) => {
         expect(checkContent).not.toContain(term);
       });
@@ -262,7 +366,8 @@ describe('GitLabCiGenerator', () => {
     it('should not contain Rails-specific terms in result', async () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
-        targetType: 'backend-full',
+        targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -270,7 +375,7 @@ describe('GitLabCiGenerator', () => {
       };
 
       const result = await generator.generate(config);
-      
+
       const prohibitedTerms = [
         'rails',
         'activerecord',
@@ -281,7 +386,7 @@ describe('GitLabCiGenerator', () => {
 
       // Check secrets and content, not filePath (which is just a test artifact)
       const checkContent = JSON.stringify({ secrets: result.secrets, content: result.content }).toLowerCase();
-      
+
       prohibitedTerms.forEach((term) => {
         expect(checkContent).not.toContain(term);
       });

@@ -1,0 +1,281 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Compose Snapshots > should generate consistent docker-compose for backend-full 1`] = `
+"# docker-compose.yml generado por Fractal
+# Proyecto: myapi
+# No editar manualmente - regenerar con 'fractal deploy'
+
+version: '3.8'
+
+services:
+  app:
+    image: \${DOCKER_REGISTRY:-localhost}/myapi:latest
+    container_name: myapi_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    expose:
+      - "8000"
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    networks:
+      - myapi_network
+    depends_on:
+      - db
+      - redis
+
+  nginx:
+    image: nginx:alpine
+    container_name: myapi_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - myapi_network
+    depends_on:
+      - app
+
+  db:
+    image: postgres:15-alpine
+    container_name: myapi_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=\${DB_DATABASE:-myapi}
+      - POSTGRES_USER=\${DB_USERNAME:-myapi}
+      - POSTGRES_PASSWORD=\${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - myapi_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: myapi_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - myapi_network
+
+  worker:
+    image: \${DOCKER_REGISTRY:-localhost}/myapi:latest
+    container_name: myapi_worker
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    command: ["sh", "-c", "while true; do echo 'Worker placeholder - configure with adapter'; sleep 60; done"]
+    networks:
+      - myapi_network
+    depends_on:
+      - db
+      - redis
+
+  scheduler:
+    image: \${DOCKER_REGISTRY:-localhost}/myapi:latest
+    container_name: myapi_scheduler
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    command: ["sh", "-c", "while true; do echo 'Scheduler placeholder - configure with adapter'; sleep 60; done"]
+    networks:
+      - myapi_network
+    depends_on:
+      - db
+      - redis
+
+networks:
+  myapi_network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  redis_data:
+    driver: local
+"
+`;
+
+exports[`Compose Snapshots > should generate consistent docker-compose for frontend-static 1`] = `
+"# docker-compose.yml generado por Fractal
+# Proyecto: myweb
+# No editar manualmente - regenerar con 'fractal deploy'
+
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: myweb_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    expose:
+      - "80"
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - myweb_network
+
+networks:
+  myweb_network:
+    driver: bridge
+"
+`;
+
+exports[`Compose Snapshots > should generate consistent docker-compose for multirepo api (backend) 1`] = `
+"# docker-compose.yml generado por Fractal
+# Proyecto: project-api
+# No editar manualmente - regenerar con 'fractal deploy'
+
+version: '3.8'
+
+services:
+  app:
+    image: \${DOCKER_REGISTRY:-localhost}/project-api:latest
+    container_name: project-api_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    expose:
+      - "8000"
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    networks:
+      - project-api_network
+    depends_on:
+      - db
+      - redis
+
+  nginx:
+    image: nginx:alpine
+    container_name: project-api_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - project-api_network
+    depends_on:
+      - app
+
+  db:
+    image: postgres:15-alpine
+    container_name: project-api_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=\${DB_DATABASE:-project-api}
+      - POSTGRES_USER=\${DB_USERNAME:-project-api}
+      - POSTGRES_PASSWORD=\${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - project-api_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: project-api_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - project-api_network
+
+  worker:
+    image: \${DOCKER_REGISTRY:-localhost}/project-api:latest
+    container_name: project-api_worker
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    command: ["sh", "-c", "while true; do echo 'Worker placeholder - configure with adapter'; sleep 60; done"]
+    networks:
+      - project-api_network
+    depends_on:
+      - db
+      - redis
+
+  scheduler:
+    image: \${DOCKER_REGISTRY:-localhost}/project-api:latest
+    container_name: project-api_scheduler
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    command: ["sh", "-c", "while true; do echo 'Scheduler placeholder - configure with adapter'; sleep 60; done"]
+    networks:
+      - project-api_network
+    depends_on:
+      - db
+      - redis
+
+networks:
+  project-api_network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  redis_data:
+    driver: local
+"
+`;
+
+exports[`Compose Snapshots > should generate consistent docker-compose for multirepo web (frontend) 1`] = `
+"# docker-compose.yml generado por Fractal
+# Proyecto: project-web
+# No editar manualmente - regenerar con 'fractal deploy'
+
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: project-web_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    expose:
+      - "80"
+    volumes:
+      - ./dist:/usr/share/nginx/html:ro
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - project-web_network
+
+networks:
+  project-web_network:
+    driver: bridge
+"
+`;

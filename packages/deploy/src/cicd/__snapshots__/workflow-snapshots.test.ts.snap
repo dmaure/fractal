@@ -91,18 +91,18 @@ jobs:
             
             # Esperar que los contenedores estén listos
             sleep 10
-            
+
             # Ejecutar migraciones
             docker compose exec -T app php artisan migrate --force
-            
-            # Limpiar caches
+
+            # Comandos post-deploy
             docker compose exec -T app php artisan config:clear
             docker compose exec -T app php artisan route:clear
             docker compose exec -T app php artisan view:clear
             docker compose exec -T app php artisan cache:clear
             
             # Healthcheck
-            HEALTH_URL="https://api.example.com/health"
+            HEALTH_URL="https://api.example.com/api/health"
             echo "Checking health at $HEALTH_URL"
             
             HEALTHCHECK_PASSED=false
@@ -300,7 +300,7 @@ jobs:
             sleep 10
             
             # Healthcheck
-            HEALTH_URL="https://app.example.com/"
+            HEALTH_URL="https://app.example.com/health.txt"
             echo "Checking health at $HEALTH_URL"
             
             HEALTHCHECK_PASSED=false
@@ -496,18 +496,18 @@ jobs:
             
             # Esperar que los contenedores estén listos
             sleep 10
-            
+
             # Ejecutar migraciones
             docker compose exec -T app php artisan migrate --force
-            
-            # Limpiar caches
+
+            # Comandos post-deploy
             docker compose exec -T app php artisan config:clear
             docker compose exec -T app php artisan route:clear
             docker compose exec -T app php artisan view:clear
             docker compose exec -T app php artisan cache:clear
             
             # Healthcheck
-            HEALTH_URL="https://api.example.com/health"
+            HEALTH_URL="https://api.example.com/api/health"
             echo "Checking health at $HEALTH_URL"
             
             HEALTHCHECK_PASSED=false
@@ -705,7 +705,7 @@ jobs:
             sleep 10
             
             # Healthcheck
-            HEALTH_URL="https://app.example.com/"
+            HEALTH_URL="https://app.example.com/health.txt"
             echo "Checking health at $HEALTH_URL"
             
             HEALTHCHECK_PASSED=false
@@ -881,18 +881,18 @@ deploy:
         
         # Esperar que los contenedores estén listos
         sleep 10
-        
+
         # Ejecutar migraciones
         docker compose exec -T app php artisan migrate --force
-        
-        # Limpiar caches
+
+        # Comandos post-deploy
         docker compose exec -T app php artisan config:clear
         docker compose exec -T app php artisan route:clear
         docker compose exec -T app php artisan view:clear
         docker compose exec -T app php artisan cache:clear
         
         # Healthcheck
-        HEALTH_URL="https://api.example.com/health"
+        HEALTH_URL="https://api.example.com/api/health"
         echo "Checking health at $HEALTH_URL"
         
         HEALTHCHECK_PASSED=false
@@ -1066,7 +1066,7 @@ deploy:
         sleep 10
         
         # Healthcheck
-        HEALTH_URL="https://app.example.com/"
+        HEALTH_URL="https://app.example.com/health.txt"
         echo "Checking health at $HEALTH_URL"
         
         HEALTHCHECK_PASSED=false
@@ -1238,18 +1238,18 @@ deploy:
         
         # Esperar que los contenedores estén listos
         sleep 10
-        
+
         # Ejecutar migraciones
         docker compose exec -T app php artisan migrate --force
-        
-        # Limpiar caches
+
+        # Comandos post-deploy
         docker compose exec -T app php artisan config:clear
         docker compose exec -T app php artisan route:clear
         docker compose exec -T app php artisan view:clear
         docker compose exec -T app php artisan cache:clear
         
         # Healthcheck
-        HEALTH_URL="https://api.example.com/health"
+        HEALTH_URL="https://api.example.com/api/health"
         echo "Checking health at $HEALTH_URL"
         
         HEALTHCHECK_PASSED=false
@@ -1423,7 +1423,7 @@ deploy:
         sleep 10
         
         # Healthcheck
-        HEALTH_URL="https://app.example.com/"
+        HEALTH_URL="https://app.example.com/health.txt"
         echo "Checking health at $HEALTH_URL"
         
         HEALTHCHECK_PASSED=false

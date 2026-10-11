@@ -1,9 +1,12 @@
-import { resolve, basename } from 'node:path';
+import { resolve, basename, dirname } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
-import type { DeployRuntime } from '../types/adapter-contract.js';
+import type { AdapterContract } from '../types/adapter-contract.js';
+import { resolveSingleAdapter } from '../adapter-resolver.js';
+import { invokeAdapter } from '../adapter-bridge.js';
 import { promptDeployParams, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
 // NOTA (FRA-46): `@fractal/deploy` arrastra `ssh2` (módulo nativo) de forma
 // transitiva. Importarlo estáticamente aquí hacía que cargar el CLI —y por lo
@@ -75,37 +78,6 @@ function determineTargetType(role?: 'api' | 'web'): TargetType {
   }
   
   return 'backend-full';
-}
-
-/**
- * Construye un DeployRuntime según el tipo de target.
- * Implementa decisión de producto #4 (SPEC-0006 T2).
- * 
- * Esta función hace el mapping temporal entre TargetType legacy y DeployRuntime
- * del contrato del adapter. Cuando existan adapters reales (T4), esta lógica
- * se moverá a los adapters y aquí solo se consultará el contrato.
- */
-function createDeployRuntime(targetType: TargetType): DeployRuntime {
-  if (targetType === 'backend-full') {
-    return {
-      services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
-      buildCommand: 'docker build -t ${DOCKER_REGISTRY:-localhost}/${PROJECT_NAME}:latest .',
-      migrateCommand: 'docker compose exec app migrate',
-      port: 80,
-      healthcheck: {
-        path: '/api/health',
-      },
-    };
-  } else {
-    // frontend-static
-    return {
-      services: ['nginx'],
-      port: 80,
-      healthcheck: {
-        path: '/health.txt',
-      },
-    };
-  }
 }
 
 /**
@@ -571,12 +543,47 @@ export async function deployCommand(
   const projectName = await determineProjectName(projectDir);
   console.log(chalk.dim(`   Nombre del proyecto: ${projectName}`));
   
-  // Decisión de producto #3: Determinar targetType
+  // Decisión de producto #3: Determinar targetType (DeployTarget)
   const targetType = determineTargetType(currentRole);
   console.log(chalk.dim(`   Tipo de target: ${targetType}`));
-  
-  // Decisión de producto #4: Construir DeployRuntime desde el targetType (SPEC-0006 T2)
-  const deployRuntime = createDeployRuntime(targetType);
+
+  // Decisión de producto #4: Leer el DeployRuntime del contrato del adapter
+  // para este target (SPEC-0006 AC-3, FRA-51). Se resuelve el adapter y se
+  // invoca `get-contract` pasando el target, en vez de fabricar el runtime
+  // localmente. Mismo patrón que `fractal new` (new.ts).
+  const cliPath = dirname(fileURLToPath(import.meta.url));
+  let adapter;
+  try {
+    adapter = resolveSingleAdapter(cliPath);
+    console.log(chalk.dim(`   Adapter: ${adapter.target}`));
+  } catch (error) {
+    console.error(
+      chalk.red(
+        `\n❌ Error al resolver adapter: ${error instanceof Error ? error.message : String(error)}`
+      )
+    );
+    process.exit(1);
+  }
+
+  const contractResult = await invokeAdapter(
+    adapter.command,
+    { action: 'get-contract', target: targetType }
+  );
+
+  if (!contractResult.success) {
+    console.error(
+      chalk.red(
+        `\n❌ Error al obtener contrato del adapter: ${contractResult.error.message}`
+      )
+    );
+    if (contractResult.error.step) {
+      console.error(chalk.dim(`   Paso: ${contractResult.error.step}`));
+    }
+    process.exit(1);
+  }
+
+  const contract = contractResult.data as AdapterContract;
+  const deployRuntime = contract.deployRuntime;
   console.log(chalk.dim(`   Servicios: ${deployRuntime.services.join(', ')}`));
   
   const runtimeManager = new RuntimeManager(deployClient);
@@ -863,6 +870,7 @@ export async function deployCommand(
   const deployConfig = {
     provider: ciProvider,
     targetType,
+    runtime: deployRuntime,
     projectName,
     productionBranch: params.productionBranch,
     domain: params.domain,

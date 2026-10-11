@@ -13,7 +13,7 @@
 
 import { createProject } from './commands/create-project.js';
 import { getAdapterContract } from './contract.js';
-import type { CreateProjectPayload } from '@fractal/core';
+import type { CreateProjectPayload, DeployTarget } from '@fractal/core';
 
 interface BridgeAction {
   action: string;
@@ -109,12 +109,36 @@ async function main(): Promise<void> {
     let response: BridgeResponse;
     
     switch (payload.action) {
-      case 'get-contract':
+      case 'get-contract': {
+        // El target es opcional; si está presente debe ser uno de los valores
+        // válidos de DeployTarget. Si está ausente, se usa el default
+        // ('backend-full') de getAdapterContract.
+        let target: DeployTarget | undefined;
+
+        if (payload.target !== undefined) {
+          if (
+            payload.target !== 'backend-full' &&
+            payload.target !== 'frontend-static'
+          ) {
+            response = {
+              success: false,
+              error: {
+                message:
+                  'El campo "target" debe ser "backend-full" o "frontend-static"',
+                step: 'validación',
+              },
+            };
+            break;
+          }
+          target = payload.target;
+        }
+
         response = {
           success: true,
-          data: getAdapterContract(),
+          data: getAdapterContract(target),
         };
         break;
+      }
       
       case 'create-project':
         // Validar campos requeridos para create-project

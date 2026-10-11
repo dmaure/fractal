@@ -6,14 +6,33 @@
 
 import { CicdManager } from '../src/cicd/cicd-manager.js';
 import type { DeployConfig } from '../src/cicd/types.js';
+import type { DeployRuntime } from '@fractal/core';
+
+// Runtimes de ejemplo (los declara el contrato del adapter en un deploy real).
+const BACKEND_RUNTIME: DeployRuntime = {
+  services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+  buildCommand: 'build',
+  migrateCommand: 'migrate',
+  postDeployCommands: ['clear-cache'],
+  port: 8000,
+  healthcheck: { path: '/api/health' },
+};
+
+const FRONTEND_RUNTIME: DeployRuntime = {
+  services: ['nginx'],
+  buildCommand: 'build',
+  port: 80,
+  healthcheck: { path: '/health.txt' },
+};
 
 // Ejemplo 1: Generar workflow de GitHub Actions para un backend completo
 function exampleGitHubActionsBackend() {
   const manager = new CicdManager();
-  
+
   const config: DeployConfig = {
     provider: 'github-actions',
     targetType: 'backend-full',
+    runtime: BACKEND_RUNTIME,
     projectName: 'myapi',
     productionBranch: 'production',
     domain: 'api.example.com',
@@ -38,6 +57,7 @@ function exampleGitLabCiFrontend() {
   const config: DeployConfig = {
     provider: 'gitlab-ci',
     targetType: 'frontend-static',
+    runtime: FRONTEND_RUNTIME,
     projectName: 'myweb',
     productionBranch: 'main',
     domain: 'app.example.com',
@@ -62,6 +82,7 @@ function exampleMultiRepoApi() {
   const config: DeployConfig = {
     provider: 'github-actions',
     targetType: 'backend-full',
+    runtime: BACKEND_RUNTIME,
     projectName: 'myapi',
     productionBranch: 'production',
     domain: 'api.example.com',
@@ -101,6 +122,7 @@ function exampleValidation() {
   const config: DeployConfig = {
     provider: 'github-actions',
     targetType: 'backend-full',
+    runtime: BACKEND_RUNTIME,
     projectName: '',  // Inválido
     productionBranch: 'production',
     domain: 'api.example.com',

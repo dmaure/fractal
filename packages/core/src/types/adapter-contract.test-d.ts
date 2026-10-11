@@ -14,6 +14,7 @@ import type {
   RuntimeRequirements,
   BinaryRequirement,
   DeployRuntime,
+  DeployTarget,
   ServiceName,
   HealthCheck,
   AdapterContract,
@@ -338,6 +339,33 @@ describe('Adapter Contract v0 Types', () => {
       expect(nginxOnlyRuntime.services[0]).toBe('nginx');
       expect(nginxOnlyRuntime.buildCommand).toBeUndefined();
       expect(nginxOnlyRuntime.migrateCommand).toBeUndefined();
+      expect(nginxOnlyRuntime.postDeployCommands).toBeUndefined();
+    });
+
+    it('debe aceptar postDeployCommands opcional (FRA-51)', () => {
+      const runtimeWithPostDeploy: DeployRuntime = {
+        services: ['app', 'nginx'],
+        port: 8000,
+        postDeployCommands: ['cmd:clear-cache', 'cmd:warm'],
+        healthcheck: {
+          path: '/api/health',
+        },
+      };
+
+      expect(runtimeWithPostDeploy.postDeployCommands).toHaveLength(2);
+      expectTypeOf(runtimeWithPostDeploy.postDeployCommands).toEqualTypeOf<
+        string[] | undefined
+      >();
+    });
+
+    it('postDeployCommands debe ser opcional en el tipo', () => {
+      // Sin postDeployCommands el runtime sigue siendo válido
+      const runtime: DeployRuntime = {
+        services: ['app'],
+        port: 8000,
+        healthcheck: { path: '/health' },
+      };
+      expect(runtime.postDeployCommands).toBeUndefined();
     });
 
     it('ServiceName debe ser string', () => {
@@ -354,6 +382,28 @@ describe('Adapter Contract v0 Types', () => {
       expectTypeOf(healthcheck).toMatchTypeOf<{
         path: string;
       }>();
+    });
+  });
+
+  describe('DeployTarget', () => {
+    it('debe aceptar backend-full y frontend-static', () => {
+      const backend: DeployTarget = 'backend-full';
+      const frontend: DeployTarget = 'frontend-static';
+
+      expect(backend).toBe('backend-full');
+      expect(frontend).toBe('frontend-static');
+    });
+
+    it('debe ser la unión de los dos targets válidos', () => {
+      expectTypeOf<DeployTarget>().toEqualTypeOf<
+        'backend-full' | 'frontend-static'
+      >();
+    });
+
+    it('no debe aceptar un target inválido', () => {
+      // @ts-expect-error - 'monolith' no es un DeployTarget válido
+      const invalid: DeployTarget = 'monolith';
+      expect(invalid).toBeDefined();
     });
   });
 
