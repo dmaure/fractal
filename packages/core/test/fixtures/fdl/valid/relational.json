@@ -1,0 +1,32 @@
+{
+  "fdlVersion": "0",
+  "project": {
+    "name": "tienda",
+    "description": "Catálogo de productos y pedidos"
+  },
+  "entities": [
+    {
+      "name": "Producto",
+      "description": "Un artículo vendible",
+      "fields": [
+        { "name": "nombre", "type": "string", "maxLength": 120, "unique": true },
+        { "name": "precio", "type": "decimal", "precision": 10, "scale": 2 },
+        { "name": "estado", "type": "enum", "values": ["borrador", "publicado"], "default": "borrador" },
+        { "name": "descripcion", "type": "text", "nullable": true }
+      ],
+      "relations": [
+        { "name": "pedidos", "kind": "one-to-many", "target": "Pedido", "inverse": "producto" }
+      ]
+    },
+    {
+      "name": "Pedido",
+      "fields": [
+        { "name": "cantidad", "type": "integer" },
+        { "name": "creadoEn", "type": "datetime" }
+      ],
+      "relations": [
+        { "name": "producto", "kind": "many-to-one", "target": "Producto", "inverse": "pedidos" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-01-nombre-entidad-duplicado.json > diagnósticos formateados (snapshot) > vr-01-nombre-entidad-duplicado.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-1] entity "Producto": duplicate entity name "Producto" (entities[1].name)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-02-nombre-campo-duplicado.json > diagnósticos formateados (snapshot) > vr-02-nombre-campo-duplicado.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-2] field "cantidad" of entity "Producto": duplicate field name "cantidad" in entity "Producto" (entities[0].fields[2].name)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-03-tipo-fuera-de-catalogo.json > diagnósticos formateados (snapshot) > vr-03-tipo-fuera-de-catalogo.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-3] field "precio" of entity "Producto": unknown field type "money" (entities[0].fields[1].type)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-04-enum-values-vacio.json > diagnósticos formateados (snapshot) > vr-04-enum-values-vacio.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-4] field "estado" of entity "Producto": enum field must declare non-empty values (entities[0].fields[1].values)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-05-target-inexistente.json > diagnósticos formateados (snapshot) > vr-05-target-inexistente.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-5] relation "pedidos" of entity "Producto": relation target "Fantasma" does not name an existing entity (entities[0].relations[0].target)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-06-nombre-relacion-colisiona-campo.json > diagnósticos formateados (snapshot) > vr-06-nombre-relacion-colisiona-campo.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-6] relation "nombre" of entity "Producto": relation name "nombre" collides with a field name in entity "Producto" (entities[0].relations[0].name)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-07-version-no-soportada.json > diagnósticos formateados (snapshot) > vr-07-version-no-soportada.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-7] the document version: unsupported fdlVersion "1" (fdlVersion)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-08-kind-fuera-de-cardinalidades.json > diagnósticos formateados (snapshot) > vr-08-kind-fuera-de-cardinalidades.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-8] relation "pedidos" of entity "Producto": unknown relation kind "has-many" (entities[0].relations[0].kind)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-09-default-incompatible.json > diagnósticos formateados (snapshot) > vr-09-default-incompatible.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-9] field "cantidad" of entity "Producto": default "hola" is not compatible with type "integer" (entities[0].fields[1].default)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-10-identificador-de-orm.json > diagnósticos formateados (snapshot) > vr-10-identificador-de-orm.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-10] entity "Eloquent": identifier "Eloquent" contains disallowed framework/ORM vocabulary (entities[1].name)"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-11-dos-claves-primarias.json > diagnósticos formateados (snapshot) > vr-11-dos-claves-primarias.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-11] entity "Producto": entity "Producto" declares 2 primary-key fields; at most one is allowed (entities[0])"
+`;
+
+exports[`fixtures FDL — documentos inválidos (uno por VR) > vr-12-inverse-incoherente.json > diagnósticos formateados (snapshot) > vr-12-inverse-incoherente.json 1`] = `
+"1 FDL diagnostic(s):
+  - [VR-12] relation "pedidos" of entity "Producto": inverse "fantasma" does not name a relation on target entity "Pedido" (entities[0].relations[0].inverse)"
+`;
+
+exports[`fixtures FDL — documentos válidos (§7.6) > minimal.json > parsea al IR materializado (snapshot) > minimal.json 1`] = `
+{
+  "entities": [
+    {
+      "fields": [
+        {
+          "maxLength": 120,
+          "name": "nombre",
+          "nullable": false,
+          "primaryKey": false,
+          "type": "string",
+          "unique": false,
+        },
+      ],
+      "name": "Producto",
+    },
+  ],
+  "fdlVersion": "0",
+  "project": {
+    "name": "tienda",
+  },
+}
+`;
+
+exports[`fixtures FDL — documentos válidos (§7.6) > relational.json > parsea al IR materializado (snapshot) > relational.json 1`] = `
+{
+  "entities": [
+    {
+      "description": "Un artículo vendible",
+      "fields": [
+        {
+          "maxLength": 120,
+          "name": "nombre",
+          "nullable": false,
+          "primaryKey": false,
+          "type": "string",
+          "unique": true,
+        },
+        {
+          "name": "precio",
+          "nullable": false,
+          "precision": 10,
+          "primaryKey": false,
+          "scale": 2,
+          "type": "decimal",
+          "unique": false,
+        },
+        {
+          "default": "borrador",
+          "name": "estado",
+          "nullable": false,
+          "primaryKey": false,
+          "type": "enum",
+          "unique": false,
+          "values": [
+            "borrador",
+            "publicado",
+          ],
+        },
+        {
+          "name": "descripcion",
+          "nullable": true,
+          "primaryKey": false,
+          "type": "text",
+          "unique": false,
+        },
+      ],
+      "name": "Producto",
+      "relations": [
+        {
+          "inverse": "producto",
+          "kind": "one-to-many",
+          "name": "pedidos",
+          "nullable": false,
+          "target": "Pedido",
+        },
+      ],
+    },
+    {
+      "fields": [
+        {
+          "name": "cantidad",
+          "nullable": false,
+          "primaryKey": false,
+          "type": "integer",
+          "unique": false,
+        },
+        {
+          "name": "creadoEn",
+          "nullable": false,
+          "primaryKey": false,
+          "type": "datetime",
+          "unique": false,
+        },
+      ],
+      "name": "Pedido",
+      "relations": [
+        {
+          "inverse": "pedidos",
+          "kind": "many-to-one",
+          "name": "producto",
+          "nullable": false,
+          "target": "Producto",
+        },
+      ],
+    },
+  ],
+  "fdlVersion": "0",
+  "project": {
+    "description": "Catálogo de productos y pedidos",
+    "name": "tienda",
+  },
+}
+`;

@@ -1,0 +1,15 @@
+{
+  "fdlVersion": "0",
+  "project": { "name": "tienda" },
+  "entities": [
+    {
+      "name": "Producto",
+      "fields": [
+        { "name": "nombre", "type": "string", "maxLength": 120 }
+      ],
+      "relations": [
+        { "name": "nombre", "kind": "one-to-many", "target": "Producto" }
+      ]
+    }
+  ]
+}
