@@ -137,6 +137,42 @@ abstraer sin evidencia.
 
 ---
 
+## 7.1 Decisiones de implementación (FRA-51)
+
+Al cerrar AC-3 (`fractal deploy` lee el `deployRuntime` del contrato por
+target en vez de fabricarlo localmente) se tomaron dos decisiones, ambas
+agnósticas de framework (Artículo II):
+
+- **DECISION 1 — significado de `port`.** `port` es el **puerto interno del
+  proceso de la app dentro de su contenedor** (p.ej. 8000 para el backend),
+  al que nginx hace proxy. Los puertos que nginx publica hacia el host
+  (80/443) son **convención de la capa de deploy** y NO son el `port` del
+  contrato. El generador de compose consume `port` declarando
+  `expose: ["<port>"]` en el servicio de la app (no publica ese puerto). En
+  el runtime nginx-only (frontend estático, ADR-0013), `port` es el puerto en
+  que nginx sirve (80) y es consistente con su `80:80` publicado.
+- **DECISION 2 — comandos post-deploy.** Se agrega un campo agnóstico
+  opcional `postDeployCommands?: string[]` a `DeployRuntime`. El adapter
+  declara ahí sus comandos (p.ej. limpieza de caché); los generadores de
+  CI/CD agnósticos los leen del contrato en vez de hardcodearlos. Esto es lo
+  que permite eliminar las `TEMPORARY_EXCEPTIONS` del lint de acoplamiento
+  (`scripts/lint-coupling.js`), que quedan en cero.
+
+Con esto **AC-3 queda completamente satisfecho**:
+- el `port` se consume en compose vía `expose`;
+- la `healthcheck.path` la consume el workflow de CI/CD (ya no hay rutas
+  hardcodeadas divergentes);
+- los comandos de build/migración/post-deploy provienen del contrato
+  (`buildCommand`, `migrateCommand`, `postDeployCommands`), derivados por
+  `deriveCommands(runtime)` en ambos generadores.
+
+El selector por target se modela con `DeployTarget = 'backend-full' |
+'frontend-static'`: `fractal deploy` resuelve el adapter (reusando el
+resolver y el bridge `get-contract` de FRA-54) e invoca
+`get-contract` con el `target` derivado del rol del manifiesto multirepo,
+recibiendo el `deployRuntime` correspondiente. `AdapterContract.deployRuntime`
+sigue siendo un único runtime (el del target pedido), no un mapa.
+
 ## 8. Preguntas abiertas
 
 Ninguna pendiente. Las dos preguntas se resolvieron el 2026-09-27:

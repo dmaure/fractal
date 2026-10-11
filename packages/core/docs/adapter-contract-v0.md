@@ -134,7 +134,8 @@ interface DeployRuntime {
   services: ServiceName[];        // Lista de servicios (e.g., ["app", "nginx", "db"])
   buildCommand?: string;          // Comando de build (opcional)
   migrateCommand?: string;        // Comando de migración (opcional)
-  port: number;                   // Puerto principal expuesto
+  postDeployCommands?: string[];  // Comandos post-deploy agnósticos (opcional)
+  port: number;                   // Puerto interno del proceso de la app
   healthcheck: HealthCheck;       // Configuración de healthcheck
 }
 
@@ -147,12 +148,27 @@ type ServiceName = string;
 
 **Campos obligatorios:**
 - `services`: Lista de nombres de servicios del runtime
-- `port`: Puerto que expone la aplicación
+- `port`: Puerto interno del proceso de la app (ver "Semántica de `port`")
 - `healthcheck`: Configuración de healthcheck con `path`
 
 **Campos opcionales:**
 - `buildCommand`: Comando para construir la aplicación antes del deploy
 - `migrateCommand`: Comando para ejecutar migraciones de base de datos
+- `postDeployCommands`: Comandos agnósticos a ejecutar después del deploy
+  (p.ej. limpieza de caché). El adapter los declara y los generadores
+  agnósticos de CI/CD los ejecutan tal cual, sin conocer el framework
+  (FRA-51). Si el adapter no declara ninguno, no se ejecuta ningún comando
+  post-deploy.
+
+**Semántica de `port` (DECISION 1, FRA-51):**
+- `port` es el **puerto interno** en el que el proceso de la app escucha
+  dentro de su contenedor (p.ej. 8000 para un backend), al que nginx hace
+  proxy. El generador de compose lo consume declarando `expose: ["<port>"]`
+  en el servicio de la app — **no** lo publica hacia el host.
+- Los puertos que nginx publica hacia el host (80/443) son **convención de
+  la capa de deploy**, no parte del contrato.
+- En el runtime nginx-only (frontend estático, ADR-0013), `port` es el puerto
+  en que nginx sirve (p.ej. 80).
 
 **Ejemplos:**
 
@@ -186,6 +202,32 @@ interface AdapterContract {
   runtimeRequirements: RuntimeRequirements;  // Requisitos de runtime
   deployRuntime: DeployRuntime;              // Declaración de runtime de deploy
 }
+```
+
+### DeployTarget y selección por target en `get-contract`
+
+```typescript
+type DeployTarget = 'backend-full' | 'frontend-static';
+```
+
+La acción `get-contract` del bridge acepta un campo **opcional** `target` de
+tipo `DeployTarget`:
+
+- Si se omite, el adapter devuelve el runtime del target por defecto
+  (`backend-full`).
+- Si se envía, debe ser `'backend-full'` o `'frontend-static'`; cualquier
+  otro valor produce `{ success: false, error: { ... } }`.
+
+El `deployRuntime` del contrato devuelto corresponde al target pedido
+(sigue siendo **un único runtime**, no un mapa). `fractal deploy` resuelve el
+rol del repo en multirepo (`api`/`web`) a un `DeployTarget` y lo pasa en
+`get-contract`, de modo que lee el runtime correcto por target desde el
+contrato en vez de fabricarlo (SPEC-0006 AC-3, FRA-51).
+
+Ejemplo de payload:
+
+```json
+{ "action": "get-contract", "target": "frontend-static" }
 ```
 
 ## Uso desde el core

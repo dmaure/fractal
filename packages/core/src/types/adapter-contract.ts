@@ -22,6 +22,17 @@ import type { ProjectTopology } from './topology.js';
 export type AdapterContractVersion = '0';
 
 /**
+ * Selector de target de deploy para pedir el runtime correspondiente al
+ * contrato vía get-contract.
+ *
+ * El core resuelve este selector a partir del rol del repo (multirepo) y lo
+ * envía al adapter; el adapter devuelve el DeployRuntime del target pedido.
+ * - 'backend-full': backend completo (app + servicios).
+ * - 'frontend-static': frontend estático nginx-only (ADR-0013).
+ */
+export type DeployTarget = 'backend-full' | 'frontend-static';
+
+/**
  * Payload para el comando "crear proyecto base".
  * 
  * El core invoca al adapter con este payload para generar un proyecto
@@ -202,7 +213,21 @@ export interface DeployRuntime {
   migrateCommand?: string;
 
   /**
-   * Puerto principal que expone la aplicación.
+   * Comandos agnósticos opcionales a ejecutar después del deploy
+   * (p.ej. limpieza de caché); el adapter los declara.
+   *
+   * El core y los generadores agnósticos los ejecutan tal cual, sin conocer
+   * el framework subyacente (Artículo II). Si el adapter no declara ninguno,
+   * no se ejecuta ningún comando post-deploy.
+   */
+  postDeployCommands?: string[];
+
+  /**
+   * Puerto interno del proceso de la app al que nginx hace proxy dentro de su
+   * contenedor (p.ej. 8000 para un backend). NO es un puerto publicado hacia
+   * el host: los puertos publicados por nginx (80/443) son convención de la
+   * capa de deploy, no parte del contrato. En el caso nginx-only (ADR-0013),
+   * `port` es el puerto en que nginx sirve (p.ej. 80).
    */
   port: number;
 

@@ -5,12 +5,12 @@
 
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { 
-  DeployConfig, 
-  WorkflowGenerationResult, 
+import type { DeployRuntime } from '@fractal/core';
+import type {
+  DeployConfig,
+  WorkflowGenerationResult,
   SecretConfig,
   DeployCommands,
-  TargetType 
 } from './types.js';
 
 export class GitHubActionsGenerator {
@@ -83,38 +83,23 @@ export class GitHubActionsGenerator {
    * Método público para permitir tests de snapshot.
    */
   generateWorkflowContent(config: DeployConfig): string {
-    const commands = this.getCommandsForTarget(config.targetType);
+    const commands = this.deriveCommands(config.runtime);
     return this.generateWorkflow(config, commands);
   }
 
   /**
-   * Obtiene comandos de deploy para el target especificado.
-   * TEMPORAL: Hardcodeado hasta SPEC-0006 (contrato del adapter).
-   * Los workflows generados contienen comandos concretos de toolchain;
-   * esto no viola el Artículo II porque son templates de salida, no lógica
-   * de deploy que asume un framework en el código fuente de packages/deploy.
+   * Deriva los comandos de deploy desde el DeployRuntime del contrato del
+   * adapter (SPEC-0006, FRA-51). packages/deploy no conoce ningún framework:
+   * los comandos concretos los declara el adapter y acá solo se trasladan al
+   * template del workflow.
    */
-  private getCommandsForTarget(targetType: TargetType): DeployCommands {
-    if (targetType === 'backend-full') {
-      return {
-        build: 'composer install --no-dev --optimize-autoloader',
-        migrate: 'php artisan migrate --force',
-        cacheClear: [
-          'php artisan config:clear',
-          'php artisan route:clear',
-          'php artisan view:clear',
-          'php artisan cache:clear',
-        ],
-        healthcheckPath: '/health',
-      };
-    } else {
-      return {
-        build: 'npm run build',
-        migrate: '',
-        cacheClear: [],
-        healthcheckPath: '/',
-      };
-    }
+  private deriveCommands(runtime: DeployRuntime): DeployCommands {
+    return {
+      build: runtime.buildCommand ?? '',
+      migrate: runtime.migrateCommand ?? '',
+      cacheClear: runtime.postDeployCommands ?? [],
+      healthcheckPath: runtime.healthcheck.path,
+    };
   }
 
   /**
@@ -320,12 +305,16 @@ jobs:
             sleep 10
 `;
 
-    if (config.targetType === 'backend-full') {
-      workflow += `            
+    if (commands.migrate) {
+      workflow += `
             # Ejecutar migraciones
             docker compose exec -T app ${commands.migrate}
-            
-            # Limpiar caches
+`;
+    }
+
+    if (commands.cacheClear.length > 0) {
+      workflow += `
+            # Comandos post-deploy
 `;
       commands.cacheClear.forEach((cmd) => {
         workflow += `            docker compose exec -T app ${cmd}\n`;

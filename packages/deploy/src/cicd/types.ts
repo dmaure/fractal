@@ -3,6 +3,7 @@
  * Framework-agnostic según Artículo II de CONSTITUTION.md.
  */
 
+import type { DeployRuntime } from '@fractal/core';
 import type { TargetType } from '../runtime/types.js';
 
 /**
@@ -39,9 +40,16 @@ export interface DeployConfig {
   /** Proveedor de CI/CD */
   provider: CicdProvider;
   
-  /** Tipo de target */
+  /** Tipo de target. Usado para lógica no-comando (secrets, validación). */
   targetType: TargetType;
-  
+
+  /**
+   * Runtime de deploy declarado por el contrato del adapter (SPEC-0006 AC-3).
+   * Los comandos del workflow (build, migración, post-deploy, healthcheck) se
+   * derivan de este runtime en vez de hardcodearse (FRA-51).
+   */
+  runtime: DeployRuntime;
+
   /** Nombre del proyecto */
   projectName: string;
   
@@ -92,9 +100,10 @@ export interface WorkflowGenerationResult {
 
 /**
  * Comandos de deploy.
- * NOTA: Los valores concretos se generan inline en los workflows como parte del
- * template. Cuando SPEC-0006 (contrato del adapter) se implemente, estos comandos
- * serán declarados por los adapters y consultados dinámicamente.
+ * NOTA: Estos comandos se derivan del DeployRuntime del contrato del adapter
+ * (SPEC-0006, FRA-51) — ya no se hardcodean en packages/deploy. El adapter
+ * declara build/migración/post-deploy/healthcheck de forma agnóstica y los
+ * generadores los emiten tal cual en el template del workflow.
  */
 export interface DeployCommands {
   /** Comando de build de dependencias */

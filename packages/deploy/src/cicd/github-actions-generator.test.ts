@@ -1,6 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import { GitHubActionsGenerator } from './github-actions-generator.js';
 import type { DeployConfig } from './types.js';
+import type { DeployRuntime } from '@fractal/core';
+
+/**
+ * Runtimes equivalentes a los que declara el adapter Laravel (FRA-51).
+ * Los comandos del workflow se derivan de estos runtimes, no se hardcodean.
+ */
+const BACKEND_RUNTIME: DeployRuntime = {
+  services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+  buildCommand: 'composer install --no-dev --optimize-autoloader',
+  migrateCommand: 'php artisan migrate --force',
+  postDeployCommands: [
+    'php artisan config:clear',
+    'php artisan route:clear',
+    'php artisan view:clear',
+    'php artisan cache:clear',
+  ],
+  port: 8000,
+  healthcheck: { path: '/api/health' },
+};
+
+const FRONTEND_RUNTIME: DeployRuntime = {
+  services: ['nginx'],
+  buildCommand: 'npm run build',
+  port: 80,
+  healthcheck: { path: '/health.txt' },
+};
 
 describe('GitHubActionsGenerator', () => {
   const generator = new GitHubActionsGenerator();
@@ -10,6 +36,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -25,6 +52,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test-web',
         productionBranch: 'main',
         domain: 'app.example.com',
@@ -40,6 +68,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: '',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -55,6 +84,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: '',
         domain: 'api.example.com',
@@ -70,6 +100,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: '',
@@ -85,6 +116,7 @@ describe('GitHubActionsGenerator', () => {
       const config = {
         provider: 'github-actions',
         targetType: 'invalid' as any,
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -97,11 +129,81 @@ describe('GitHubActionsGenerator', () => {
     });
   });
 
+  describe('commands derived from runtime (FRA-51)', () => {
+    it('should emit migrate and post-deploy commands from the backend runtime', () => {
+      const config: DeployConfig = {
+        provider: 'github-actions',
+        targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
+        projectName: 'myapi',
+        productionBranch: 'production',
+        domain: 'api.example.com',
+        outputPath: '/tmp/test-github-derived-backend.yml',
+      };
+
+      const content = generator.generateWorkflowContent(config);
+
+      // migrateCommand del runtime
+      expect(content).toContain('docker compose exec -T app php artisan migrate --force');
+      // postDeployCommands del runtime
+      expect(content).toContain('docker compose exec -T app php artisan config:clear');
+      expect(content).toContain('docker compose exec -T app php artisan cache:clear');
+      // healthcheck.path del runtime
+      expect(content).toContain('https://api.example.com/api/health');
+    });
+
+    it('should omit migrate and post-deploy commands for a runtime without them', () => {
+      const config: DeployConfig = {
+        provider: 'github-actions',
+        targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
+        projectName: 'myweb',
+        productionBranch: 'main',
+        domain: 'app.example.com',
+        outputPath: '/tmp/test-github-derived-frontend.yml',
+      };
+
+      const content = generator.generateWorkflowContent(config);
+
+      expect(content).not.toContain('migrate');
+      expect(content).not.toContain('Comandos post-deploy');
+      // healthcheck.path del runtime frontend
+      expect(content).toContain('https://app.example.com/health.txt');
+    });
+
+    it('should honor a custom runtime (agnostic, non-Laravel)', () => {
+      const customRuntime: DeployRuntime = {
+        services: ['app', 'nginx'],
+        buildCommand: 'make build',
+        migrateCommand: 'bin/migrate',
+        postDeployCommands: ['bin/warm-cache'],
+        port: 3000,
+        healthcheck: { path: '/status' },
+      };
+      const config: DeployConfig = {
+        provider: 'github-actions',
+        targetType: 'backend-full',
+        runtime: customRuntime,
+        projectName: 'custom',
+        productionBranch: 'production',
+        domain: 'custom.example.com',
+        outputPath: '/tmp/test-github-derived-custom.yml',
+      };
+
+      const content = generator.generateWorkflowContent(config);
+
+      expect(content).toContain('docker compose exec -T app bin/migrate');
+      expect(content).toContain('docker compose exec -T app bin/warm-cache');
+      expect(content).toContain('https://custom.example.com/status');
+    });
+  });
+
   describe('generate - backend-full', () => {
     it('should generate workflow for backend-full', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -122,6 +224,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -145,6 +248,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'myweb',
         productionBranch: 'main',
         domain: 'app.example.com',
@@ -165,6 +269,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'myweb',
         productionBranch: 'main',
         domain: 'app.example.com',
@@ -186,6 +291,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -208,6 +314,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -223,7 +330,7 @@ describe('GitHubActionsGenerator', () => {
 
       expect(result.crossRepoSecrets).toBeDefined();
       expect(result.crossRepoSecrets!.length).toBeGreaterThan(0);
-      
+
       const crossSecret = result.crossRepoSecrets!.find((s) => s.name === 'API_URL');
       expect(crossSecret).toBeDefined();
       expect(crossSecret!.crossRepo).toBe(true);
@@ -235,6 +342,7 @@ describe('GitHubActionsGenerator', () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'myweb',
         productionBranch: 'main',
         domain: 'app.example.com',
@@ -249,7 +357,7 @@ describe('GitHubActionsGenerator', () => {
       const result = await generator.generate(config);
 
       expect(result.crossRepoSecrets).toBeDefined();
-      
+
       const crossSecretNames = result.crossRepoSecrets!.map((s) => s.name);
       expect(crossSecretNames).toContain('CORS_ALLOWED_ORIGIN');
       expect(crossSecretNames).toContain('SANCTUM_STATEFUL_DOMAINS');
@@ -260,7 +368,8 @@ describe('GitHubActionsGenerator', () => {
     it('should not contain Laravel-specific terms in result', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
-        targetType: 'backend-full',
+        targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -268,7 +377,7 @@ describe('GitHubActionsGenerator', () => {
       };
 
       const result = await generator.generate(config);
-      
+
       const prohibitedTerms = [
         'laravel',
         'eloquent',
@@ -277,7 +386,7 @@ describe('GitHubActionsGenerator', () => {
 
       // Check secrets and content, not filePath (which is just a test artifact)
       const checkContent = JSON.stringify({ secrets: result.secrets, content: result.content }).toLowerCase();
-      
+
       prohibitedTerms.forEach((term) => {
         expect(checkContent).not.toContain(term);
       });
@@ -286,7 +395,8 @@ describe('GitHubActionsGenerator', () => {
     it('should not contain Rails-specific terms in result', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
-        targetType: 'backend-full',
+        targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -294,7 +404,7 @@ describe('GitHubActionsGenerator', () => {
       };
 
       const result = await generator.generate(config);
-      
+
       const prohibitedTerms = [
         'rails',
         'activerecord',
@@ -305,7 +415,7 @@ describe('GitHubActionsGenerator', () => {
 
       // Check secrets and content, not filePath (which is just a test artifact)
       const checkContent = JSON.stringify({ secrets: result.secrets, content: result.content }).toLowerCase();
-      
+
       prohibitedTerms.forEach((term) => {
         expect(checkContent).not.toContain(term);
       });

@@ -76,7 +76,6 @@ version: '3.8'
    */
   private generateBackendFullCompose(projectName: string, header: string, runtime: ComposeConfig['runtime']): string {
     const services = runtime.services;
-    const port = runtime.port || 80;
     const hasApp = services.includes('app');
     const hasDb = services.includes('db');
     const hasRedis = services.includes('redis');
@@ -95,6 +94,8 @@ version: '3.8'
     container_name: ${projectName}_app
     restart: unless-stopped
     working_dir: /var/www/html
+    expose:
+      - "${runtime.port}"
     volumes:
       - ./:/var/www/html
     environment:`;
@@ -276,6 +277,8 @@ version: '3.8'
     ports:
       - "80:80"
       - "443:443"
+    expose:
+      - "${runtime.port}"
     volumes:
       - ./dist:/usr/share/nginx/html:ro
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro

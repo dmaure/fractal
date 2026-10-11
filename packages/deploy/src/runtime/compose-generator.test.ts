@@ -11,7 +11,7 @@ describe('ComposeGenerator', () => {
     services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
     buildCommand: 'docker build -t test:latest .',
     migrateCommand: 'docker compose exec app migrate',
-    port: 80,
+    port: 8000,
     healthcheck: { path: '/api/health' },
   });
 
@@ -197,6 +197,57 @@ describe('ComposeGenerator', () => {
 
       const result = generator.generate(config);
       expect(result.content).toContain('./dist:/usr/share/nginx/html');
+    });
+  });
+
+  describe('port consumption via expose (FRA-51 / DECISION 1)', () => {
+    it('should expose the contract port on the app service for backend-full', () => {
+      const config: ComposeConfig = {
+        runtime: createBackendFullRuntime(),
+        projectName: 'myproject',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      expect(result.content).toContain('expose:');
+      // El puerto interno del contrato (8000) se declara en expose, no publicado
+      expect(result.content).toContain('"8000"');
+    });
+
+    it('should expose the app port, not publish it, for backend-full', () => {
+      const runtime: DeployRuntime = {
+        services: ['app', 'nginx'],
+        port: 9001,
+        healthcheck: { path: '/health' },
+      };
+      const config: ComposeConfig = {
+        runtime,
+        projectName: 'ports',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      const content = result.content || '';
+      // La app declara expose con el puerto del contrato
+      expect(content).toContain('expose:\n      - "9001"');
+      // La app NO publica puertos hacia el host (eso lo hace nginx: 80/443)
+      expect(content).not.toContain('"9001:9001"');
+    });
+
+    it('should expose the serve port on nginx for frontend-static', () => {
+      const config: ComposeConfig = {
+        runtime: createFrontendStaticRuntime(),
+        projectName: 'myweb',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      const content = result.content || '';
+      expect(content).toContain('expose:');
+      expect(content).toContain('"80"');
+      // nginx mantiene los puertos publicados del host
+      expect(content).toContain('"80:80"');
+      expect(content).toContain('"443:443"');
     });
   });
 

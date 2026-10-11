@@ -9,6 +9,7 @@ import type {
   AdapterContract,
   RuntimeRequirements,
   DeployRuntime,
+  DeployTarget,
 } from '@fractal/core';
 
 /**
@@ -51,6 +52,12 @@ export const LARAVEL_BACKEND_DEPLOY_RUNTIME: DeployRuntime = {
   services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
   buildCommand: 'composer install --no-dev --optimize-autoloader',
   migrateCommand: 'php artisan migrate --force',
+  postDeployCommands: [
+    'php artisan config:clear',
+    'php artisan route:clear',
+    'php artisan view:clear',
+    'php artisan cache:clear',
+  ],
   port: 8000,
   healthcheck: {
     path: '/api/health',
@@ -73,19 +80,29 @@ export const LARAVEL_FRONTEND_DEPLOY_RUNTIME: DeployRuntime = {
 };
 
 /**
- * Obtiene el contrato del adapter Laravel.
- * 
- * En v0, retorna el contrato para backend completo como default.
- * El runtime específico por topología se resuelve en el momento de
- * generar el proyecto.
- * 
- * @returns Contrato del adapter Laravel
+ * Obtiene el contrato del adapter Laravel para el target de deploy pedido.
+ *
+ * El `deployRuntime` devuelto corresponde al target solicitado:
+ * - 'backend-full' (default): backend Laravel completo
+ *   (LARAVEL_BACKEND_DEPLOY_RUNTIME).
+ * - 'frontend-static': frontend estático nginx-only del repo web/ en
+ *   multirepo (LARAVEL_FRONTEND_DEPLOY_RUNTIME, ADR-0013).
+ *
+ * @param target Target de deploy cuyo runtime se pide (default 'backend-full')
+ * @returns Contrato del adapter Laravel con el runtime del target pedido
  */
-export function getAdapterContract(): LaravelAdapterContract {
+export function getAdapterContract(
+  target: DeployTarget = 'backend-full'
+): LaravelAdapterContract {
+  const deployRuntime =
+    target === 'frontend-static'
+      ? LARAVEL_FRONTEND_DEPLOY_RUNTIME
+      : LARAVEL_BACKEND_DEPLOY_RUNTIME;
+
   return {
     name: 'laravel',
     version: '0',
     runtimeRequirements: LARAVEL_RUNTIME_REQUIREMENTS,
-    deployRuntime: LARAVEL_BACKEND_DEPLOY_RUNTIME,
+    deployRuntime,
   };
 }

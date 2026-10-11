@@ -39,15 +39,10 @@ const TEXT_EXTENSIONS = ['.js', '.ts', '.json', '.md', '.txt', '.yml', '.yaml'];
 // Archivos que se permiten mencionar frameworks (documentación)
 const ALLOWED_FILES = ['README.md'];
 
-// Excepciones temporales hasta SPEC-0006 (contrato del adapter)
-// Los generadores de CI/CD contienen comandos de toolchain en los templates de workflow.
-// Cuando SPEC-0006 se implemente, estos comandos vendrán del adapter y estas
-// excepciones deben eliminarse.
-// Relacionado: FRA-33, similar al patrón aprobado en AC-4 de SPEC-0003 para runtime.
-const TEMPORARY_EXCEPTIONS = [
-  'packages/deploy/src/cicd/github-actions-generator.ts',
-  'packages/deploy/src/cicd/gitlab-ci-generator.ts',
-];
+// SPEC-0006 (contrato del adapter) está implementado: los generadores de CI/CD
+// ya derivan sus comandos del DeployRuntime del adapter en vez de hardcodearlos,
+// así que las excepciones temporales de FRA-33 se eliminaron (FRA-51). No hay
+// excepciones: core y deploy deben estar libres de términos de framework.
 
 /**
  * Lee archivos recursivamente en un directorio
@@ -139,25 +134,17 @@ async function lintCoupling() {
     for await (const filePath of walkDir(pkgPath)) {
       fileCount++;
       const relPath = relative(repoRoot, filePath);
-      
-      // Verificar si este archivo tiene excepción temporal
-      const isException = TEMPORARY_EXCEPTIONS.some(exc => relPath === exc || relPath.endsWith(exc));
-      
+
       const violations = await checkFile(filePath, FORBIDDEN_TERMS);
-      
+
       if (violations.length > 0) {
-        if (isException) {
-          // Advertencia en vez de error para excepciones temporales
-          console.log(`   ⚠️  ${relPath}: ${violations.length} menciones de frameworks (excepción temporal hasta SPEC-0006)`);
-        } else {
-          hasViolations = true;
-          
-          console.error(`\n❌ ${relPath}:`);
-          for (const violation of violations) {
-            console.error(`   Línea ${violation.line}: encontrado "${violation.term}"`);
-            console.error(`   > ${violation.content}`);
-            violationCount++;
-          }
+        hasViolations = true;
+
+        console.error(`\n❌ ${relPath}:`);
+        for (const violation of violations) {
+          console.error(`   Línea ${violation.line}: encontrado "${violation.term}"`);
+          console.error(`   > ${violation.content}`);
+          violationCount++;
         }
       }
     }

@@ -1,6 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import { CicdManager } from './cicd-manager.js';
 import type { DeployConfig } from './types.js';
+import type { DeployRuntime } from '@fractal/core';
+
+/**
+ * Runtimes equivalentes a los que declara el adapter Laravel (FRA-51).
+ * Los comandos del workflow se derivan de estos runtimes.
+ */
+const BACKEND_RUNTIME: DeployRuntime = {
+  services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+  buildCommand: 'composer install --no-dev --optimize-autoloader',
+  migrateCommand: 'php artisan migrate --force',
+  postDeployCommands: [
+    'php artisan config:clear',
+    'php artisan route:clear',
+    'php artisan view:clear',
+    'php artisan cache:clear',
+  ],
+  port: 8000,
+  healthcheck: { path: '/api/health' },
+};
+
+const FRONTEND_RUNTIME: DeployRuntime = {
+  services: ['nginx'],
+  buildCommand: 'npm run build',
+  port: 80,
+  healthcheck: { path: '/health.txt' },
+};
 
 describe('CicdManager', async () => {
   const manager = new CicdManager();
@@ -8,7 +34,7 @@ describe('CicdManager', async () => {
   describe('getSupportedProviders', async () => {
     it('should return list of supported providers', async () => {
       const providers = manager.getSupportedProviders();
-      
+
       expect(providers).toContain('github-actions');
       expect(providers).toContain('gitlab-ci');
       expect(providers.length).toBe(2);
@@ -19,6 +45,7 @@ describe('CicdManager', async () => {
     it('should reject missing provider', async () => {
       const config = {
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -26,7 +53,7 @@ describe('CicdManager', async () => {
       } as any;
 
       const result = manager.validateConfig(config);
-      
+
       expect(result.valid).toBe(false);
       expect(result.error).toContain('proveedor de CI/CD');
     });
@@ -35,6 +62,7 @@ describe('CicdManager', async () => {
       const config: DeployConfig = {
         provider: 'jenkins' as any,
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -42,7 +70,7 @@ describe('CicdManager', async () => {
       };
 
       const result = manager.validateConfig(config);
-      
+
       expect(result.valid).toBe(false);
       expect(result.error).toContain('no soportado');
     });
@@ -51,6 +79,7 @@ describe('CicdManager', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -58,7 +87,7 @@ describe('CicdManager', async () => {
       };
 
       const result = manager.validateConfig(config);
-      
+
       expect(result.valid).toBe(true);
       expect(result.error).toBeUndefined();
     });
@@ -67,6 +96,7 @@ describe('CicdManager', async () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -74,7 +104,7 @@ describe('CicdManager', async () => {
       };
 
       const result = manager.validateConfig(config);
-      
+
       expect(result.valid).toBe(true);
       expect(result.error).toBeUndefined();
     });
@@ -86,6 +116,7 @@ describe('CicdManager', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -93,7 +124,7 @@ describe('CicdManager', async () => {
       };
 
       const result = await manager.generate(config);
-      
+
       expect(result.success).toBe(true);
       expect(result.filePath).toBe(outputPath);
       expect(result.content).toBeDefined();
@@ -106,6 +137,7 @@ describe('CicdManager', async () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -113,7 +145,7 @@ describe('CicdManager', async () => {
       };
 
       const result = await manager.generate(config);
-      
+
       expect(result.success).toBe(true);
       expect(result.filePath).toBe(outputPath);
       expect(result.content).toBeDefined();
@@ -125,6 +157,7 @@ describe('CicdManager', async () => {
       const config: DeployConfig = {
         provider: 'circleci' as any,
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'test-api',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -132,7 +165,7 @@ describe('CicdManager', async () => {
       };
 
       const result = await manager.generate(config);
-      
+
       expect(result.success).toBe(false);
       expect(result.error).toContain('no soportado');
     });
@@ -141,6 +174,7 @@ describe('CicdManager', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test-web',
         productionBranch: 'main',
         domain: 'app.example.com',
@@ -148,9 +182,9 @@ describe('CicdManager', async () => {
       };
 
       const result = await manager.generate(config);
-      
+
       expect(result.success).toBe(true);
-      
+
       const secretNames = result.secrets.map((s) => s.name);
       expect(secretNames).toContain('SSH_HOST');
       expect(secretNames).not.toContain('DB_PASSWORD');
@@ -160,6 +194,7 @@ describe('CicdManager', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'backend-full',
+        runtime: BACKEND_RUNTIME,
         projectName: 'myapi',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -172,7 +207,7 @@ describe('CicdManager', async () => {
       };
 
       const result = await manager.generate(config);
-      
+
       expect(result.success).toBe(true);
       expect(result.crossRepoSecrets).toBeDefined();
       expect(result.crossRepoSecrets!.length).toBeGreaterThan(0);
@@ -183,7 +218,8 @@ describe('CicdManager', async () => {
     it('should not contain Laravel-specific terms', async () => {
       const config: DeployConfig = {
         provider: 'github-actions',
-        targetType: 'backend-full',
+        targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -191,7 +227,7 @@ describe('CicdManager', async () => {
       };
 
       const result = await manager.generate(config);
-      
+
       const prohibitedTerms = [
         'laravel',
         'eloquent',
@@ -200,7 +236,7 @@ describe('CicdManager', async () => {
 
       // Check secrets and content, not filePath (which is just a test artifact)
       const checkContent = JSON.stringify({ secrets: result.secrets, content: result.content }).toLowerCase();
-      
+
       prohibitedTerms.forEach((term) => {
         expect(checkContent).not.toContain(term);
       });
@@ -209,7 +245,8 @@ describe('CicdManager', async () => {
     it('should not contain Rails-specific terms', async () => {
       const config: DeployConfig = {
         provider: 'gitlab-ci',
-        targetType: 'backend-full',
+        targetType: 'frontend-static',
+        runtime: FRONTEND_RUNTIME,
         projectName: 'test',
         productionBranch: 'production',
         domain: 'api.example.com',
@@ -217,7 +254,7 @@ describe('CicdManager', async () => {
       };
 
       const result = await manager.generate(config);
-      
+
       const prohibitedTerms = [
         'rails',
         'activerecord',
@@ -228,7 +265,7 @@ describe('CicdManager', async () => {
 
       // Check secrets and content, not filePath (which is just a test artifact)
       const checkContent = JSON.stringify({ secrets: result.secrets, content: result.content }).toLowerCase();
-      
+
       prohibitedTerms.forEach((term) => {
         expect(checkContent).not.toContain(term);
       });

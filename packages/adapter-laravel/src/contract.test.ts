@@ -48,6 +48,29 @@ describe('getAdapterContract', () => {
     expect(contract.deployRuntime.healthcheck).toBeDefined();
     expect(contract.deployRuntime.healthcheck.path).toBeTruthy();
   });
+
+  it('por default (sin target) retorna el runtime de backend completo', () => {
+    const contract = getAdapterContract();
+
+    expect(contract.deployRuntime).toBe(LARAVEL_BACKEND_DEPLOY_RUNTIME);
+    expect(contract.deployRuntime.port).toBe(8000);
+  });
+
+  it('con target backend-full retorna el runtime de backend', () => {
+    const contract = getAdapterContract('backend-full');
+
+    expect(contract.deployRuntime).toBe(LARAVEL_BACKEND_DEPLOY_RUNTIME);
+    expect(contract.deployRuntime.services).toContain('app');
+  });
+
+  it('con target frontend-static retorna el runtime de frontend (nginx-only)', () => {
+    const contract = getAdapterContract('frontend-static');
+
+    expect(contract.deployRuntime).toBe(LARAVEL_FRONTEND_DEPLOY_RUNTIME);
+    expect(contract.deployRuntime.services).toEqual(['nginx']);
+    expect(contract.deployRuntime.port).toBe(80);
+    expect(contract.deployRuntime.healthcheck.path).toBe('/health.txt');
+  });
 });
 
 describe('LARAVEL_RUNTIME_REQUIREMENTS', () => {
@@ -102,6 +125,15 @@ describe('LARAVEL_BACKEND_DEPLOY_RUNTIME', () => {
     expect(LARAVEL_BACKEND_DEPLOY_RUNTIME.healthcheck.path).toBe(
       '/api/health'
     );
+  });
+
+  it('declara los comandos post-deploy de limpieza de caché (FRA-51)', () => {
+    expect(LARAVEL_BACKEND_DEPLOY_RUNTIME.postDeployCommands).toEqual([
+      'php artisan config:clear',
+      'php artisan route:clear',
+      'php artisan view:clear',
+      'php artisan cache:clear',
+    ]);
   });
 });
 
