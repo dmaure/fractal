@@ -87,7 +87,7 @@ describe('fixtures FDL — documentos inválidos (uno por VR)', () => {
 
       it(`dispara ${rule}`, () => {
         const codes = diagnoseFdl(source).map((d) => d.code);
-        expect(codes).toContain(rule);
+        expect(codes).toEqual([rule]);
       });
 
       it('diagnósticos formateados (snapshot)', () => {
