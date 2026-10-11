@@ -1,6 +1,6 @@
 # SPEC-0004: Lenguaje FDL (Fractal Definition Language) v0
 
-**Estado:** Draft
+**Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-10-11
 **Issue:** #

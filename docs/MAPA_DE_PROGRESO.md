@@ -134,8 +134,8 @@ flowchart TD
     classDef curso fill:#f9a825,color:#000,stroke:#f57f17;
     classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
 
-    class NEW,ENT,DEP,CORE,ALAR,DEPLOY curso;
-    class MOD,ARAI,FDL,MODULOS pend;
+    class NEW,ENT,DEP,CORE,ALAR,DEPLOY,FDL curso;
+    class MOD,ARAI,MODULOS pend;
 ```
 <!-- progress-map:diagrama2:end -->
 

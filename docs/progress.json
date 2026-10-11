@@ -39,7 +39,7 @@
       }
     ],
     "nodos": [
-      { "id": "FDL", "label": "FDL · entidades<br/>campos · relaciones · reglas<br/>(ADR-0003)", "estado": "pendiente" },
+      { "id": "FDL", "label": "FDL · entidades<br/>campos · relaciones · reglas<br/>(ADR-0003)", "estado": "en_curso" },
       { "id": "MODULOS", "label": "Modulos opcionales<br/>(Constitucion Art. IX · ROADMAP M5)", "estado": "pendiente" }
     ],
     "aristas": [
@@ -54,6 +54,15 @@
     ]
   },
   "specs": [
+    {
+      "id": "SPEC-0004",
+      "label": "Lenguaje FDL v0",
+      "milestone": "M2",
+      "estado": "en_curso",
+      "tareas": [
+        { "id": "T1", "ticket": "FRA-56", "label": "Tipos / representacion JSON de FDL v0 en core", "estado": "completado" }
+      ]
+    },
     {
       "id": "SPEC-0006",
       "label": "Contrato del adapter v0",
