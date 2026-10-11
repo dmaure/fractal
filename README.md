@@ -123,7 +123,7 @@ Orden de lectura recomendado:
 Decisiones técnicas en [`docs/adr/`](docs/adr/).
 Especificaciones de capabilities en [`docs/specs/`](docs/specs/).
 Guías de usuario de cada comando en [`docs/guides/`](docs/guides/) — por ejemplo
-[`fractal new`](docs/guides/fractal-new.md).
+[`fractal new`](docs/guides/fractal-new.md) y [FDL](docs/guides/fdl.md).
 
 ---
 
