@@ -268,8 +268,68 @@ if (!result.valid) {
 | VR-11 | A lo sumo un campo con `primaryKey: true` por entidad. |
 | VR-12 | Si una relación declara `inverse`, la entidad `target` contiene una relación con ese nombre. |
 
-El pulido de diagnósticos legibles (mensajes ricos, sugerencias) está diferido a
-**T4/FRA-59**; aquí los mensajes son mínimos y estructurados.
+Los mensajes de este validador son mínimos y estructurados; la capa de
+diagnósticos legibles (ver «Diagnósticos FDL (FRA-59)» más abajo) los convierte
+en mensajes localizados y sin stacktrace (T4/FRA-59).
+
+## Diagnósticos FDL (FRA-59)
+
+La capa de diagnósticos convierte los errores crudos de las capas anteriores
+—los errores de forma de `parseFdl` (`FdlParseError`) y las violaciones
+semánticas de `validateFdl` (`FdlViolation`, VR-1..VR-12)— en mensajes
+legibles, localizados y sin stacktrace. Cada diagnóstico nombra la ubicación
+afectada (documento / versión / proyecto / entidad / campo / relación),
+resolviendo el nombre de la entidad, el campo o la relación cuando hay un
+documento disponible, en lugar de exponer solo la ruta máquina.
+
+### `diagnoseFdl(source)`
+
+```typescript
+import { diagnoseFdl, formatDiagnostics } from '@fractal/core';
+
+const diagnostics = diagnoseFdl(source); // FdlDiagnostic[]
+
+if (diagnostics.length > 0) {
+  console.error(formatDiagnostics(diagnostics));
+}
+```
+
+- **Entrada:** `source: string`, el texto JSON del documento FDL.
+- **Salida:** `FdlDiagnostic[]`. Parsea y, si la forma es válida, valida: un
+  error de forma produce un único diagnóstico de parseo; un documento bien
+  formado pero semánticamente inválido produce un diagnóstico por violación (en
+  orden VR-1..VR-12). Devuelve `[]` para un documento totalmente válido.
+
+### `FdlDiagnostic`
+
+`{ source: 'parse' | 'validate'; code: FdlDiagnosticCode; location: FdlLocation; message: string }`
+
+- **`code`:** el código de forma del parser (`'INVALID_JSON' | 'MISSING_KEY' |
+  'INVALID_TYPE'`) o la regla VR violada (`'VR-1'..'VR-12'`).
+- **`location`:** `{ kind, entity?, field?, relation?, path }`, con `kind` en
+  `'document' | 'version' | 'project' | 'entity' | 'field' | 'relation'` y
+  `path` conservando la ruta máquina original (p. ej.
+  `entities[0].relations[0].target`). Los nombres se resuelven cuando hay
+  documento; en errores de forma quedan sin resolver.
+- **`message`:** mensaje legible y autocontenido, con el localizador humano
+  antepuesto al hecho crudo de la capa de origen. Nunca incluye stacktrace.
+
+### Conversores y formato
+
+- `diagnoseParseError(error)` → un `FdlDiagnostic` desde un `FdlParseError`.
+- `diagnoseValidation(doc, result)` → un `FdlDiagnostic[]` desde el resultado de
+  `validateFdl`.
+- `formatDiagnostic(d)` → una línea: `[<code>] <message> (<path>)`.
+- `formatDiagnostics(list)` → una cabecera con el conteo y una línea por
+  diagnóstico; `No FDL diagnostics.` si la lista está vacía.
+
+Ejemplo de salida de `formatDiagnostics`:
+
+```
+2 FDL diagnostic(s):
+  - [VR-3] field "weird" of entity "Product": unknown field type "banana" (entities[0].fields[1].type)
+  - [VR-5] relation "orders" of entity "Product": relation target "Ghost" does not name an existing entity (entities[0].relations[0].target)
+```
 
 ## Uso del Bridge Node → Toolchain
 
