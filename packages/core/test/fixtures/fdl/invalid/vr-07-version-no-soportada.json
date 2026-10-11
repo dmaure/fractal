@@ -1,0 +1,12 @@
+{
+  "fdlVersion": "1",
+  "project": { "name": "tienda" },
+  "entities": [
+    {
+      "name": "Producto",
+      "fields": [
+        { "name": "nombre", "type": "string", "maxLength": 120 }
+      ]
+    }
+  ]
+}
