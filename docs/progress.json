@@ -39,7 +39,7 @@
       }
     ],
     "nodos": [
-      { "id": "FDL", "label": "FDL · entidades<br/>campos · relaciones · reglas<br/>(ADR-0003)", "estado": "en_curso" },
+      { "id": "FDL", "label": "FDL · entidades<br/>campos · relaciones · reglas<br/>(ADR-0003)", "estado": "completado" },
       { "id": "MODULOS", "label": "Modulos opcionales<br/>(Constitucion Art. IX · ROADMAP M5)", "estado": "pendiente" }
     ],
     "aristas": [
@@ -58,13 +58,14 @@
       "id": "SPEC-0004",
       "label": "Lenguaje FDL v0",
       "milestone": "M2",
-      "estado": "en_curso",
+      "estado": "completado",
       "tareas": [
         { "id": "T1", "ticket": "FRA-56", "label": "Tipos / representacion JSON de FDL v0 en core", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-57", "label": "Parser JSON -> IR tipada de FDL en core", "estado": "completado" },
         { "id": "T3", "ticket": "FRA-58", "label": "Validador semantico de FDL (VR-1..VR-12) en core", "estado": "completado" },
         { "id": "T4", "ticket": "FRA-59", "label": "Diagnosticos y errores legibles de FDL en core", "estado": "completado" },
-        { "id": "T5", "ticket": "FRA-60", "label": "Tests y snapshots de FDL (fixtures del lenguaje)", "estado": "completado" }
+        { "id": "T5", "ticket": "FRA-60", "label": "Tests y snapshots de FDL (fixtures del lenguaje)", "estado": "completado" },
+        { "id": "T6", "ticket": "FRA-61", "label": "Documentación de usuario de FDL (docs/guides/fdl.md)", "estado": "completado" }
       ]
     },
     {
