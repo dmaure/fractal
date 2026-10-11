@@ -78,10 +78,15 @@ function initSingleRepository(targetDir: string, topology: ProjectTopology): Git
   
   // Commit inicial
   execSync('git add .', { cwd: targetDir, stdio: 'pipe' });
-  execSync('git commit -m "feat: inicializar proyecto con topología ' + topology + '"', {
-    cwd: targetDir,
-    stdio: 'pipe',
-  });
+  execSync(
+    'git -c user.email="fractal@localhost" -c user.name="Fractal" commit -m "feat: inicializar proyecto con topología ' +
+      topology +
+      '"',
+    {
+      cwd: targetDir,
+      stdio: 'pipe',
+    }
+  );
   
   return {
     success: true,
@@ -165,10 +170,13 @@ function initRepositoryWithManifest(
   
   // Commit inicial (sin el manifiesto, que está en .gitignore)
   execSync('git add .', { cwd: repoDir, stdio: 'pipe' });
-  execSync(`git commit -m "feat: inicializar repositorio ${role} para ${projectName}"`, {
-    cwd: repoDir,
-    stdio: 'pipe',
-  });
+  execSync(
+    `git -c user.email="fractal@localhost" -c user.name="Fractal" commit -m "feat: inicializar repositorio ${role} para ${projectName}"`,
+    {
+      cwd: repoDir,
+      stdio: 'pipe',
+    }
+  );
   
   // Generar manifiesto DESPUÉS del commit inicial
   // El manifiesto no se commitea porque está en .gitignore

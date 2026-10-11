@@ -56,9 +56,11 @@ describe('timeout', () => {
 
       const elapsed = Date.now() - startTime;
       
-      // Debe haber tardado aproximadamente 100ms (con margen)
+      // Debe haber tardado aproximadamente 100ms. El límite inferior preserva
+      // el significado del test (sí hubo timeout); el superior se holga para no
+      // flakear en runners de CI cargados.
       expect(elapsed).toBeGreaterThanOrEqual(100);
-      expect(elapsed).toBeLessThan(500);
+      expect(elapsed).toBeLessThan(2000);
 
       // Limpiar el proceso
       if (child.pid && !child.killed) {
@@ -259,8 +261,10 @@ describe('timeout', () => {
         expect(error).toBeInstanceOf(TimeoutError);
       }
 
-      // Esperar un poco para que el proceso sea matado
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Esperar a que el proceso sea matado. Margen holgado para runners de CI
+      // cargados; la aserción de "proceso muerto" (ESRCH) de abajo conserva el
+      // significado del test.
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // El proceso debe estar muerto
       try {

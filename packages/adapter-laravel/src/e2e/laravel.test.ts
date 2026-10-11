@@ -21,6 +21,18 @@ import { generateMultirepo } from '../generators/multirepo.js';
 
 const execAsync = promisify(exec);
 
+/**
+ * Identidad git por invocación (hermética): se inyecta vía variables de entorno
+ * en los procesos que la necesitan (composer usa git para laravel/framework) en
+ * vez de mutar la config global del runner con `git config --global`.
+ */
+const GIT_IDENTITY_ENV = {
+  GIT_AUTHOR_NAME: 'Fractal Test',
+  GIT_AUTHOR_EMAIL: 'test@fractal.test',
+  GIT_COMMITTER_NAME: 'Fractal Test',
+  GIT_COMMITTER_EMAIL: 'test@fractal.test',
+} as const;
+
 async function checkCommand(command: string): Promise<boolean> {
   try {
     await execAsync(`which ${command}`);
@@ -77,14 +89,6 @@ describe('E2E con PHP y Composer reales', () => {
       await mkdir(tempDir, { recursive: true });
       const projectPath = await generateMonolith('test-monolith', tempDir);
 
-        // Configurar git para composer install (laravel/framework requiere git)
-        await execAsync('git config --global user.email "test@fractal.test"', {
-          cwd: projectPath,
-        });
-        await execAsync('git config --global user.name "Fractal Test"', {
-          cwd: projectPath,
-        });
-
         // Crear .env ANTES de composer install (package:discover lo necesita)
         await execAsync('cp .env.example .env', { cwd: projectPath });
         // Generar APP_KEY válido para que Laravel pueda arrancar
@@ -102,7 +106,7 @@ describe('E2E con PHP y Composer reales', () => {
         console.log('   Ejecutando composer install...');
         const { stdout: composerOut, stderr: composerErr } = await execAsync('composer install --no-interaction', {
           cwd: projectPath,
-          env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
+          env: { ...process.env, ...GIT_IDENTITY_ENV, COMPOSER_NO_INTERACTION: '1' },
         });
         // Composer 2.x escribe "Generating optimized autoload files" en stderr
         // (reserva stdout para salida parseable). Verificamos ambos flujos.
@@ -194,13 +198,6 @@ describe('E2E con PHP y Composer reales', () => {
       const projectPath = await generateMonorepo('test-monorepo', tempDir);
         const apiPath = join(projectPath, 'api');
 
-        await execAsync('git config --global user.email "test@fractal.test"', {
-          cwd: apiPath,
-        });
-        await execAsync('git config --global user.name "Fractal Test"', {
-          cwd: apiPath,
-        });
-
         await execAsync('cp .env.example .env', { cwd: apiPath });
         await execAsync('php -r "echo \'APP_KEY=base64:\' . base64_encode(random_bytes(32)) . PHP_EOL;" >> .env', {
           cwd: apiPath,
@@ -214,7 +211,7 @@ describe('E2E con PHP y Composer reales', () => {
         console.log('   Ejecutando composer install en api/...');
         const { stdout: composerOut, stderr: composerErr } = await execAsync('composer install --no-interaction', {
           cwd: apiPath,
-          env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
+          env: { ...process.env, ...GIT_IDENTITY_ENV, COMPOSER_NO_INTERACTION: '1' },
         });
         // Composer 2.x escribe "Generating optimized autoload files" en stderr
         // (reserva stdout para salida parseable). Verificamos ambos flujos.
@@ -254,13 +251,6 @@ describe('E2E con PHP y Composer reales', () => {
       await generateMultirepo('test-multirepo', tempDir);
         const apiPath = join(tempDir, 'test-multirepo-api');
 
-        await execAsync('git config --global user.email "test@fractal.test"', {
-          cwd: apiPath,
-        });
-        await execAsync('git config --global user.name "Fractal Test"', {
-          cwd: apiPath,
-        });
-
         await execAsync('cp .env.example .env', { cwd: apiPath });
         await execAsync('php -r "echo \'APP_KEY=base64:\' . base64_encode(random_bytes(32)) . PHP_EOL;" >> .env', {
           cwd: apiPath,
@@ -274,7 +264,7 @@ describe('E2E con PHP y Composer reales', () => {
         console.log('   Ejecutando composer install en test-multirepo-api/...');
         const { stdout: composerOut, stderr: composerErr } = await execAsync('composer install --no-interaction', {
           cwd: apiPath,
-          env: { ...process.env, COMPOSER_NO_INTERACTION: '1' },
+          env: { ...process.env, ...GIT_IDENTITY_ENV, COMPOSER_NO_INTERACTION: '1' },
         });
         // Composer 2.x escribe "Generating optimized autoload files" en stderr
         // (reserva stdout para salida parseable). Verificamos ambos flujos.

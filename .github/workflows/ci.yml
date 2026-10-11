@@ -37,6 +37,50 @@ jobs:
       - name: fractal status --check
         run: pnpm status:check
 
+  tests:
+    name: tests + typecheck (todos los paquetes)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Identidad git para que los tests que crean commits (git-initializer,
+      # `fractal new`) no fallen con "Author identity unknown" en un runner limpio.
+      - name: Configure git identity
+        run: |
+          git config --global user.email "ci@fractal.local"
+          git config --global user.name "Fractal CI"
+
+      - name: Build packages
+        run: pnpm -r build
+
+      # Corre los tests de todos los paquetes. En `@fractal/core` el script es
+      # `vitest run --typecheck.enabled`, por lo que también valida el typecheck
+      # de los archivos de test (incluye los 4 errores de tipos corregidos).
+      - name: Run package tests
+        run: pnpm -r test
+
+      - name: Run repo scripts tests
+        run: pnpm test:scripts
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Coupling lint (Artículo II)
+        run: node scripts/lint-coupling.js
+
   e2e-laravel:
     name: E2E Laravel (PHP 8.2)
     runs-on: ubuntu-latest
