@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última revisión:** 2026-10-11
+**Última revisión:** 2026-10-12
 
 > Mapa visual del avance: ver [`MAPA_DE_PROGRESO.md`](./MAPA_DE_PROGRESO.md).
 
@@ -30,13 +30,14 @@ Cada milestone entrega valor verificable por sí solo.
 | CI base: lint, tests, matriz de versiones | ✅ |
 | Lint de acoplamiento (Artículo II) | ✅ |
 | Monorepo con workspaces configurado | ✅ |
-| Visibilidad de estado del proyecto (SPEC-0031) | ⬜[^spec0031] |
+| Visibilidad de estado del proyecto (SPEC-0031) | ✅[^spec0031] |
 
-[^spec0031]: En realidad **🟡 en curso** — MVP entregado (dev-script
-    `scripts/progress-map.js` + `pnpm progress`, que autogenera el Diagrama 1
-    de `MAPA_DE_PROGRESO.md` desde `docs/progress.json`); la capability de
-    producto `fractal status` queda por implementar (SPEC-0031, Aprobado). La
-    tabla de M0 usa solo ✅/⬜, de ahí el ⬜.
+[^spec0031]: `completado` en `docs/progress.json` (SPEC-0031, M0; FRA-43..FRA-49
+    mergeados, incluido FRA-48 `--export`). El comando de producto `fractal status`
+    está implementado (lee `docs/progress.json`, regenera y valida los diagramas
+    de `MAPA_DE_PROGRESO.md`, con `--check` cableado en CI) y su spec ya estaba
+    marcado **Implementado**. Antes esta fila estaba en ⬜/🟡 con el MVP vía
+    `scripts/progress-map.js`; se alinea a ✅ con `progress.json` (FRA-63).
 
 **Definition of Done:** un contribuidor nuevo entiende qué construir y cómo, leyendo solo el repo.
 
@@ -65,8 +66,8 @@ invertir en generación de código.
 
 | Spec | Capability | Estado |
 |---|---|---|
-| SPEC-0004 | Especificación del lenguaje FDL | ⬜ |
-| SPEC-0005 | Parser y validador de FDL | ⬜ |
+| SPEC-0004 | Especificación del lenguaje FDL | ✅[^spec0004] |
+| SPEC-0005 | Parser y validador de FDL | ✅[^spec0005] |
 | SPEC-0006 | Contrato del adapter | ✅ |
 | SPEC-0007 | Motor de templating de stubs | ⬜ |
 | SPEC-0008 | Entidad: migration, model, factory, seeder | ⬜ |
@@ -92,11 +93,24 @@ invertir en generación de código.
 > Nota: el milestone M2 sigue abierto; SPEC-0006 es la primera de sus specs en
 > cerrarse, el resto (FDL, generación de entidades) continúa pendiente.
 
-> SPEC-0004 (lenguaje FDL) quedó **redactado en estado Draft** el 2026-10-11
-> (`docs/specs/0004-lenguaje-fdl.md`): define FDL como lenguaje/schema JSON
-> agnóstico (ADR-0003), pendiente de aprobación de Diego (Art. XI). La
-> capability FDL sigue `pendiente` en `docs/progress.json` hasta implementarse;
-> por eso su fila de M2 se mantiene en ⬜.
+> SPEC-0004 (lenguaje FDL) está **redactado y Aprobado**
+> (`docs/specs/0004-lenguaje-fdl.md`, Estado: Aprobado) y su cadena de
+> implementación —FRA-56 a FRA-61 (PRs #67–#72)— está mergeada; por eso
+> `docs/progress.json` marca SPEC-0004 y la capability FDL como `completado` y
+> esta fila se alinea a ✅ (FRA-63). El estado formal del spec sigue en
+> **Aprobado**: pasarlo a **Implementado** es decisión de Diego (Artículo XI).
+> La evidencia de sus criterios de aceptación está en SPEC-0004 §11.1.
+>
+> SPEC-0005 (parser y validador) **no se redactó como spec independiente**: quedó
+> **absorbido en SPEC-0004** (sus tareas T2–T5 se ejecutaron bajo el módulo FDL,
+> FRA-57..FRA-60). Por eso no tiene entrada propia en `progress.json` y su fila
+> se marca ✅ (absorbido). Ver `docs/specs/0005-parser-y-validador-de-fdl.md` y
+> SPEC-0004 §11.2.
+
+[^spec0004]: `completado` en `docs/progress.json` (SPEC-0004, T1..T6 / FRA-56..FRA-61).
+    El spec sigue en Estado **Aprobado**; marcarlo **Implementado** es decisión de Diego.
+[^spec0005]: Absorbido en SPEC-0004 (ver `docs/specs/0005-parser-y-validador-de-fdl.md`).
+    Sin entrada propia en `progress.json`; sus tareas se trazan bajo SPEC-0004.
 
 ---
 
