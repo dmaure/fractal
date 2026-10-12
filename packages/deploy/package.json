@@ -14,7 +14,7 @@
   "scripts": {
     "build": "rm -rf dist && tsc",
     "test": "vitest run --typecheck.enabled",
-    "test:watch": "vitest",
+    "test:watch": "vitest --typecheck.enabled",
     "test:typecheck": "vitest --typecheck.only --run"
   },
   "dependencies": {
