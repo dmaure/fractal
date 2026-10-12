@@ -90,6 +90,12 @@ const T_HARDEN = 600_000;
 const T_DOCKER = 900_000;
 const T_DNS = 360_000;
 const T_HTTP = 360_000;
+// Poll HTTP del MVP: la propagación DNS ya la confirmó el paso AC-5 previo, así
+// que el presupuesto es corto (~120s) para no gastar ~6 min de CI en corridas
+// que fallan antes de que el contenedor levante. Un camino sano pasa en los
+// primeros intentos.
+const T_HTTP_POLL = 120_000;
+const T_HTTP_ATTEMPT = 10_000;
 const T_SSL = 600_000;
 
 // --- Helpers de polling y HTTP ------------------------------------------------
@@ -497,14 +503,14 @@ describe.skipIf(!VPS_IP)('E2E · deploy contra VPS efímero real (SPEC-0003)', (
       const ok = await pollUntil(
         `http://${DOMAIN} sirve el marcador`,
         async () => {
-          const res = await httpGet(`http://${DOMAIN}/`);
+          const res = await httpGet(`http://${DOMAIN}/`, { timeoutMs: T_HTTP_ATTEMPT });
           return res.status === 200 && res.body.includes(MARKER);
         },
-        { timeoutMs: T_HTTP, intervalMs: 10_000 }
+        { timeoutMs: T_HTTP_POLL, intervalMs: 10_000 }
       );
       expect(ok, 'La página no respondió por HTTP con el marcador').toBe(true);
     },
-    T_HTTP + 30_000
+    T_HTTP_POLL + 30_000
   );
 
   it(

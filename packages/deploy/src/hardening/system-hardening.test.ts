@@ -224,8 +224,10 @@ describe('SystemHardening', () => {
       expect(result.steps).toHaveLength(4);
       expect(result.steps[0]).toContain('Usuario deploy creado');
       expect(result.steps[1]).toContain('Clave SSH agregada');
-      expect(result.steps[2]).toContain('SSH endurecido');
-      expect(result.steps[3]).toContain('Firewall UFW configurado');
+      // El firewall se configura ANTES de endurecer sshd; deshabilitar root
+      // debe ser la última acción privilegiada (ver harden()).
+      expect(result.steps[2]).toContain('Firewall UFW configurado');
+      expect(result.steps[3]).toContain('SSH endurecido');
       expect(result.error).toBeUndefined();
 
       const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
@@ -436,7 +438,9 @@ describe('SystemHardening', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No se pudo endurecer la configuración de SSH');
-      expect(result.steps).toHaveLength(2); // Usuario y SSH key
+      // hardenSshd corre último (tras el firewall), así que llegan 3 pasos
+      // antes de fallar: usuario, SSH key y firewall.
+      expect(result.steps).toHaveLength(3); // Usuario, SSH key y firewall
     });
 
     it('debe instalar UFW si no está presente', async () => {
@@ -647,7 +651,9 @@ describe('SystemHardening', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No se pudo configurar el firewall');
-      expect(result.steps).toHaveLength(3); // Usuario, SSH key, SSH hardening
+      // El firewall corre antes que hardenSshd, así que al fallar solo hay 2
+      // pasos: usuario y SSH key (el hardening de SSH aún no se ejecutó).
+      expect(result.steps).toHaveLength(2); // Usuario y SSH key
     });
 
     it('debe usar puertos por defecto si no se especifican', async () => {
@@ -708,7 +714,8 @@ describe('SystemHardening', () => {
       const result = await systemHardening.harden(configWithoutPorts);
 
       expect(result.success).toBe(true);
-      expect(result.steps[3]).toContain('22, 80, 443');
+      // El firewall es ahora el 3er paso (índice 2); hardenSshd va último.
+      expect(result.steps[2]).toContain('22, 80, 443');
     });
 
     it('debe escapar correctamente la clave SSH pública', async () => {
@@ -862,7 +869,8 @@ describe('SystemHardening', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No se pudo endurecer la configuración de SSH');
-      expect(result.steps).toHaveLength(2);
+      // hardenSshd corre último: usuario, SSH key y firewall ya pasaron.
+      expect(result.steps).toHaveLength(3);
 
       const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
       expect(sshCommands.some((cmd: string) =>

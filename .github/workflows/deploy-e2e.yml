@@ -40,7 +40,9 @@ jobs:
     timeout-minutes: 30
     env:
       VULTR_REGION: ewr
-      VULTR_PLAN: vc2-1c-2gb
+      # vc2-2c-4gb (2 vCPU / 4 GB / 80 GB): supera el mínimo de 2 GB de RAM de
+      # ServerValidator con margen. vc2-1c-2gb reporta ~1.9 GB usables y no pasa.
+      VULTR_PLAN: vc2-2c-4gb
     steps:
       - name: Checkout
         uses: actions/checkout@v4
