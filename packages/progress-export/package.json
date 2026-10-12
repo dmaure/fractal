@@ -1,0 +1,38 @@
+{
+  "name": "@fractal/progress-export",
+  "version": "0.0.0",
+  "description": "Renderer del mapa de progreso: texto Mermaid -> SVG/PNG vía Chromium headless. Agnóstico de framework.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "test": "vitest run --typecheck.enabled",
+    "test:watch": "vitest --typecheck.enabled",
+    "test:typecheck": "vitest --typecheck.only --run"
+  },
+  "dependencies": {
+    "mermaid": "^12.1.0",
+    "playwright-core": "^1.64.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [
+    "fractal",
+    "progress",
+    "mermaid",
+    "svg",
+    "png"
+  ],
+  "author": "Fractal",
+  "license": "MIT"
+}

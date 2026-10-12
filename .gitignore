@@ -29,3 +29,8 @@ Thumbs.db
 # Test coverage
 coverage/
 .nyc_output/
+
+# Diagramas exportados del mapa de progreso (FRA-48).
+# No se commitean: los PNG de Chromium no son byte-reproducibles y harían
+# flaky cualquier guardia; se regeneran bajo demanda con `fractal status --export`.
+docs/progress-map/

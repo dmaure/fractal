@@ -80,6 +80,7 @@ generan desde ahí (SPEC-0031).
 fractal status            # imprime el resumen (solo lectura)
 fractal status --write    # regenera los diagramas del mapa (idempotente)
 fractal status --check    # valida sin escribir; falla si el mapa está desactualizado
+fractal status --export   # exporta los diagramas como imágenes (SVG + PNG)
 ```
 
 `--check` es un **dry-run**: no escribe ningún archivo. Regenera los diagramas
@@ -92,6 +93,28 @@ auto-generación (`<!-- progress-map:auto:start -->` / `:end`, y el par
 corre `pnpm status:check` (= `fractal status --check`) en cada pull request, de
 modo que un mapa desactualizado **bloquea el merge**. Para arreglarlo, corré
 `fractal status --write` (o `pnpm progress`) y commiteá el cambio.
+
+**Exportar los diagramas como imágenes (`--export`, FRA-48):** además de los
+bloques Mermaid que GitHub renderiza en el documento, podés exportar los
+diagramas a archivos de imagen para usarlos fuera de GitHub (presentaciones,
+reportes). Es una acción **opt-in** y de solo lectura: no modifica
+`docs/MAPA_DE_PROGRESO.md` ni participa de la guardia de CI.
+
+```bash
+fractal status --export                      # SVG + PNG en docs/progress-map/
+fractal status --export --format svg         # solo SVG
+fractal status --export --out /tmp/diagramas # directorio de salida a elección
+```
+
+Opciones: `--out <dir>` (directorio de salida, por defecto `docs/progress-map/`)
+y `--format svg|png|both` (por defecto `both`). Se generan `mapa-hitos.*`
+(Diagrama 1) y `mapa-capacidades.*` (Diagrama 2, solo si `progress.json` tiene
+`capacidades`). El render usa la librería Mermaid dentro de un Chromium headless
+(vía `playwright-core`, offline, reutilizando el navegador del entorno); el PNG
+se obtiene capturando el `<svg>` ya renderizado. Las **imágenes no se
+commitean** (el directorio por defecto está en `.gitignore`): los PNG de
+Chromium no son byte-reproducibles, así que se regeneran bajo demanda. Ver
+[`docs/adr/0015-export-diagramas-mapa-progreso.md`](docs/adr/0015-export-diagramas-mapa-progreso.md).
 
 ### Estructura del monorepo
 
