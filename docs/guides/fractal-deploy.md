@@ -167,7 +167,7 @@ disparados por merge— no vuelvan a preguntar:
 
 | Rol del repo | Variable que se escribe | Archivo |
 |---|---|---|
-| `web` | `API_URL` (apunta al dominio del `api`) | `.env.production` (Vite la lee en build time) |
+| `web` | `VITE_API_URL` (apunta al dominio del `api`; Vite la lee en build time) | `.env.production` |
 | `api` | `CORS_ALLOWED_ORIGIN` / dominio de Sanctum (apunta al dominio del `web`) | `.env` (se lee en runtime) |
 
 El CLI **no se conecta** al repo hermano: solo usa datos que vos ya tenés, y
@@ -408,9 +408,9 @@ servicio que ocupa esos puertos y volvé a correr.
 ```
 ❌ El servidor no cumple con los requisitos mínimos:
 
-   • CPUs insuficientes: detectadas 1, se requiere 1
-   • RAM insuficiente: detectados 1.0 GB, se requiere 2 GB
-   • Distribución no soportada: Debian 12
+   • CPUs insuficientes: detectadas 1, mínimo requerido 1
+   • RAM insuficiente: detectados 1.0 GB, mínimo requerido 2 GB
+   • Distribución no soportada: Debian 12. Distribuciones soportadas: Ubuntu 22.04, Ubuntu 24.04
 
 📊 Información detectada del servidor:
    Sistema: Debian 12
