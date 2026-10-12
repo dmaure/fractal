@@ -1,8 +1,9 @@
 # SPEC-0004: Lenguaje FDL (Fractal Definition Language) v0
 
-**Estado:** Aprobado
+**Estado:** Implementado
 **Autor:** Diego
 **Fecha:** 2026-10-11
+**Última revisión:** 2026-10-12
 **Issue:** #
 
 ---
@@ -598,3 +599,46 @@ convención `_comment`; no se decide en este spec.
   SPEC-0004.
 - **Definition of Done:** Guía publicada en `docs/guides/`, ejemplos válidos,
   enlazada desde donde corresponda.
+
+---
+
+## 11. Cierre documental (FRA-63)
+
+> Agregado en el cierre documental del módulo FDL (FRA-63). Esta sección deja
+> registrada la evidencia de los criterios de aceptación del §4 y la disposición
+> de SPEC-0005. No cambia el alcance del lenguaje. SPEC-0004 quedó marcado como
+> **Implementado** el 2026-10-12 por decisión de Diego (FRA-63).
+
+### 11.1 Evidencia de criterios de aceptación
+
+Los criterios del §4 quedan cubiertos por la cadena FDL (FRA-56 … FRA-61),
+mergeada en M2. El estado por tarea vive en `docs/progress.json` (SPEC-0004,
+T1..T6, todas `completado`).
+
+| AC | Dónde se especifica | Evidencia (ticket · PR) |
+|---|---|---|
+| **AC-1** FDL es un documento JSON | §7.1, §7.6 | Tipos del documento en `packages/core` (FRA-56 · #67); guía de usuario `docs/guides/fdl.md` (FRA-61 · #72) |
+| **AC-2** Shape de nivel superior | §7.1 | Tipos `fdlVersion`/`project`/`entities` en core (FRA-56 · #67); parser que los exige (FRA-57 · #68) |
+| **AC-3** Entidad y campo | §7.2, §7.3 | Tipos de entidad/campo/modificadores en core (FRA-56 · #67); parser con defaults de §7.3 (FRA-57 · #68) |
+| **AC-4** Catálogo de tipos agnósticos | §7.4 | Enum de tipos en core (FRA-56 · #67); VR-3/VR-4 en el validador (FRA-58 · #69) |
+| **AC-5** Relaciones | §7.5 | Tipos de relación/cardinalidad en core (FRA-56 · #67); VR-5/VR-8/VR-12 en el validador (FRA-58 · #69) |
+| **AC-6** Reglas de validación como requisitos | §8 (VR-1..VR-12) | Validador semántico VR-1..VR-12 (FRA-58 · #69) y diagnósticos legibles (FRA-59 · #70) implementan las reglas; un test positivo y uno negativo por regla |
+| **AC-7** Agnosticismo de framework | §7.4, §9 | VR-10 en el validador (FRA-58 · #69); `pnpm lint:coupling` limpio sobre el core en toda la cadena |
+| **AC-8** Ejemplos JSON concretos | §7.6 | Fixtures válidas e inválidas, incluidos los ejemplos de §7.6 (FRA-60 · #71); ejemplos de la guía (FRA-61 · #72) |
+| **AC-9** Versionado desde el día uno | §7.1, §8 (VR-7) | `fdlVersion` en los tipos (FRA-56 · #67); VR-7 en el validador (FRA-58 · #69) |
+
+> Nota: T2–T5 (parser, validador, diagnósticos, fixtures) son el alcance que el
+> §10 atribuía a SPEC-0005; se ejecutaron bajo el módulo FDL de SPEC-0004 (ver
+> §11.2).
+
+### 11.2 Disposición de SPEC-0005
+
+SPEC-0005 (parser y validador de FDL) **no se redactó como spec independiente**:
+su alcance quedó **absorbido en SPEC-0004**. La descomposición del §10 ya listaba
+sus tareas (T2 parser, T3 validador VR-1..VR-12, T4 diagnósticos, T5 fixtures)
+dentro de la cadena FDL, y se implementaron bajo el módulo FDL —FRA-57 (#68),
+FRA-58 (#69), FRA-59 (#70) y FRA-60 (#71)—, trazadas en `docs/progress.json` bajo
+`SPEC-0004`. La nota del §10 anticipaba "arrastrar T2–T5 a SPEC-0005 cuando ese
+spec se apruebe"; en la práctica ese spec no se abrió y las tareas se cerraron
+aquí. La disposición queda registrada también en
+`docs/specs/0005-parser-y-validador-de-fdl.md`.
