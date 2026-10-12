@@ -1,0 +1,222 @@
+name: Deploy E2E (VPS efímero)
+
+# E2E real de `fractal deploy` (SPEC-0003 DoD §9 / FRA-64).
+#
+# Provisiona un VPS Vultr efímero (Ubuntu LTS), crea un registro DNS DNS-only en
+# Cloudflare (subdominio de codigofractal.dev), corre el test que deja una página
+# básica funcionando por HTTP y HTTPS (Let's Encrypt staging), y SIEMPRE destruye
+# el VPS, la SSH key de Vultr y el registro DNS al final (`if: always()`), aun si
+# el test falla.
+#
+# Secrets (GitHub Environment `dev`): VULTR_API_KEY, CLOUDFLARE_API_TOKEN,
+# CLOUDFLARE_ZONE_ID.
+
+on:
+  pull_request:
+    paths:
+      - 'packages/deploy/**'
+      - 'packages/core/src/commands/deploy*'
+      - '.github/workflows/deploy-e2e.yml'
+      - 'docs/specs/0003-*'
+  push:
+    branches: [master]
+    paths:
+      - 'packages/deploy/**'
+      - 'packages/core/src/commands/deploy*'
+      - '.github/workflows/deploy-e2e.yml'
+      - 'docs/specs/0003-*'
+  workflow_dispatch:
+
+# No cancelar runs en progreso: un run cancelado podría dejar huérfano un VPS pago.
+concurrency:
+  group: deploy-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-e2e:
+    name: deploy e2e contra VPS efímero
+    runs-on: ubuntu-latest
+    environment: dev
+    timeout-minutes: 30
+    env:
+      VULTR_REGION: ewr
+      VULTR_PLAN: vc2-1c-2gb
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm -r build
+
+      - name: Generar keypair SSH efímero (ed25519, sin passphrase)
+        run: |
+          set -euo pipefail
+          KEY_PATH="$HOME/.ssh/fractal_e2e"
+          mkdir -p "$HOME/.ssh"
+          ssh-keygen -t ed25519 -N "" -C "fractal-e2e-${GITHUB_RUN_ID}" -f "$KEY_PATH"
+          echo "FRACTAL_E2E_SSH_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Provisionar VPS Vultr efímero
+        env:
+          VULTR_API_KEY: ${{ secrets.VULTR_API_KEY }}
+        run: |
+          set -euo pipefail
+          API="https://api.vultr.com/v2"
+          AUTH="Authorization: Bearer $VULTR_API_KEY"
+          LABEL="fra64-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "VULTR_LABEL=$LABEL" >> "$GITHUB_ENV"
+
+          echo "→ Subiendo clave pública a Vultr..."
+          PUBKEY="$(cat "${FRACTAL_E2E_SSH_KEY_PATH}.pub")"
+          KEY_RESP="$(curl -sS -X POST "$API/ssh-keys" -H "$AUTH" -H 'Content-Type: application/json' \
+            -d "$(jq -nc --arg n "$LABEL" --arg k "$PUBKEY" '{name:$n, ssh_key:$k}')")"
+          SSH_KEY_ID="$(echo "$KEY_RESP" | jq -r '.ssh_key.id')"
+          if [ -z "$SSH_KEY_ID" ] || [ "$SSH_KEY_ID" = "null" ]; then
+            echo "No se pudo crear la SSH key en Vultr: $KEY_RESP"; exit 1
+          fi
+          echo "VULTR_SSH_KEY_ID=$SSH_KEY_ID" >> "$GITHUB_ENV"
+
+          echo "→ Resolviendo os_id de Ubuntu 24.04 LTS x64..."
+          OS_ID="$(curl -sS "$API/os?per_page=500" -H "$AUTH" \
+            | jq -r '.os[] | select(.name | test("Ubuntu 24.04 LTS x64")) | .id' | head -1)"
+          # Fallback documentado: Ubuntu 24.04 LTS x64 = 2284.
+          if [ -z "$OS_ID" ] || [ "$OS_ID" = "null" ]; then OS_ID=2284; fi
+          echo "   os_id=$OS_ID"
+
+          echo "→ Creando instancia ($VULTR_PLAN en $VULTR_REGION)..."
+          CREATE="$(curl -sS -X POST "$API/instances" -H "$AUTH" -H 'Content-Type: application/json' \
+            -d "$(jq -nc --arg r "$VULTR_REGION" --arg p "$VULTR_PLAN" --argjson os "$OS_ID" \
+                    --arg l "$LABEL" --arg k "$SSH_KEY_ID" \
+                    '{region:$r, plan:$p, os_id:$os, label:$l, hostname:$l, sshkey_id:[$k]}')")"
+          INSTANCE_ID="$(echo "$CREATE" | jq -r '.instance.id')"
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "null" ]; then
+            echo "No se pudo crear la instancia: $CREATE"; exit 1
+          fi
+          # Persistir el id INMEDIATAMENTE para que el teardown siempre lo tenga.
+          echo "VULTR_INSTANCE_ID=$INSTANCE_ID" >> "$GITHUB_ENV"
+          echo "   instance_id=$INSTANCE_ID"
+
+          echo "→ Esperando a que la instancia esté activa con IP real..."
+          IP=""
+          for i in $(seq 1 60); do
+            INFO="$(curl -sS "$API/instances/$INSTANCE_ID" -H "$AUTH")"
+            STATUS="$(echo "$INFO" | jq -r '.instance.status')"
+            POWER="$(echo "$INFO" | jq -r '.instance.power_status')"
+            IP="$(echo "$INFO" | jq -r '.instance.main_ip')"
+            echo "   intento $i: status=$STATUS power=$POWER ip=$IP"
+            if [ "$STATUS" = "active" ] && [ "$POWER" = "running" ] && [ "$IP" != "0.0.0.0" ] && [ -n "$IP" ] && [ "$IP" != "null" ]; then
+              break
+            fi
+            sleep 10
+          done
+          if [ -z "$IP" ] || [ "$IP" = "0.0.0.0" ] || [ "$IP" = "null" ]; then
+            echo "La instancia no obtuvo IP a tiempo"; exit 1
+          fi
+          echo "FRACTAL_E2E_VPS_IP=$IP" >> "$GITHUB_ENV"
+          echo "   IP=$IP"
+
+          echo "→ Esperando a que SSH acepte la clave..."
+          SSH_OK=0
+          for i in $(seq 1 60); do
+            if ssh -i "$FRACTAL_E2E_SSH_KEY_PATH" \
+                 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                 -o ConnectTimeout=5 "root@$IP" 'echo ok' 2>/dev/null | grep -q ok; then
+              SSH_OK=1; break
+            fi
+            sleep 5
+          done
+          if [ "$SSH_OK" != "1" ]; then echo "SSH no respondió a tiempo"; exit 1; fi
+          echo "   SSH listo"
+
+      - name: Crear registro DNS Cloudflare (DNS-only, proxied:false)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          DOMAIN="e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.codigofractal.dev"
+          echo "FRACTAL_E2E_DOMAIN=$DOMAIN" >> "$GITHUB_ENV"
+
+          echo "→ Creando A $DOMAIN → $FRACTAL_E2E_VPS_IP (proxied:false, TTL 60)..."
+          RESP="$(curl -sS -X POST \
+            "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' \
+            -d "$(jq -nc --arg d "$DOMAIN" --arg ip "$FRACTAL_E2E_VPS_IP" \
+                    '{type:"A", name:$d, content:$ip, ttl:60, proxied:false}')")"
+          REC_ID="$(echo "$RESP" | jq -r '.result.id')"
+          if [ -z "$REC_ID" ] || [ "$REC_ID" = "null" ]; then
+            echo "No se pudo crear el registro DNS: $RESP"; exit 1
+          fi
+          echo "CF_DNS_RECORD_ID=$REC_ID" >> "$GITHUB_ENV"
+          echo "   record_id=$REC_ID"
+
+      - name: Correr el E2E
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          LETSENCRYPT_EMAIL: e2e@codigofractal.dev
+        run: |
+          cd packages/deploy
+          pnpm exec vitest run src/e2e/vps-deploy.e2e.test.ts
+
+      - name: Teardown — destruir VPS, SSH key y DNS (siempre)
+        if: always()
+        env:
+          VULTR_API_KEY: ${{ secrets.VULTR_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          # Teardown idempotente y a prueba de fallos: nunca falla el job aunque
+          # un recurso ya no exista. `set +e` para continuar pese a errores.
+          set +e
+          API="https://api.vultr.com/v2"
+          AUTH="Authorization: Bearer $VULTR_API_KEY"
+
+          echo "→ Eliminando instancia Vultr por id (${VULTR_INSTANCE_ID:-<none>})..."
+          if [ -n "${VULTR_INSTANCE_ID:-}" ]; then
+            curl -sS -X DELETE "$API/instances/$VULTR_INSTANCE_ID" -H "$AUTH" >/dev/null
+          fi
+
+          echo "→ Backup: eliminando cualquier instancia cuya label matchee el run..."
+          if [ -n "${VULTR_LABEL:-}" ]; then
+            for id in $(curl -sS "$API/instances?per_page=500" -H "$AUTH" \
+                | jq -r --arg L "$VULTR_LABEL" '.instances[] | select(.label==$L) | .id'); do
+              echo "   borrando instancia $id"
+              curl -sS -X DELETE "$API/instances/$id" -H "$AUTH" >/dev/null
+            done
+          fi
+
+          echo "→ Eliminando SSH key de Vultr (${VULTR_SSH_KEY_ID:-<none>})..."
+          if [ -n "${VULTR_SSH_KEY_ID:-}" ]; then
+            curl -sS -X DELETE "$API/ssh-keys/$VULTR_SSH_KEY_ID" -H "$AUTH" >/dev/null
+          fi
+
+          echo "→ Eliminando registro(s) DNS de Cloudflare..."
+          if [ -n "${FRACTAL_E2E_DOMAIN:-}" ] && [ -n "${CLOUDFLARE_ZONE_ID:-}" ]; then
+            for name in "$FRACTAL_E2E_DOMAIN" "www.$FRACTAL_E2E_DOMAIN"; do
+              RECS="$(curl -sS \
+                "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=$name" \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+              for id in $(echo "$RECS" | jq -r '.result[]?.id'); do
+                echo "   borrando record $name ($id)"
+                curl -sS -X DELETE \
+                  "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records/$id" \
+                  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" >/dev/null
+              done
+            done
+          fi
+
+          echo "Teardown completado."
+          exit 0
