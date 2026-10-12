@@ -4,7 +4,7 @@
 **Autor:** Diego
 **Fecha:** 2026-09-27
 **Última revisión:** 2026-10-01
-**Issue:** FRA-43, FRA-44, FRA-45, FRA-46, FRA-47, FRA-49
+**Issue:** FRA-43, FRA-44, FRA-45, FRA-46, FRA-47, FRA-48, FRA-49
 
 ---
 

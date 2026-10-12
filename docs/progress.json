@@ -82,6 +82,21 @@
         { "id": "T6", "ticket": "FRA-54", "label": "Conectar `fractal new` al adapter", "estado": "completado" },
         { "id": "T7", "ticket": "FRA-51", "label": "`fractal deploy` lee el deployRuntime del contrato por target", "estado": "completado" }
       ]
+    },
+    {
+      "id": "SPEC-0031",
+      "label": "Visibilidad de estado del proyecto — mapa de avance",
+      "milestone": "M0",
+      "estado": "completado",
+      "tareas": [
+        { "id": "T1", "ticket": "FRA-43", "label": "`fractal status`: lectura de docs/progress.json + resumen en terminal", "estado": "completado" },
+        { "id": "T2", "ticket": "FRA-44", "label": "Regenerar Diagrama 1 + Diagrama 2 desde docs/progress.json", "estado": "completado" },
+        { "id": "T3", "ticket": "FRA-45", "label": "`fractal status --check` + cableado en CI", "estado": "completado" },
+        { "id": "T4", "ticket": "FRA-46", "label": "Alinear `fractal status` al schema real + carga diferida de ssh2", "estado": "completado" },
+        { "id": "T5", "ticket": "FRA-47", "label": "Llevar regeneracion de Diagrama 1 + 2 a `fractal status --write`", "estado": "completado" },
+        { "id": "T6", "ticket": "FRA-48", "label": "Exportar los diagramas del mapa de progreso como SVG/PNG (`--export`)", "estado": "completado" },
+        { "id": "T7", "ticket": "FRA-49", "label": "Alinear README y SPEC-0031 con la implementacion real de `fractal status`", "estado": "completado" }
+      ]
     }
   ]
 }
