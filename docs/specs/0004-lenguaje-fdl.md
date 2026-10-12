@@ -606,8 +606,8 @@ convención `_comment`; no se decide en este spec.
 
 > Agregado en el cierre documental del módulo FDL (FRA-63). Esta sección deja
 > registrada la evidencia de los criterios de aceptación del §4 y la disposición
-> de SPEC-0005. No cambia el alcance del lenguaje ni el estado formal del spec:
-> pasarlo a **Implementado** es decisión de Diego (Artículo XI).
+> de SPEC-0005. No cambia el alcance del lenguaje. SPEC-0004 quedó marcado como
+> **Implementado** el 2026-10-12 por decisión de Diego (FRA-63).
 
 ### 11.1 Evidencia de criterios de aceptación
 

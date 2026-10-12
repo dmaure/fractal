@@ -93,12 +93,12 @@ invertir en generación de código.
 > Nota: el milestone M2 sigue abierto; SPEC-0006 es la primera de sus specs en
 > cerrarse, el resto (FDL, generación de entidades) continúa pendiente.
 
-> SPEC-0004 (lenguaje FDL) está **redactado y Aprobado**
-> (`docs/specs/0004-lenguaje-fdl.md`, Estado: Aprobado) y su cadena de
+> SPEC-0004 (lenguaje FDL) está **Implementado**
+> (`docs/specs/0004-lenguaje-fdl.md`, Estado: Implementado) y su cadena de
 > implementación —FRA-56 a FRA-61 (PRs #67–#72)— está mergeada; por eso
 > `docs/progress.json` marca SPEC-0004 y la capability FDL como `completado` y
-> esta fila se alinea a ✅ (FRA-63). El estado formal del spec sigue en
-> **Aprobado**: pasarlo a **Implementado** es decisión de Diego (Artículo XI).
+> esta fila se alinea a ✅ (FRA-63). El spec quedó marcado como
+> **Implementado** el 2026-10-12 por decisión de Diego (FRA-63).
 > La evidencia de sus criterios de aceptación está en SPEC-0004 §11.1.
 >
 > SPEC-0005 (parser y validador) **no se redactó como spec independiente**: quedó
@@ -108,7 +108,7 @@ invertir en generación de código.
 > SPEC-0004 §11.2.
 
 [^spec0004]: `completado` en `docs/progress.json` (SPEC-0004, T1..T6 / FRA-56..FRA-61).
-    El spec sigue en Estado **Aprobado**; marcarlo **Implementado** es decisión de Diego.
+    El spec está **Implementado** (2026-10-12, por decisión de Diego en FRA-63); el ✅ refleja `progress.json: completado`.
 [^spec0005]: Absorbido en SPEC-0004 (ver `docs/specs/0005-parser-y-validador-de-fdl.md`).
     Sin entrada propia en `progress.json`; sus tareas se trazan bajo SPEC-0004.
 

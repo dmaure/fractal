@@ -42,5 +42,5 @@ El estado de estas tareas se trazó en `docs/progress.json` bajo `SPEC-0004`
 - Descomposición y trazabilidad: SPEC-0004 §10 y §11.
 - Evidencia de criterios de aceptación: SPEC-0004 §11.1.
 
-> El estado formal de la cadena FDL (marcar SPEC-0004 como **Implementado**) es
-> decisión de Diego (Artículo XI); esta nota no lo anticipa.
+> SPEC-0004 ya está **Implementado** (2026-10-12, por decisión de Diego en
+> FRA-63); esta nota cierra la trazabilidad de la cadena FDL.
