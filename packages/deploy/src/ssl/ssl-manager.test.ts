@@ -25,94 +25,112 @@ describe('SslManager', () => {
       // Mock para certbot install
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/certbot',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot 2.7.4',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot',
           stderr: '',
         })
         // Mock para certificate issuance
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'Successfully received certificate',
           stderr: '',
         })
         // Mock para nginx config
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'syntax is ok',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         // Mock para renewal setup
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/systemctl',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'active',
           stderr: '',
@@ -136,6 +154,7 @@ describe('SslManager', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: 'success',
         stderr: '',
@@ -159,6 +178,7 @@ describe('SslManager', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: 'success',
         stderr: '',
@@ -182,6 +202,7 @@ describe('SslManager', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: 'success',
         stderr: '',
@@ -207,6 +228,7 @@ describe('SslManager', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: 'success',
         stderr: '',
@@ -232,6 +254,7 @@ describe('SslManager', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: 'success',
         stderr: '',
@@ -257,6 +280,7 @@ describe('SslManager', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: 'success',
         stderr: '',
@@ -280,6 +304,7 @@ describe('SslManager', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: 'success',
         stderr: '',
@@ -320,21 +345,25 @@ describe('SslManager', () => {
 
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/certbot',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot 2.7.4',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'DNS validation failed',
@@ -357,36 +386,43 @@ describe('SslManager', () => {
 
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/certbot',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot 2.7.4',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'Successfully received certificate',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'Permission denied',
@@ -409,6 +445,7 @@ describe('SslManager', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: 'success',
         stderr: '',
@@ -432,11 +469,13 @@ describe('SslManager', () => {
       
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: `notAfter=${futureDate.toUTCString()}`,
           stderr: '',
@@ -452,6 +491,7 @@ describe('SslManager', () => {
 
     it('detecta certificado inexistente', async () => {
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: false,
         exitCode: 1,
         stdout: '',
         stderr: 'No such file',
@@ -467,11 +507,13 @@ describe('SslManager', () => {
     it('maneja certificado existente sin poder leer fecha', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'Could not read certificate',
@@ -489,11 +531,13 @@ describe('SslManager', () => {
       
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: `notAfter=${futureDate.toUTCString()}`,
           stderr: '',
@@ -517,6 +561,7 @@ describe('SslManager', () => {
   describe('testRenewal', () => {
     it('ejecuta test de renovación', async () => {
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: true,
         exitCode: 0,
         stdout: 'Congratulations, all simulated renewals succeeded',
         stderr: '',
@@ -530,6 +575,7 @@ describe('SslManager', () => {
 
     it('maneja error en test de renovación', async () => {
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: false,
         exitCode: 1,
         stdout: '',
         stderr: 'Renewal configuration not found',

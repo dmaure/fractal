@@ -17,16 +17,19 @@ describe('CertbotInstaller', () => {
     it('detecta certbot ya instalado', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/certbot',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot 2.7.4',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot',
           stderr: '',
@@ -42,36 +45,43 @@ describe('CertbotInstaller', () => {
     it('instala certbot vía snap', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'not found',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/snap',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'core refreshed',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot installed',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot 2.7.4',
           stderr: '',
@@ -88,41 +98,49 @@ describe('CertbotInstaller', () => {
     it('hace fallback a apt si snap falla', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'not found',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/snap',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'snap install error',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot installed',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot 1.21.0',
           stderr: '',
@@ -138,26 +156,31 @@ describe('CertbotInstaller', () => {
     it('instala certbot vía apt directamente', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'not found',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'snap not found',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot installed',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot 1.21.0',
           stderr: '',
@@ -184,16 +207,19 @@ describe('CertbotInstaller', () => {
     it('emite certificado correctamente', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'Successfully received certificate',
           stderr: '',
@@ -217,16 +243,19 @@ describe('CertbotInstaller', () => {
     it('usa entorno de staging', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'Successfully received certificate',
           stderr: '',
@@ -245,16 +274,19 @@ describe('CertbotInstaller', () => {
     it('usa entorno de producción', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'Successfully received certificate',
           stderr: '',
@@ -273,16 +305,19 @@ describe('CertbotInstaller', () => {
     it('configura webroot challenge correctamente', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'Successfully received certificate',
           stderr: '',
@@ -304,6 +339,7 @@ describe('CertbotInstaller', () => {
 
     it('maneja error al crear directorio de challenge', async () => {
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: false,
         exitCode: 1,
         stdout: '',
         stderr: 'Permission denied',
@@ -322,16 +358,19 @@ describe('CertbotInstaller', () => {
     it('maneja error de certbot', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'DNS validation failed',

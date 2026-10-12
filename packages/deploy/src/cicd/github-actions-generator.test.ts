@@ -113,7 +113,7 @@ describe('GitHubActionsGenerator', () => {
     });
 
     it('should reject invalid target type', () => {
-      const config = {
+      const config: DeployConfig = {
         provider: 'github-actions',
         targetType: 'invalid' as any,
         runtime: BACKEND_RUNTIME,

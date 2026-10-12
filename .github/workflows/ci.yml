@@ -66,9 +66,9 @@ jobs:
       - name: Build packages
         run: pnpm -r build
 
-      # Corre los tests de todos los paquetes. En `@fractal/core` el script es
-      # `vitest run --typecheck.enabled`, por lo que también valida el typecheck
-      # de los archivos de test (incluye los 4 errores de tipos corregidos).
+      # Corre los tests de todos los paquetes. Tanto en `@fractal/core` como en
+      # `@fractal/deploy` el script es `vitest run --typecheck.enabled`, por lo
+      # que ambos también validan el typecheck de sus archivos de test.
       - name: Run package tests
         run: pnpm -r test
 

@@ -19,11 +19,13 @@ describe('DockerInstaller', () => {
       vi.mocked(mockSshClient.executeCommand)
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'Docker version 24.0.7, build...',
           stderr: '',
         })
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'Docker Compose version v2.24.5',
           stderr: '',
         });
@@ -44,41 +46,46 @@ describe('DockerInstaller', () => {
       vi.mocked(mockSshClient.executeCommand)
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'not_installed',
           stderr: '',
         })
         // addDockerRepository steps
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' }) // mkdir
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' }) // gpg key
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' }) // chmod
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' }) // add repo
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' }) // apt update
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // mkdir
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // gpg key
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // chmod
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // add repo
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // apt update
         // installDockerEngine
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
         // checkComposeInstalled
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'not_installed',
           stderr: '',
         })
         // installComposePlugin
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
         // ensureDockerServiceActive
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' }) // enable
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' }) // start
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // enable
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // start
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'active',
           stderr: '',
         }) // is-active
         // Final version checks
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'Docker version 24.0.7, build...',
           stderr: '',
         })
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'Docker Compose version v2.24.5',
           stderr: '',
         });
@@ -100,13 +107,14 @@ describe('DockerInstaller', () => {
       vi.mocked(mockSshClient.executeCommand)
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'not_installed',
           stderr: '',
         })
         // installPrerequisites
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
         // Rest of installation...
-        .mockResolvedValue({ success: true, stdout: '', stderr: '' });
+        .mockResolvedValue({ success: true, stdout: '', stderr: '', exitCode: 0 });
 
       const result = await installer.install({ checkPrerequisites: true });
 
@@ -117,11 +125,12 @@ describe('DockerInstaller', () => {
       vi.mocked(mockSshClient.executeCommand)
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'not_installed',
           stderr: '',
         })
         // installPrerequisites fails
-        .mockResolvedValueOnce({ success: false, stdout: '', stderr: 'Error' });
+        .mockResolvedValueOnce({ success: false, stdout: '', stderr: 'Error', exitCode: 1 });
 
       const result = await installer.install({ checkPrerequisites: true });
 
@@ -135,18 +144,20 @@ describe('DockerInstaller', () => {
       vi.mocked(mockSshClient.executeCommand)
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'not_installed',
           stderr: '',
         })
         // addDockerRepository succeeds
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '' })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
         // installDockerEngine fails
         .mockResolvedValueOnce({
           success: false,
+          exitCode: 1,
           stdout: '',
           stderr: 'Installation failed',
         });
@@ -161,11 +172,13 @@ describe('DockerInstaller', () => {
       vi.mocked(mockSshClient.executeCommand)
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'Docker version 24.0.7',
           stderr: '',
         })
         .mockResolvedValueOnce({
           success: true,
+          exitCode: 0,
           stdout: 'Docker Compose version v2.24.5',
           stderr: '',
         });
@@ -183,7 +196,7 @@ describe('DockerInstaller', () => {
       vi.mocked(mockSshClient.executeCommand).mockImplementation(
         async (cmd: string) => {
           commandCalls.push(cmd.toLowerCase());
-          return { success: true, stdout: '', stderr: '' };
+          return { success: true, stdout: '', stderr: '', exitCode: 0 };
         }
       );
 

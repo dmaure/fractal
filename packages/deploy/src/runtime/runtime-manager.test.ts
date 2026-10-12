@@ -89,6 +89,7 @@ describe('RuntimeManager', () => {
         success: false,
         stdout: '',
         stderr: 'Installation error',
+        exitCode: 1,
       });
 
       const config: RuntimeConfig = {
@@ -168,11 +169,13 @@ describe('RuntimeManager', () => {
           success: true,
           stdout: 'Docker version 24.0.7\nDocker Compose version v2.24.5',
           stderr: '',
+          exitCode: 0,
         })
         .mockResolvedValueOnce({
           success: true,
           stdout: 'active',
           stderr: '',
+          exitCode: 0,
         });
 
       const result = await manager.verifyRuntime();
@@ -186,6 +189,7 @@ describe('RuntimeManager', () => {
         success: false,
         stdout: '',
         stderr: 'docker: command not found',
+        exitCode: 1,
       });
 
       const result = await manager.verifyRuntime();
@@ -200,11 +204,13 @@ describe('RuntimeManager', () => {
           success: true,
           stdout: 'Docker version 24.0.7\nDocker Compose version v2.24.5',
           stderr: '',
+          exitCode: 0,
         })
         .mockResolvedValueOnce({
           success: true,
           stdout: 'inactive',
           stderr: '',
+          exitCode: 0,
         });
 
       const result = await manager.verifyRuntime();
@@ -221,7 +227,7 @@ describe('RuntimeManager', () => {
       vi.mocked(mockSshClient.executeCommand).mockImplementation(
         async (cmd: string) => {
           commandCalls.push(cmd.toLowerCase());
-          return { success: true, stdout: 'Docker version 24.0.7', stderr: '' };
+          return { success: true, stdout: 'Docker version 24.0.7', stderr: '', exitCode: 0 };
         }
       );
 
