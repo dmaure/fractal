@@ -65,6 +65,19 @@ program
     'Valida (sin escribir) que docs/MAPA_DE_PROGRESO.md esté sincronizado; ' +
       'sale con código != 0 si está desactualizado (guardia de CI)'
   )
+  .option(
+    '--export',
+    'Exporta los diagramas del mapa de progreso a imágenes (SVG/PNG). ' +
+      'Independiente de --write/--check: no modifica el mapa ni la guardia de CI'
+  )
+  .option(
+    '--out <dir>',
+    'Directorio de salida para --export (por defecto docs/progress-map/)'
+  )
+  .option(
+    '--format <format>',
+    'Formato de --export: svg | png | both (por defecto both)'
+  )
   .action(async (options: StatusCommandOptions) => {
     try {
       await statusCommand(options);

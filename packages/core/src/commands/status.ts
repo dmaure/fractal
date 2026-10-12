@@ -12,6 +12,7 @@ import type {
 import { isValidTaskStatus, VALID_STATUSES } from '../types/progress.js';
 import type { StatusCommandOptions } from '../types/status-command.js';
 import { regenerateMap } from './progress-map.js';
+import { exportDiagrams } from './export-diagrams.js';
 
 /**
  * Glifos y etiquetas por estado. Idénticos a los de `scripts/progress-map.js`
@@ -83,6 +84,54 @@ export async function statusCommand(
 
   if (options.write) {
     await regenerateDiagrams(progressData);
+  }
+
+  // Exportación a imágenes (FRA-48): opt-in y de solo lectura respecto del
+  // mapa. Independiente de `--write`; puede combinarse con él.
+  if (options.export) {
+    await exportDiagramsToImages(progressData, options);
+  }
+}
+
+/**
+ * Modo exportación (`--export`, FRA-48): renderiza los diagramas del mapa de
+ * progreso a archivos SVG y/o PNG en el directorio de salida (por defecto
+ * `docs/progress-map/`, ignorado por git). Delega el render en
+ * `./export-diagrams.ts`, que a su vez carga de forma perezosa el paquete
+ * `@fractal/progress-export` (Mermaid + Chromium headless). No modifica
+ * `docs/MAPA_DE_PROGRESO.md` ni participa de la guardia de CI.
+ */
+async function exportDiagramsToImages(
+  data: ProgressData,
+  options: StatusCommandOptions
+): Promise<void> {
+  const outDir = options.out
+    ? resolve(process.cwd(), options.out)
+    : undefined;
+
+  try {
+    const { outDir: dir, written } = await exportDiagrams({
+      data,
+      outDir,
+      format: options.format,
+    });
+
+    console.log(`✅ Diagramas exportados a ${dir}:`);
+    for (const file of written) {
+      console.log(`   • ${file.label} (${file.format}): ${file.path}`);
+    }
+    console.log('');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      chalk.red(
+        `\n❌ Error al exportar los diagramas del mapa de progreso.\n\n` +
+          `   ${message}\n\n` +
+          `   ${chalk.yellow('→')} Verifica el valor de --format (svg | png | both) ` +
+          `y que haya un Chromium disponible para el render.\n`
+      )
+    );
+    process.exit(1);
   }
 }
 

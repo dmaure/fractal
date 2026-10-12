@@ -17,4 +17,24 @@ export interface StatusCommandOptions {
    * marcadores de auto-generación (SPEC-0031 AC-4/AC-5, FRA-45).
    */
   check?: boolean;
+
+  /**
+   * Modo exportación (opt-in, FRA-48): renderiza los diagramas del mapa de
+   * progreso a archivos de imagen (SVG y/o PNG) en un directorio de salida.
+   * Es independiente de `--write`/`--check`: no modifica
+   * `docs/MAPA_DE_PROGRESO.md` ni participa de la guardia de CI.
+   */
+  export?: boolean;
+
+  /**
+   * Directorio de salida para `--export`. Por defecto `docs/progress-map/`
+   * (ignorado por git; las imágenes no se commitean).
+   */
+  out?: string;
+
+  /**
+   * Formato de salida para `--export`: `svg`, `png` o `both`. Por defecto
+   * `both`.
+   */
+  format?: string;
 }
