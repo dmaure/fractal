@@ -147,6 +147,7 @@ Decisiones técnicas en [`docs/adr/`](docs/adr/).
 Especificaciones de capabilities en [`docs/specs/`](docs/specs/).
 Guías de usuario de cada comando en [`docs/guides/`](docs/guides/) — por ejemplo
 [`fractal new`](docs/guides/fractal-new.md) y [FDL](docs/guides/fdl.md).
+Contrato del bridge para desarrolladores de adapters en [`packages/core/docs/bridge-contract-v0.md`](packages/core/docs/bridge-contract-v0.md).
 
 ---
 

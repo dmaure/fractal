@@ -121,6 +121,11 @@ requiere.
   entrada, forma de la respuesta, códigos de error esperados) suficiente
   para implementar un adapter sin necesitar preguntar
 
+**Evidencia:** `packages/core/docs/bridge-contract-v0.md` (FRA-66) — documenta
+el modelo de invocación stdin/stdout, la forma del payload de entrada, el
+envelope de respuesta y los códigos de error (`step`) esperados, orientado a
+desarrolladores de adapters.
+
 ### AC-7: Ejecución concurrente sobre el mismo proyecto
 - **Dado** que un comando de Fractal ya está corriendo sobre un proyecto y
   mantiene un lock `.fractal.lock` en la raíz con su PID
