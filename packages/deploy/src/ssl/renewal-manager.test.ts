@@ -16,6 +16,7 @@ describe('RenewalManager', () => {
   describe('setup', () => {
     it('detecta timer de certbot ya existente', async () => {
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: true,
         exitCode: 0,
         stdout: 'certbot.timer',
         stderr: '',
@@ -31,26 +32,31 @@ describe('RenewalManager', () => {
     it('configura timer de systemd', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/systemctl',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'active',
           stderr: '',
@@ -68,36 +74,43 @@ describe('RenewalManager', () => {
     it('configura post-renewal hook con systemd', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/systemctl',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'active',
           stderr: '',
@@ -115,21 +128,25 @@ describe('RenewalManager', () => {
     it('hace fallback a cron si systemd no está disponible', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'systemctl not found',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
@@ -146,21 +163,25 @@ describe('RenewalManager', () => {
     it('configura cron con post-renewal hook', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'systemctl not found',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
@@ -181,21 +202,25 @@ describe('RenewalManager', () => {
     it('crea entrada de cron con frecuencia correcta', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'systemctl not found',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
@@ -210,31 +235,37 @@ describe('RenewalManager', () => {
     it('maneja error al habilitar timer de systemd', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '/usr/bin/systemctl',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'Failed to enable unit',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot installed',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'certbot 1.21.0',
           stderr: '',
@@ -249,16 +280,19 @@ describe('RenewalManager', () => {
     it('maneja error al crear entrada de cron', async () => {
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'systemctl not found',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'Permission denied',
@@ -283,6 +317,7 @@ describe('RenewalManager', () => {
   describe('testRenewal', () => {
     it('ejecuta dry-run exitosamente', async () => {
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: true,
         exitCode: 0,
         stdout: 'Congratulations, all simulated renewals succeeded',
         stderr: '',
@@ -296,6 +331,7 @@ describe('RenewalManager', () => {
 
     it('maneja error en dry-run', async () => {
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: false,
         exitCode: 1,
         stdout: '',
         stderr: 'Renewal configuration file not found',

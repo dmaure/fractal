@@ -25,26 +25,31 @@ describe('NginxSslConfigGenerator', () => {
 
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'syntax is ok',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
@@ -71,26 +76,31 @@ describe('NginxSslConfigGenerator', () => {
 
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'syntax is ok',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
@@ -115,6 +125,7 @@ describe('NginxSslConfigGenerator', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: '',
         stderr: '',
@@ -137,6 +148,7 @@ describe('NginxSslConfigGenerator', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: '',
         stderr: '',
@@ -159,6 +171,7 @@ describe('NginxSslConfigGenerator', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
         exitCode: 0,
         stdout: '',
         stderr: '',
@@ -178,6 +191,7 @@ describe('NginxSslConfigGenerator', () => {
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: false,
         exitCode: 1,
         stdout: '',
         stderr: 'Permission denied',
@@ -199,21 +213,25 @@ describe('NginxSslConfigGenerator', () => {
 
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'syntax error',
@@ -235,26 +253,31 @@ describe('NginxSslConfigGenerator', () => {
 
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'syntax is ok',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'nginx: [error] could not reload',
@@ -276,31 +299,37 @@ describe('NginxSslConfigGenerator', () => {
 
       vi.mocked(mockSsh.executeCommand)
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: 'syntax is ok',
           stderr: '',
         })
         .mockResolvedValueOnce({
+          success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',

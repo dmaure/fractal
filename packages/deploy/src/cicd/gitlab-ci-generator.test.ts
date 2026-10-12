@@ -113,7 +113,7 @@ describe('GitLabCiGenerator', () => {
     });
 
     it('should reject invalid target type', async () => {
-      const config = {
+      const config: DeployConfig = {
         provider: 'gitlab-ci',
         targetType: 'invalid' as any,
         runtime: BACKEND_RUNTIME,
