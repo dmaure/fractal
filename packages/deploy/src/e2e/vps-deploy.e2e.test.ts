@@ -438,6 +438,24 @@ describe.skipIf(!VPS_IP)('E2E · deploy contra VPS efímero real (SPEC-0003)', (
     async () => {
       console.log('→ [MVP] Escribiendo sitio estático + compose (fase HTTP)...');
 
+      // El webroot /var/www/html NO existe en un VPS recién provisionado: hay que
+      // crearlo ANTES de escribir index.html (si no, `tee` falla con "No such file
+      // or directory"). Incluye .well-known/acme-challenge para el challenge
+      // HTTP-01 webroot que AC-7 emite más tarde. Permisos: deploy es dueño (puede
+      // escribir la página), certbot corre vía sudo/root (puede escribir el
+      // challenge) y los directorios quedan 755 / world-readable para que el
+      // contenedor nginx (bind-mount :ro) lea los archivos.
+      const webrootPrep = await deployClient.executeCommand(
+        `sudo mkdir -p ${WEBROOT}/.well-known/acme-challenge && ` +
+          `sudo chown -R deploy:deploy ${WEBROOT} && ` +
+          `sudo chmod -R 755 ${WEBROOT}`,
+        { timeoutMs: 30_000 }
+      );
+      expect(
+        webrootPrep.success,
+        `Preparar webroot falló: ${webrootPrep.stderr || webrootPrep.error}`
+      ).toBe(true);
+
       // index.html con marcador único, en el webroot que comparte con certbot.
       await writeRemoteFile(
         deployClient,
