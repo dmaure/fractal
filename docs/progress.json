@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-10-11",
+  "actualizado": "2026-10-13",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -54,6 +54,44 @@
     ]
   },
   "specs": [
+    {
+      "id": "SPEC-0001",
+      "label": "fractal new genera proyecto Laravel base",
+      "milestone": "M1",
+      "estado": "en_curso",
+      "tareas": [
+        { "id": "T1", "ticket": "FRA-29", "label": "Inicializar git segun topologia (SPEC-0001 AC-6)", "estado": "completado" },
+        { "id": "T2", "ticket": "FRA-54", "label": "Conectar `fractal new` al adapter-laravel via bridge (comparte ticket con SPEC-0006 T6)", "estado": "completado" }
+      ]
+    },
+    {
+      "id": "SPEC-0002",
+      "label": "Bridge Node hacia el toolchain del target",
+      "milestone": "M1",
+      "estado": "en_curso",
+      "tareas": [
+        { "id": "T1", "ticket": "FRA-24", "label": "Timeout y lock de concurrencia del bridge (.fractal.lock con PID)", "estado": "completado" },
+        { "id": "T2", "ticket": "FRA-25", "label": "Deteccion de binario externo ausente en el bridge", "estado": "completado" },
+        { "id": "T3", "ticket": "FRA-41", "label": "Chequeo de version minima de runtime via el contrato (AC-4; T3 de SPEC-0006)", "estado": "completado" },
+        { "id": "T4", "ticket": "FRA-66", "label": "Documentar el contrato del bridge v0 (AC-6)", "estado": "completado" }
+      ]
+    },
+    {
+      "id": "SPEC-0003",
+      "label": "fractal deploy publica en internet con HTTPS",
+      "milestone": "M1",
+      "estado": "en_curso",
+      "tareas": [
+        { "id": "T1", "ticket": "FRA-31", "label": "Deploy: DNS automatizado y manual (AC-5, AC-6)", "estado": "completado" },
+        { "id": "T2", "ticket": "FRA-37", "label": "Orquestar hardening -> runtime -> DNS en fractal deploy", "estado": "completado" },
+        { "id": "T3", "ticket": "FRA-38", "label": "SSL con Let's Encrypt + reload de Docker (AC-7)", "estado": "completado" },
+        { "id": "T4", "ticket": "FRA-36", "label": "Cablear la generacion de CI/CD y deploy por merge (AC-8, AC-9)", "estado": "completado" },
+        { "id": "T5", "ticket": "FRA-62", "label": "Habilitar typecheck de los tests de @fractal/deploy en CI", "estado": "completado" },
+        { "id": "T6", "ticket": "FRA-64", "label": "e2e de deploy contra VPS efimero de Vultr en CI (DoD §9)", "estado": "completado" },
+        { "id": "T7", "ticket": "FRA-65", "label": "Documentacion de usuario de fractal deploy (docs/guides/fractal-deploy.md)", "estado": "completado" },
+        { "id": "T8", "label": "Test automatizado de AC-1 (recoleccion interactiva de datos) — hueco detectado en FRA-67; ticket chico por abrir", "estado": "pendiente" }
+      ]
+    },
     {
       "id": "SPEC-0004",
       "label": "Lenguaje FDL v0",
