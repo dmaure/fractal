@@ -1,14 +1,17 @@
 # Roadmap
 
-**Última revisión:** 2026-10-12
+**Última revisión:** 2026-10-13
 
 > Mapa visual del avance: ver [`MAPA_DE_PROGRESO.md`](./MAPA_DE_PROGRESO.md).
 
 > Base de esta actualización: ADRs M0 aceptados (0002/0003/0004/0006/0007),
 > estructura de `docs/` y monorepo pnpm ya presentes, y lint de acoplamiento
-> con script propio. M1 de deploy (SPEC-0003) mergeado pero aún Aprobado
-> (falta e2e en CI y docs de usuario); SPEC-0006 (contrato del adapter) quedó
-> **Implementado** el 2026-10-11 (FRA-55).
+> con script propio. M1 (SPEC-0001/0002/0003) cargado en `docs/progress.json`
+> como `en_curso` (FRA-67): implementación mergeada, pero ningún spec marcado
+> Implementado todavía — Diego decide SPEC-0001/0002 aparte, y SPEC-0003 tiene
+> el e2e en CI (FRA-64) y la doc de usuario (FRA-65) pero le falta el test
+> automatizado de AC-1. SPEC-0006 (contrato del adapter) quedó **Implementado**
+> el 2026-10-11 (FRA-55).
 
 Cada milestone entrega valor verificable por sí solo.
 
@@ -49,14 +52,32 @@ Cada milestone entrega valor verificable por sí solo.
 
 | Spec | Capability | Estado |
 |---|---|---|
-| SPEC-0001 | `fractal new` genera proyecto Laravel base | ⬜ |
-| SPEC-0002 | Bridge Node → toolchain del target | ⬜ |
-| SPEC-0003 | `fractal deploy` publica en internet con HTTPS | ⬜ |
+| SPEC-0001 | `fractal new` genera proyecto Laravel base | 🟡[^spec0001] |
+| SPEC-0002 | Bridge Node → toolchain del target | 🟡[^spec0002] |
+| SPEC-0003 | `fractal deploy` publica en internet con HTTPS | 🟡[^spec0003] |
 
 **Salida:** `fractal new` + `fractal deploy` = app vacía online, con SSL y deploy por merge.
 
 Es el milestone más importante. Valida el diferenciador del producto antes de
 invertir en generación de código.
+
+[^spec0001]: `en_curso` en `docs/progress.json` (SPEC-0001, M1; cargado en FRA-67).
+    Implementación de `fractal new` mergeada en `packages/core` (validación de
+    directorio, init de git por topología — FRA-29, manifiesto y wiring al
+    adapter — FRA-54). El spec sigue **Aprobado** (no Implementado): la DoD §9
+    todavía no se verifica entera. Diego decide el marcado aparte.
+[^spec0002]: `en_curso` en `docs/progress.json` (SPEC-0002, M1; cargado en FRA-67).
+    Bridge Node implementado con tests (timeout y lock de concurrencia — FRA-24,
+    detección de binario ausente — FRA-25, chequeo de versión mínima — AC-4,
+    FRA-41) y contrato documentado (AC-6, FRA-66). El spec sigue **Aprobado**.
+    Diego decide el marcado aparte.
+[^spec0003]: `en_curso` en `docs/progress.json` (SPEC-0003, M1; cargado en FRA-67).
+    Deploy mergeado, con e2e contra VPS efímero en CI (FRA-64) y doc de usuario
+    (FRA-65); ADR-0006 y ADR-0007 están **Aceptados**. **No** se marca
+    Implementado: falta el test automatizado de AC-1 (recolección interactiva de
+    datos: IP, usuario SSH, método de auth, dominio, proveedor DNS, repo Git,
+    rama de producción) — hueco real detectado en FRA-67; se abre un ticket chico
+    para cubrirlo.
 
 ---
 
