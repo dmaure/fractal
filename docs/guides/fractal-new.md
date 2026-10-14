@@ -105,8 +105,11 @@ cd mi-app
 composer install
 cp .env.example .env
 php artisan key:generate
-php artisan serve   # http://localhost:8000  — /api/health responde
+php artisan serve   # http://localhost:8000  — / muestra la landing y /api/health responde
 ```
+
+El `.env.example` generado usa SQLite y drivers de archivo/sync por defecto, así
+que el proyecto corre en local sin servicios externos (sin MySQL ni Redis).
 
 ### Monorepo desacoplado (`monorepo`)
 
