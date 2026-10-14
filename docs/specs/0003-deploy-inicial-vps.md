@@ -1,9 +1,14 @@
 # SPEC-0003: Deploy inicial a VPS
 
-**Estado:** Aprobado
+**Estado:** Implementado
 **Autor:** Diego
 **Fecha:** 2026-08-01
-**Última revisión:** 2026-09-27 — sigue en **Aprobado** (no Implementado). M1
+**Última revisión:** 2026-10-14 — FRA-68 agrega el test automatizado de AC-1
+(recolección interactiva de datos) en
+`packages/core/src/utils/deploy-prompts.test.ts`, cerrando el último hueco del
+DoD §9; con el e2e verde en CI (workflow "Deploy E2E (VPS efímero)", run en
+master del 2026-10-13) y la documentación de usuario (FRA-65) ya presentes, se
+marca **Implementado**. Revisión previa 2026-09-27 — seguía en **Aprobado** (no Implementado). M1
 de deploy mergeado y verificado: FRA-37 (PR #41, orquestación
 hardening→runtime→DNS en `packages/core/src/commands/deploy.ts`), FRA-38
 (PR #42, SSL Let's Encrypt + reload de Docker) y FRA-36 (PR #44, generación de
@@ -295,15 +300,46 @@ dejado ADR-0012/0013):
 ## 9. Definition of Done
 
 - [x] AC-13 (coordinación multirepo) tiene test automatizado completo
-- [ ] Todos los demás criterios de aceptación tienen test automatizado
-- [ ] Test end-to-end contra un VPS efímero real pasa en CI
-- [ ] Documentación de usuario escrita
-- [ ] ADR-0006 y ADR-0007 creados y aceptados
-- [ ] Spec marcado como Implementado
+- [x] Todos los demás criterios de aceptación tienen test automatizado (AC-1 cubierto por `packages/core/src/utils/deploy-prompts.test.ts`)
+- [x] Test end-to-end contra un VPS efímero real pasa en CI (FRA-64, run verde en master 2026-10-13)
+- [x] Documentación de usuario escrita (FRA-65, `docs/guides/fractal-deploy.md`)
+- [x] ADR-0006 y ADR-0007 creados y aceptados
+- [x] Spec marcado como Implementado
 
 ---
 
 ## 10. Notas de implementación
+
+### AC-1 implementado (2026-10-14)
+
+El test automatizado de AC-1 (recolección interactiva de datos) vive en
+`packages/core/src/utils/deploy-prompts.test.ts` (ticket FRA-68, tarea T8). El
+test mockea `@inquirer/prompts` y despacha las respuestas por el `message` de
+cada prompt (no depende del orden de llamada), y verifica que
+`promptDeployParams` solicita y devuelve **todos** los datos de AC-1: IP,
+usuario SSH, método de autenticación, clave o contraseña según el método,
+dominio, email de Let's Encrypt, proveedor DNS y su credencial cuando
+corresponde, repositorio Git y rama de producción. Además comprueba que:
+
+- **Normaliza** la entrada: `trim` en todos los strings y `lowercase` en
+  dominio y email.
+- Cubre los **tres proveedores DNS** (cloudflare/route53/manual) — incluyendo
+  que `manual` no pide credencial y que Route53 la recolecta en formato
+  `ACCESS_KEY:SECRET_KEY` — y **ambos métodos de autenticación** (clave y
+  contraseña).
+- Recolecta la información del **repositorio hermano** en la coordinación
+  inicial multirepo (ADR-0012) cuando `askSiblingInfo` es `true`, y no pregunta
+  nada del hermano cuando es `false`.
+- Los **validadores** de los campos de AC-1 (IP, dominio, email y URL del repo
+  Git) rechazan datos inválidos y aceptan los válidos, probando que AC-1
+  recolecta datos *válidos*.
+
+Con esto se cierra el último hueco del DoD §9 (rastreado como T8 / FRA-68): el
+resto de los AC ya tenía test automatizado, el e2e contra VPS efímero pasa
+verde en CI (FRA-64) y la documentación de usuario está escrita (FRA-65), por
+lo que la spec pasa a **Implementado**.
+
+---
 
 ### AC-13 implementado (2026-09-08)
 
