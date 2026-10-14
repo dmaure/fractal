@@ -1,14 +1,18 @@
 # SPEC-0003: Deploy inicial a VPS
 
-**Estado:** Implementado
+**Estado:** En curso
 **Autor:** Diego
 **Fecha:** 2026-08-01
-**Última revisión:** 2026-10-14 — FRA-68 agrega el test automatizado de AC-1
-(recolección interactiva de datos) en
-`packages/core/src/utils/deploy-prompts.test.ts`, cerrando el último hueco del
-DoD §9; con el e2e verde en CI (workflow "Deploy E2E (VPS efímero)", run en
-master del 2026-10-13) y la documentación de usuario (FRA-65) ya presentes, se
-marca **Implementado**. Revisión previa 2026-09-27 — seguía en **Aprobado** (no Implementado). M1
+**Última revisión:** 2026-10-14 — **Revertido a En curso.** Una auditoría de
+código mostró que el MVP (`fractal new` → Laravel en local → `fractal deploy` →
+HTTPS → redeploy por merge) **no funciona de punta a punta**, y el e2e de FRA-64
+**no ejecuta `fractal new` ni `fractal deploy`** (sirve un `index.html` estático
+con `nginx:alpine`), por lo que los AC de deploy real, SSL en Docker, redeploy y
+e2e real **no están verdaderamente cubiertos**. Se crearon tickets en Linear
+para completarlos. Queda sin efecto el marcado como Implementado del 2026-10-14
+previo — FRA-68 agregó el test automatizado de AC-1 (recolección interactiva de
+datos) en `packages/core/src/utils/deploy-prompts.test.ts`, pero eso no basta
+para el DoD §9. Revisión previa 2026-09-27 — seguía en **Aprobado** (no Implementado). M1
 de deploy mergeado y verificado: FRA-37 (PR #41, orquestación
 hardening→runtime→DNS en `packages/core/src/commands/deploy.ts`), FRA-38
 (PR #42, SSL Let's Encrypt + reload de Docker) y FRA-36 (PR #44, generación de
@@ -301,10 +305,10 @@ dejado ADR-0012/0013):
 
 - [x] AC-13 (coordinación multirepo) tiene test automatizado completo
 - [x] Todos los demás criterios de aceptación tienen test automatizado (AC-1 cubierto por `packages/core/src/utils/deploy-prompts.test.ts`)
-- [x] Test end-to-end contra un VPS efímero real pasa en CI (FRA-64, run verde en master 2026-10-13)
+- [ ] Test end-to-end contra un VPS efímero real pasa en CI — el e2e de FRA-64 **no ejercita `fractal new` ni `fractal deploy`**: sirve un `index.html` estático con `nginx:alpine`, no despliega la app real ni valida deploy/SSL/redeploy de punta a punta (auditoría 2026-10-14; tickets nuevos en Linear)
 - [x] Documentación de usuario escrita (FRA-65, `docs/guides/fractal-deploy.md`)
 - [x] ADR-0006 y ADR-0007 creados y aceptados
-- [x] Spec marcado como Implementado
+- [ ] Spec marcado como Implementado — revertido a **En curso** el 2026-10-14: el MVP de deploy no funciona de punta a punta (auditoría de código; tickets nuevos en Linear)
 
 ---
 
