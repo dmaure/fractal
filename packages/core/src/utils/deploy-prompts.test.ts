@@ -244,6 +244,10 @@ describe('promptDeployParams (AC-1 · recolección de datos)', () => {
   it('debe recolectar las credenciales AWS en formato ACCESS_KEY:SECRET_KEY para Route53', async () => {
     setupPrompts({ dnsProvider: 'route53' });
 
+    // NOTA: recolectar la credencial de Route53 a NIVEL DE PROMPT es intencional,
+    // aunque `fractal deploy` rechaza `route53` aguas abajo (solo Cloudflare y manual
+    // están soportados, según spec §10 nota AC-3/5/6). Este test verifica el
+    // comportamiento actual del prompt, no el soporte end-to-end del proveedor.
     const result = await promptDeployParams();
 
     expect(result.dnsProvider).toBe('route53');
@@ -313,11 +317,16 @@ describe('promptDeployParams (AC-1 · recolección de datos)', () => {
     await promptDeployParams();
 
     // IP: rechaza texto no-IP y vacío, acepta un IPv4.
+    // AC-1 queda fijado (pinned) a aceptar SOLO IPv4 bien formadas (octetos 0-255):
+    // además de rechazar no-IP y vacío, ahora rechaza octetos fuera de rango.
     const ipValidate = findInputValidate('IP');
     expect(ipValidate).toBeDefined();
     expect(ipValidate!('not-an-ip')).not.toBe(true);
     expect(ipValidate!('')).not.toBe(true);
     expect(ipValidate!('192.0.2.10')).toBe(true);
+    // Octetos fuera de rango deben rechazarse (devuelven un string de error).
+    expect(typeof ipValidate!('999.999.999.999')).toBe('string');
+    expect(typeof ipValidate!('256.1.1.1')).toBe('string');
 
     // Dominio: rechaza un dominio con espacios, acepta uno válido.
     const domainValidate = findInputValidate('Dominio de la aplicación');
