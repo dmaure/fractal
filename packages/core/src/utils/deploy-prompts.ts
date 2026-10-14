@@ -55,8 +55,9 @@ export async function promptDeployParams(
     message: 'Dirección IP del VPS:',
     validate: (value) => {
       if (!value.trim()) return 'La dirección IP es requerida';
-      // Validación básica de formato IPv4
-      const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+      // Validación de formato IPv4 con octetos acotados a 0-255
+      const ipRegex =
+        /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
       if (!ipRegex.test(value.trim())) {
         return 'Formato de IP inválido (ej: 192.168.1.1)';
       }
