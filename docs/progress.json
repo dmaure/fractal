@@ -80,7 +80,7 @@
       "id": "SPEC-0003",
       "label": "fractal deploy publica en internet con HTTPS",
       "milestone": "M1",
-      "estado": "completado",
+      "estado": "en_curso",
       "tareas": [
         { "id": "T1", "ticket": "FRA-31", "label": "Deploy: DNS automatizado y manual (AC-5, AC-6)", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-37", "label": "Orquestar hardening -> runtime -> DNS en fractal deploy", "estado": "completado" },

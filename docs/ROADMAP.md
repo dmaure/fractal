@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última revisión:** 2026-10-13
+**Última revisión:** 2026-10-14
 
 > Mapa visual del avance: ver [`MAPA_DE_PROGRESO.md`](./MAPA_DE_PROGRESO.md).
 
@@ -71,13 +71,16 @@ invertir en generación de código.
     detección de binario ausente — FRA-25, chequeo de versión mínima — AC-4,
     FRA-41) y contrato documentado (AC-6, FRA-66). El spec sigue **Aprobado**.
     Diego decide el marcado aparte.
-[^spec0003]: `en_curso` en `docs/progress.json` (SPEC-0003, M1; cargado en FRA-67).
-    Deploy mergeado, con e2e contra VPS efímero en CI (FRA-64) y doc de usuario
-    (FRA-65); ADR-0006 y ADR-0007 están **Aceptados**. **No** se marca
-    Implementado: falta el test automatizado de AC-1 (recolección interactiva de
-    datos: IP, usuario SSH, método de auth, dominio, proveedor DNS, repo Git,
-    rama de producción) — hueco real detectado en FRA-67; se abre un ticket chico
-    para cubrirlo.
+[^spec0003]: `en_curso` en `docs/progress.json` (SPEC-0003, M1). Revertido a **En
+    curso** el 2026-10-14 (antes marcado Implementado): una auditoría de código
+    mostró que el MVP (`fractal new` → Laravel en local → `fractal deploy` →
+    HTTPS → redeploy por merge) **no corre de punta a punta**, y el e2e de FRA-64
+    **no ejercita `fractal new` ni `fractal deploy`** — sirve un `index.html`
+    estático con `nginx:alpine`, así que no valida deploy real, SSL en Docker ni
+    redeploy. Por eso los AC de deploy/SSL/redeploy/e2e no están verdaderamente
+    cubiertos. Se crearon tickets nuevos en Linear para completarlos. El test
+    automatizado de AC-1 (recolección interactiva de datos) sí quedó cubierto
+    (FRA-68), pero no alcanza para el DoD §9.
 
 ---
 
