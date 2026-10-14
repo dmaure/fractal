@@ -11,30 +11,26 @@ APP_URL=http://localhost
 LOG_CHANNEL=stack
 LOG_LEVEL=debug
 
-DB_CONNECTION=mysql
-DB_HOST=db
-DB_PORT=3306
-DB_DATABASE=demo
-DB_USERNAME=root
-DB_PASSWORD=
+# Base de datos: SQLite por defecto para correr en local sin servicios externos.
+# El archivo database/database.sqlite se crea al generar el proyecto.
+DB_CONNECTION=sqlite
+# Para MySQL/Postgres (por ejemplo en produccion) descomenta y completa:
+# DB_CONNECTION=mysql
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_DATABASE=demo
+# DB_USERNAME=root
+# DB_PASSWORD=
 
-BROADCAST_DRIVER=log
-CACHE_DRIVER=redis
+# Drivers locales sin dependencias externas (archivo / sync).
+BROADCAST_CONNECTION=log
+CACHE_STORE=file
 FILESYSTEM_DISK=local
-QUEUE_CONNECTION=redis
-SESSION_DRIVER=redis
+QUEUE_CONNECTION=sync
+SESSION_DRIVER=file
 SESSION_LIFETIME=120
 
-REDIS_HOST=cache
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-
-MAIL_MAILER=smtp
-MAIL_HOST=mailpit
-MAIL_PORT=1025
-MAIL_USERNAME=null
-MAIL_PASSWORD=null
-MAIL_ENCRYPTION=null
+MAIL_MAILER=log
 MAIL_FROM_ADDRESS="hello@example.com"
 MAIL_FROM_NAME="\${APP_NAME}"
 ",
@@ -502,6 +498,7 @@ return [
   "demo/database/.gitignore": "*.sqlite
 *.sqlite-journal
 ",
+  "demo/database/database.sqlite": "",
   "demo/package.json": "{
   "name": "demo",
   "version": "0.0.0",
@@ -568,6 +565,52 @@ const root = document.getElementById('root');
 if (root) {
   ReactDOM.createRoot(root).render(<App />);
 }
+",
+  "demo/resources/views/app.blade.php": "<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ config('app.name', 'Fractal') }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .card { text-align: center; padding: 3rem 2rem; max-width: 34rem; }
+        .badge {
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            padding: 0.35rem 0.9rem;
+            border-radius: 9999px;
+            background: #1e293b;
+            color: #38bdf8;
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        h1 { font-size: 2rem; margin-bottom: 0.75rem; }
+        p { color: #94a3b8; line-height: 1.7; }
+        code { background: #1e293b; color: #38bdf8; padding: 0.15rem 0.4rem; border-radius: 0.3rem; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <span class="badge">Fractal</span>
+        <h1>{{ config('app.name') }} está corriendo 🎉</h1>
+        <p>
+            Tu aplicación Laravel se generó y está lista para desarrollar.<br>
+            La API de salud responde en <code>/api/health</code>.
+        </p>
+    </div>
+</body>
+</html>
 ",
   "demo/routes/api.php": "<?php
 
@@ -658,6 +701,7 @@ exports[`árbol generado por createProject (estructura + contenido) > monolith >
   "demo/config/database.php",
   "demo/database/",
   "demo/database/.gitignore",
+  "demo/database/database.sqlite",
   "demo/database/migrations/",
   "demo/database/seeders/",
   "demo/package.json",
@@ -668,6 +712,8 @@ exports[`árbol generado por createProject (estructura + contenido) > monolith >
   "demo/resources/css/app.css",
   "demo/resources/js/",
   "demo/resources/js/app.tsx",
+  "demo/resources/views/",
+  "demo/resources/views/app.blade.php",
   "demo/routes/",
   "demo/routes/api.php",
   "demo/routes/console.php",
@@ -771,30 +817,26 @@ APP_URL=http://localhost
 LOG_CHANNEL=stack
 LOG_LEVEL=debug
 
-DB_CONNECTION=mysql
-DB_HOST=db
-DB_PORT=3306
-DB_DATABASE=demo_api
-DB_USERNAME=root
-DB_PASSWORD=
+# Base de datos: SQLite por defecto para correr en local sin servicios externos.
+# El archivo database/database.sqlite se crea al generar el proyecto.
+DB_CONNECTION=sqlite
+# Para MySQL/Postgres (por ejemplo en produccion) descomenta y completa:
+# DB_CONNECTION=mysql
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_DATABASE=demo_api
+# DB_USERNAME=root
+# DB_PASSWORD=
 
-BROADCAST_DRIVER=log
-CACHE_DRIVER=redis
+# Drivers locales sin dependencias externas (archivo / sync).
+BROADCAST_CONNECTION=log
+CACHE_STORE=file
 FILESYSTEM_DISK=local
-QUEUE_CONNECTION=redis
-SESSION_DRIVER=redis
+QUEUE_CONNECTION=sync
+SESSION_DRIVER=file
 SESSION_LIFETIME=120
 
-REDIS_HOST=cache
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-
-MAIL_MAILER=smtp
-MAIL_HOST=mailpit
-MAIL_PORT=1025
-MAIL_USERNAME=null
-MAIL_PASSWORD=null
-MAIL_ENCRYPTION=null
+MAIL_MAILER=log
 MAIL_FROM_ADDRESS="hello@example.com"
 MAIL_FROM_NAME="\${APP_NAME}"
 ",
@@ -1462,30 +1504,26 @@ APP_URL=http://localhost
 LOG_CHANNEL=stack
 LOG_LEVEL=debug
 
-DB_CONNECTION=mysql
-DB_HOST=db
-DB_PORT=3306
-DB_DATABASE=demo_api
-DB_USERNAME=root
-DB_PASSWORD=
+# Base de datos: SQLite por defecto para correr en local sin servicios externos.
+# El archivo database/database.sqlite se crea al generar el proyecto.
+DB_CONNECTION=sqlite
+# Para MySQL/Postgres (por ejemplo en produccion) descomenta y completa:
+# DB_CONNECTION=mysql
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_DATABASE=demo_api
+# DB_USERNAME=root
+# DB_PASSWORD=
 
-BROADCAST_DRIVER=log
-CACHE_DRIVER=redis
+# Drivers locales sin dependencias externas (archivo / sync).
+BROADCAST_CONNECTION=log
+CACHE_STORE=file
 FILESYSTEM_DISK=local
-QUEUE_CONNECTION=redis
-SESSION_DRIVER=redis
+QUEUE_CONNECTION=sync
+SESSION_DRIVER=file
 SESSION_LIFETIME=120
 
-REDIS_HOST=cache
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-
-MAIL_MAILER=smtp
-MAIL_HOST=mailpit
-MAIL_PORT=1025
-MAIL_USERNAME=null
-MAIL_PASSWORD=null
-MAIL_ENCRYPTION=null
+MAIL_MAILER=log
 MAIL_FROM_ADDRESS="hello@example.com"
 MAIL_FROM_NAME="\${APP_NAME}"
 ",
