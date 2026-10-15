@@ -14,6 +14,9 @@ import type { DeployRuntime } from '@fractal/core';
 const BACKEND_RUNTIME: DeployRuntime = {
   services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
   build: { context: '.', dockerfile: 'Dockerfile' },
+  // Clave fija para que el snapshot sea determinista (en producción el adapter
+  // genera una APP_KEY aleatoria fresca por deploy).
+  secretEnv: { APP_KEY: 'base64:TEST0000000000000000000000000000000000000000=' },
   buildCommand: 'composer install --no-dev --optimize-autoloader',
   migrateCommand: 'php artisan migrate --force',
   postDeployCommands: [

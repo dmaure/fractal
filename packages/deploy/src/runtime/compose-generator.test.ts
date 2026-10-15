@@ -217,6 +217,63 @@ describe('ComposeGenerator', () => {
     });
   });
 
+  describe('inyección de secretEnv del adapter (FRA-70, APP_KEY)', () => {
+    const runtimeWithSecret = (): DeployRuntime => ({
+      services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+      build: { context: '.', dockerfile: 'Dockerfile' },
+      secretEnv: { APP_KEY: 'base64:FIXEDTESTKEY000000000000000000000000000000=' },
+      port: 8000,
+      healthcheck: { path: '/api/health' },
+    });
+
+    it('renderiza las variables de secretEnv en el environment de la app', () => {
+      const config: ComposeConfig = {
+        runtime: runtimeWithSecret(),
+        projectName: 'secretapp',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      const content = result.content || '';
+
+      // La app recibe APP_KEY con el valor declarado por el adapter.
+      expect(content).toContain(
+        '- APP_KEY=base64:FIXEDTESTKEY000000000000000000000000000000='
+      );
+      // Debe tener forma base64: no vacía.
+      expect(content).toMatch(/- APP_KEY=base64:.+/);
+    });
+
+    it('inyecta secretEnv también en worker y scheduler', () => {
+      const config: ComposeConfig = {
+        runtime: runtimeWithSecret(),
+        projectName: 'secretapp',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const content = generator.generate(config).content || '';
+      // Tres servicios de aplicación (app, worker, scheduler) reciben APP_KEY.
+      const occurrences = content.match(/- APP_KEY=base64:/g) || [];
+      expect(occurrences).toHaveLength(3);
+    });
+
+    it('no agrega APP_KEY si el runtime no declara secretEnv', () => {
+      const config: ComposeConfig = {
+        runtime: {
+          services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+          build: { context: '.', dockerfile: 'Dockerfile' },
+          port: 8000,
+          healthcheck: { path: '/api/health' },
+        },
+        projectName: 'nosecret',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const content = generator.generate(config).content || '';
+      expect(content).not.toContain('APP_KEY');
+    });
+  });
+
   describe('generate - frontend-static', () => {
     it('should generate docker-compose.yml for frontend-static runtime', () => {
       const config: ComposeConfig = {

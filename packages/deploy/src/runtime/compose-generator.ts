@@ -108,12 +108,13 @@ ${appSource}
       if (hasCacheService) {
         compose += `\n      - REDIS_HOST=${cacheServiceName}`;
       }
-      
+      compose += this.renderSecretEnv(runtime);
+
       compose += `
     networks:
       - ${projectName}_network
     depends_on:`;
-      
+
       if (hasDb) {
         compose += '\n      - db';
       }
@@ -122,7 +123,7 @@ ${appSource}
       }
       compose += '\n\n';
     }
-    
+
     // Nginx service
     if (services.includes('nginx')) {
       compose += `  nginx:
@@ -196,7 +197,8 @@ ${appSource}
       if (hasCacheService) {
         compose += `\n      - REDIS_HOST=${cacheServiceName}`;
       }
-      
+      compose += this.renderSecretEnv(runtime);
+
       compose += `
     command: ["sh", "-c", "while true; do echo 'Worker placeholder - configure with adapter'; sleep 60; done"]
     networks:
@@ -229,7 +231,8 @@ ${appSource}
       if (hasCacheService) {
         compose += `\n      - REDIS_HOST=${cacheServiceName}`;
       }
-      
+      compose += this.renderSecretEnv(runtime);
+
       compose += `
     command: ["sh", "-c", "while true; do echo 'Scheduler placeholder - configure with adapter'; sleep 60; done"]
     networks:
@@ -256,9 +259,11 @@ ${appSource}
     if (hasApp || hasDb || hasCacheService) {
       compose += 'volumes:\n';
       if (hasApp) {
-        // Volumen compartido con el código de la app: se puebla desde la
-        // imagen construida y nginx lo monta en solo-lectura para servir
-        // public/ y delegar PHP al contenedor de la app.
+        // Volumen compartido con el código de la app. Docker lo puebla desde
+        // la imagen construida solo al CREARLO (primer deploy, volumen vacío);
+        // nginx lo monta en solo-lectura para servir public/ y delegar PHP al
+        // contenedor de la app. En redeploys el volumen ya existe y NO se
+        // re-puebla con la imagen nueva: refrescarlo es parte de FRA-73.
         compose += '  app_code:\n    driver: local\n';
       }
       if (hasDb) {
@@ -270,6 +275,23 @@ ${appSource}
     }
 
     return compose;
+  }
+
+  /**
+   * Renderiza las variables de entorno sensibles declaradas por el adapter
+   * (`runtime.secretEnv`) como líneas `- CLAVE=valor` para el `environment:` de
+   * un servicio de aplicación.
+   *
+   * Agnóstico de framework: solo itera pares clave/valor; no conoce su
+   * semántica (p.ej. que una de ellas sea la clave de la aplicación).
+   */
+  private renderSecretEnv(runtime: ComposeConfig['runtime']): string {
+    if (!runtime.secretEnv) {
+      return '';
+    }
+    return Object.entries(runtime.secretEnv)
+      .map(([key, value]) => `\n      - ${key}=${value}`)
+      .join('');
   }
 
   /**
