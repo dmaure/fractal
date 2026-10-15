@@ -626,20 +626,27 @@ export async function deployCommand(
     }
   }
   
-  // Decisión de producto #6: Ejecutar docker compose up
-  console.log(chalk.dim('\n→ Iniciando contenedores...'));
-  
-  const composeUpResult = await deployClient.executeCommand(
-    'cd /home/deploy && docker compose up -d',
-    { timeoutMs: 600_000 } // 10 minutos timeout
+  // FRA-70: Subir el proyecto al VPS (para construir la imagen allí) e iniciar
+  // los contenedores con build. El directorio destino es el mismo donde se
+  // escribió el docker-compose.yml.
+  console.log(chalk.dim('\n→ Subiendo el proyecto e iniciando contenedores...'));
+
+  const runtimeStart = await uploadAndStartContainers(
+    deployClient,
+    projectDir,
+    '/home/deploy'
   );
-  
-  if (!composeUpResult.success) {
-    console.error(chalk.red('\n❌ Error al iniciar contenedores con docker compose'));
-    console.error(chalk.dim(`   ${composeUpResult.stderr || composeUpResult.error}`));
+
+  if (!runtimeStart.success) {
+    if (runtimeStart.stage === 'upload') {
+      console.error(chalk.red('\n❌ Error al subir el proyecto al servidor'));
+    } else {
+      console.error(chalk.red('\n❌ Error al iniciar contenedores con docker compose'));
+    }
+    console.error(chalk.dim(`   ${runtimeStart.error}`));
     process.exit(1);
   }
-  
+
   console.log(chalk.green('✓ Contenedores iniciados'));
   
   // AC-5 y AC-6: DNS setup
@@ -929,6 +936,59 @@ export async function deployCommand(
   console.log(chalk.dim('   • DNS configurado'));
   console.log(chalk.dim('   • SSL/HTTPS configurado con renovación automática'));
   console.log(chalk.dim(`\n   Tu aplicación está disponible en: https://${params.domain}\n`));
+}
+
+/**
+ * Cliente mínimo necesario para subir el proyecto y arrancar los contenedores.
+ * Se tipa estructuralmente para no acoplar este helper a la carga diferida de
+ * `@fractal/deploy` (FRA-46) y facilitar su testeo.
+ */
+interface RuntimeDeployClient {
+  uploadDirectory(
+    localPath: string,
+    remotePath: string,
+    options?: { exclude?: string[] }
+  ): Promise<{ success: boolean; error?: string }>;
+  executeCommand(
+    command: string,
+    options?: { timeoutMs?: number }
+  ): Promise<{ success: boolean; stdout?: string; stderr?: string; error?: string }>;
+}
+
+/**
+ * FRA-70: sube el proyecto al VPS y arranca los contenedores construyendo la
+ * imagen en el servidor (`docker compose up -d --build`).
+ *
+ * Agnóstico de framework: sube el directorio del proyecto tal cual y delega el
+ * build al Dockerfile que el adapter dejó en el árbol generado.
+ *
+ * @param client Cliente con capacidad de subir directorios y ejecutar comandos
+ * @param projectDir Directorio local del proyecto a subir
+ * @param remoteDir Directorio del VPS donde vive el docker-compose.yml
+ */
+export async function uploadAndStartContainers(
+  client: RuntimeDeployClient,
+  projectDir: string,
+  remoteDir: string
+): Promise<{ success: boolean; stage?: 'upload' | 'compose'; error?: string }> {
+  const uploadResult = await client.uploadDirectory(projectDir, remoteDir);
+  if (!uploadResult.success) {
+    return { success: false, stage: 'upload', error: uploadResult.error };
+  }
+
+  const composeUpResult = await client.executeCommand(
+    `cd ${remoteDir} && docker compose up -d --build`,
+    { timeoutMs: 600_000 } // 10 minutos timeout
+  );
+  if (!composeUpResult.success) {
+    return {
+      success: false,
+      stage: 'compose',
+      error: composeUpResult.stderr || composeUpResult.error,
+    };
+  }
+
+  return { success: true };
 }
 
 // Exportar funciones helper para testing
