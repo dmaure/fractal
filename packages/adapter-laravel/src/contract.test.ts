@@ -5,6 +5,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   getAdapterContract,
+  generateAppKey,
+  LARAVEL_APP_KEY_ENV,
   LARAVEL_RUNTIME_REQUIREMENTS,
   LARAVEL_BACKEND_DEPLOY_RUNTIME,
   LARAVEL_FRONTEND_DEPLOY_RUNTIME,
@@ -52,15 +54,54 @@ describe('getAdapterContract', () => {
   it('por default (sin target) retorna el runtime de backend completo', () => {
     const contract = getAdapterContract();
 
-    expect(contract.deployRuntime).toBe(LARAVEL_BACKEND_DEPLOY_RUNTIME);
+    expect(contract.deployRuntime.services).toEqual(
+      LARAVEL_BACKEND_DEPLOY_RUNTIME.services
+    );
     expect(contract.deployRuntime.port).toBe(8000);
   });
 
   it('con target backend-full retorna el runtime de backend', () => {
     const contract = getAdapterContract('backend-full');
 
-    expect(contract.deployRuntime).toBe(LARAVEL_BACKEND_DEPLOY_RUNTIME);
+    expect(contract.deployRuntime.services).toEqual(
+      LARAVEL_BACKEND_DEPLOY_RUNTIME.services
+    );
     expect(contract.deployRuntime.services).toContain('app');
+  });
+
+  it('inyecta una APP_KEY fresca con formato base64: en el runtime de backend', () => {
+    const contract = getAdapterContract('backend-full');
+
+    expect(contract.deployRuntime.secretEnv).toBeDefined();
+    const appKey = contract.deployRuntime.secretEnv?.[LARAVEL_APP_KEY_ENV];
+    expect(appKey).toBeDefined();
+    expect(appKey).toMatch(/^base64:[A-Za-z0-9+/]+={0,2}$/);
+    expect(appKey?.length).toBeGreaterThan('base64:'.length);
+  });
+
+  it('genera una APP_KEY distinta en cada invocación (fresca por deploy)', () => {
+    const a = getAdapterContract('backend-full');
+    const b = getAdapterContract('backend-full');
+
+    expect(a.deployRuntime.secretEnv?.[LARAVEL_APP_KEY_ENV]).not.toBe(
+      b.deployRuntime.secretEnv?.[LARAVEL_APP_KEY_ENV]
+    );
+  });
+
+  it('permite inyectar el generador de APP_KEY (determinismo en tests)', () => {
+    const contract = getAdapterContract('backend-full', {
+      generateAppKey: () => 'base64:FIXED-TEST-KEY',
+    });
+
+    expect(contract.deployRuntime.secretEnv?.[LARAVEL_APP_KEY_ENV]).toBe(
+      'base64:FIXED-TEST-KEY'
+    );
+  });
+
+  it('el frontend estático (nginx-only) no lleva secretEnv', () => {
+    const contract = getAdapterContract('frontend-static');
+
+    expect(contract.deployRuntime.secretEnv).toBeUndefined();
   });
 
   it('con target frontend-static retorna el runtime de frontend (nginx-only)', () => {
@@ -70,6 +111,24 @@ describe('getAdapterContract', () => {
     expect(contract.deployRuntime.services).toEqual(['nginx']);
     expect(contract.deployRuntime.port).toBe(80);
     expect(contract.deployRuntime.healthcheck.path).toBe('/health.txt');
+  });
+});
+
+describe('generateAppKey', () => {
+  it('genera una clave con prefijo base64: y 32 bytes', () => {
+    const key = generateAppKey();
+    expect(key.startsWith('base64:')).toBe(true);
+    const raw = Buffer.from(key.slice('base64:'.length), 'base64');
+    expect(raw).toHaveLength(32);
+  });
+
+  it('genera claves distintas en invocaciones sucesivas', () => {
+    expect(generateAppKey()).not.toBe(generateAppKey());
+  });
+
+  it('usa la fuente de aleatoriedad inyectada (determinismo)', () => {
+    const fixed = generateAppKey(() => Buffer.alloc(32, 7));
+    expect(fixed).toBe(`base64:${Buffer.alloc(32, 7).toString('base64')}`);
   });
 });
 
