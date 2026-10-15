@@ -9,14 +9,16 @@ version: '3.8'
 
 services:
   app:
-    image: \${DOCKER_REGISTRY:-localhost}/myapi:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: myapi_app
     restart: unless-stopped
     working_dir: /var/www/html
     expose:
       - "8000"
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
@@ -34,7 +36,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html:ro
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
     networks:
@@ -65,12 +67,14 @@ services:
       - myapi_network
 
   worker:
-    image: \${DOCKER_REGISTRY:-localhost}/myapi:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: myapi_worker
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
@@ -82,12 +86,14 @@ services:
       - redis
 
   scheduler:
-    image: \${DOCKER_REGISTRY:-localhost}/myapi:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: myapi_scheduler
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
@@ -103,6 +109,8 @@ networks:
     driver: bridge
 
 volumes:
+  app_code:
+    driver: local
   db_data:
     driver: local
   redis_data:
@@ -149,14 +157,16 @@ version: '3.8'
 
 services:
   app:
-    image: \${DOCKER_REGISTRY:-localhost}/project-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: project-api_app
     restart: unless-stopped
     working_dir: /var/www/html
     expose:
       - "8000"
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
@@ -174,7 +184,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html:ro
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
     networks:
@@ -205,12 +215,14 @@ services:
       - project-api_network
 
   worker:
-    image: \${DOCKER_REGISTRY:-localhost}/project-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: project-api_worker
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
@@ -222,12 +234,14 @@ services:
       - redis
 
   scheduler:
-    image: \${DOCKER_REGISTRY:-localhost}/project-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: project-api_scheduler
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:
       - DB_HOST=db
       - REDIS_HOST=redis
@@ -243,6 +257,8 @@ networks:
     driver: bridge
 
 volumes:
+  app_code:
+    driver: local
   db_data:
     driver: local
   redis_data:

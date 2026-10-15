@@ -13,6 +13,7 @@ import type { DeployRuntime } from '@fractal/core';
  */
 const BACKEND_RUNTIME: DeployRuntime = {
   services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+  build: { context: '.', dockerfile: 'Dockerfile' },
   buildCommand: 'composer install --no-dev --optimize-autoloader',
   migrateCommand: 'php artisan migrate --force',
   postDeployCommands: [

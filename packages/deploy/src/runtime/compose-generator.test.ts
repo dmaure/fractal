@@ -160,6 +160,63 @@ describe('ComposeGenerator', () => {
     });
   });
 
+  describe('build desde Dockerfile (FRA-70)', () => {
+    const createBackendBuildRuntime = (): DeployRuntime => ({
+      services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+      build: { context: '.', dockerfile: 'Dockerfile' },
+      buildCommand: 'docker build -t test:latest .',
+      migrateCommand: 'docker compose exec app migrate',
+      port: 8000,
+      healthcheck: { path: '/api/health' },
+    });
+
+    it('should build the app service from the declared Dockerfile instead of referencing a registry image', () => {
+      const config: ComposeConfig = {
+        runtime: createBackendBuildRuntime(),
+        projectName: 'buildapp',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      const content = result.content || '';
+
+      expect(content).toContain('build:\n      context: .\n      dockerfile: Dockerfile');
+      // Al declarar build, la app ya no referencia una imagen de registry.
+      expect(content).not.toContain('DOCKER_REGISTRY');
+    });
+
+    it('should serve the app code through a shared named volume, not a host bind mount', () => {
+      const config: ComposeConfig = {
+        runtime: createBackendBuildRuntime(),
+        projectName: 'buildapp',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      const content = result.content || '';
+
+      // El volumen compartido app_code reemplaza el bind mount ./:/var/www/html.
+      expect(content).toContain('app_code:/var/www/html');
+      expect(content).toContain('app_code:/var/www/html:ro');
+      expect(content).not.toContain('- ./:/var/www/html');
+      // app_code se declara en la sección de volúmenes.
+      expect(content).toMatch(/\n  app_code:/);
+    });
+
+    it('should mount the generated nginx.conf into the nginx container', () => {
+      const config: ComposeConfig = {
+        runtime: createBackendBuildRuntime(),
+        projectName: 'buildapp',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      const content = result.content || '';
+
+      expect(content).toContain('./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro');
+    });
+  });
+
   describe('generate - frontend-static', () => {
     it('should generate docker-compose.yml for frontend-static runtime', () => {
       const config: ComposeConfig = {
