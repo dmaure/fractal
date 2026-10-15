@@ -50,6 +50,10 @@ export const LARAVEL_RUNTIME_REQUIREMENTS: RuntimeRequirements = {
  */
 export const LARAVEL_BACKEND_DEPLOY_RUNTIME: DeployRuntime = {
   services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+  build: {
+    context: '.',
+    dockerfile: 'Dockerfile',
+  },
   buildCommand: 'composer install --no-dev --optimize-autoloader',
   migrateCommand: 'php artisan migrate --force',
   postDeployCommands: [
