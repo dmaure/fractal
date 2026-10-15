@@ -33,6 +33,8 @@ import {
 } from '../stubs/storage.js';
 import { generateConsoleRoutes } from '../stubs/routes.js';
 import { generateAppBladeView } from '../stubs/views.js';
+import { generateDockerfile, generateDockerignore } from '../stubs/dockerfile.js';
+import { generateNginxConf } from '../stubs/nginx-conf.js';
 
 /**
  * Genera un proyecto Laravel en topología monolito.
@@ -59,6 +61,7 @@ export async function generateMonolith(
     await generateResourcesDirectory(projectPath);
     await generatePublicDirectory(projectPath);
     await generateRoutesDirectory(projectPath);
+    await generateDockerAssets(projectPath);
 
     return projectPath;
   } catch (error) {
@@ -253,6 +256,25 @@ async function generateRoutesDirectory(projectPath: string): Promise<void> {
   await writeFile(join(routesPath, 'api.php'), generateApiRoutes());
   await writeFile(join(routesPath, 'web.php'), generateWebRoutes());
   await writeFile(join(routesPath, 'console.php'), generateConsoleRoutes());
+}
+
+/**
+ * Genera los artefactos de contenedor para el deploy (FRA-70):
+ * Dockerfile y .dockerignore en la raíz, y docker/nginx/nginx.conf. El
+ * directorio docker/nginx/ssl queda como placeholder (lo usa el montaje del
+ * compose; TLS es FRA-71).
+ */
+async function generateDockerAssets(projectPath: string): Promise<void> {
+  await writeFile(join(projectPath, 'Dockerfile'), generateDockerfile());
+  await writeFile(join(projectPath, '.dockerignore'), generateDockerignore());
+
+  const nginxPath = join(projectPath, 'docker', 'nginx');
+  await mkdir(nginxPath, { recursive: true });
+  await writeFile(join(nginxPath, 'nginx.conf'), generateNginxConf());
+
+  const sslPath = join(nginxPath, 'ssl');
+  await mkdir(sslPath, { recursive: true });
+  await writeFile(join(sslPath, '.gitkeep'), '');
 }
 
 function generateHealthController(): string {

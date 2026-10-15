@@ -85,19 +85,21 @@ version: '3.8'
     const hasWorker = services.includes('worker');
     const hasScheduler = services.includes('scheduler');
     
+    const appSource = this.renderImageOrBuild(projectName, runtime);
+
     let compose = header + 'services:\n';
-    
+
     // App service
     if (hasApp) {
       compose += `  app:
-    image: \${DOCKER_REGISTRY:-localhost}/${projectName}:latest
+${appSource}
     container_name: ${projectName}_app
     restart: unless-stopped
     working_dir: /var/www/html
     expose:
       - "${runtime.port}"
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:`;
       
       if (hasDb) {
@@ -106,12 +108,13 @@ version: '3.8'
       if (hasCacheService) {
         compose += `\n      - REDIS_HOST=${cacheServiceName}`;
       }
-      
+      compose += this.renderSecretEnv(runtime);
+
       compose += `
     networks:
       - ${projectName}_network
     depends_on:`;
-      
+
       if (hasDb) {
         compose += '\n      - db';
       }
@@ -120,7 +123,7 @@ version: '3.8'
       }
       compose += '\n\n';
     }
-    
+
     // Nginx service
     if (services.includes('nginx')) {
       compose += `  nginx:
@@ -131,7 +134,7 @@ version: '3.8'
       - "80:80"
       - "443:443"
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html:ro
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
     networks:
@@ -180,12 +183,12 @@ version: '3.8'
     // Worker service
     if (hasWorker) {
       compose += `  worker:
-    image: \${DOCKER_REGISTRY:-localhost}/${projectName}:latest
+${appSource}
     container_name: ${projectName}_worker
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:`;
       
       if (hasDb) {
@@ -194,7 +197,8 @@ version: '3.8'
       if (hasCacheService) {
         compose += `\n      - REDIS_HOST=${cacheServiceName}`;
       }
-      
+      compose += this.renderSecretEnv(runtime);
+
       compose += `
     command: ["sh", "-c", "while true; do echo 'Worker placeholder - configure with adapter'; sleep 60; done"]
     networks:
@@ -213,12 +217,12 @@ version: '3.8'
     // Scheduler service
     if (hasScheduler) {
       compose += `  scheduler:
-    image: \${DOCKER_REGISTRY:-localhost}/${projectName}:latest
+${appSource}
     container_name: ${projectName}_scheduler
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
-      - ./:/var/www/html
+      - app_code:/var/www/html
     environment:`;
       
       if (hasDb) {
@@ -227,7 +231,8 @@ version: '3.8'
       if (hasCacheService) {
         compose += `\n      - REDIS_HOST=${cacheServiceName}`;
       }
-      
+      compose += this.renderSecretEnv(runtime);
+
       compose += `
     command: ["sh", "-c", "while true; do echo 'Scheduler placeholder - configure with adapter'; sleep 60; done"]
     networks:
@@ -251,8 +256,16 @@ version: '3.8'
 `;
     
     // Volumes
-    if (hasDb || hasCacheService) {
+    if (hasApp || hasDb || hasCacheService) {
       compose += 'volumes:\n';
+      if (hasApp) {
+        // Volumen compartido con el código de la app. Docker lo puebla desde
+        // la imagen construida solo al CREARLO (primer deploy, volumen vacío);
+        // nginx lo monta en solo-lectura para servir public/ y delegar PHP al
+        // contenedor de la app. En redeploys el volumen ya existe y NO se
+        // re-puebla con la imagen nueva: refrescarlo es parte de FRA-73.
+        compose += '  app_code:\n    driver: local\n';
+      }
       if (hasDb) {
         compose += '  db_data:\n    driver: local\n';
       }
@@ -260,8 +273,45 @@ version: '3.8'
         compose += `  ${cacheServiceName}_data:\n    driver: local\n`;
       }
     }
-    
+
     return compose;
+  }
+
+  /**
+   * Renderiza las variables de entorno sensibles declaradas por el adapter
+   * (`runtime.secretEnv`) como líneas `- CLAVE=valor` para el `environment:` de
+   * un servicio de aplicación.
+   *
+   * Agnóstico de framework: solo itera pares clave/valor; no conoce su
+   * semántica (p.ej. que una de ellas sea la clave de la aplicación).
+   */
+  private renderSecretEnv(runtime: ComposeConfig['runtime']): string {
+    if (!runtime.secretEnv) {
+      return '';
+    }
+    return Object.entries(runtime.secretEnv)
+      .map(([key, value]) => `\n      - ${key}=${value}`)
+      .join('');
+  }
+
+  /**
+   * Devuelve el bloque YAML que define el origen de la imagen de los servicios
+   * de aplicación: `build:` (contexto + archivo de build) cuando el runtime lo
+   * declara, o `image:` apuntando al registry en caso contrario.
+   *
+   * Agnóstico de framework: el contexto/archivo provienen del contrato del
+   * adapter (DeployRuntime.build); la capa de deploy no conoce su contenido.
+   */
+  private renderImageOrBuild(
+    projectName: string,
+    runtime: ComposeConfig['runtime']
+  ): string {
+    if (runtime.build) {
+      return `    build:
+      context: ${runtime.build.context}
+      dockerfile: ${runtime.build.dockerfile}`;
+    }
+    return `    image: \${DOCKER_REGISTRY:-localhost}/${projectName}:latest`;
   }
 
   /**

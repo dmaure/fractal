@@ -2,6 +2,14 @@
 
 exports[`árbol generado por createProject (estructura + contenido) > monolith > contenido 1`] = `
 {
+  "demo/.dockerignore": ".git
+node_modules
+vendor
+dist
+storage/logs/*.log
+.env
+.env.*
+",
   "demo/.env.example": "APP_NAME="demo"
 APP_ENV=local
 APP_KEY=
@@ -62,6 +70,40 @@ Thumbs.db
 
 # Fractal
 .fractal.lock
+",
+  "demo/Dockerfile": "# Dockerfile generado por Fractal
+# Imagen php-fpm para producción. Se construye en el VPS durante el deploy.
+FROM php:8.3-fpm
+
+# Dependencias de sistema y extensiones PHP requeridas por Laravel + PostgreSQL.
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+        git \\
+        unzip \\
+        libpq-dev \\
+        libzip-dev \\
+        libicu-dev \\
+    && docker-php-ext-install pdo pdo_pgsql pgsql zip intl opcache bcmath \\
+    && apt-get clean \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Composer (copiado desde la imagen oficial).
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# Copiar el código de la aplicación.
+COPY . /var/www/html
+
+# Instalar dependencias de producción.
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+# Permisos de escritura para el runtime de Laravel.
+RUN chown -R www-data:www-data storage bootstrap/cache \\
+    && chmod -R ug+rwX storage bootstrap/cache
+
+EXPOSE 9000
+
+CMD ["php-fpm"]
 ",
   "demo/README.md": "# demo
 
@@ -499,6 +541,56 @@ return [
 *.sqlite-journal
 ",
   "demo/database/database.sqlite": "",
+  "demo/docker/nginx/nginx.conf": "# nginx.conf generado por Fractal
+# Sirve la app Laravel por HTTP (puerto 80) y delega PHP al contenedor php-fpm.
+worker_processes auto;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    sendfile on;
+    keepalive_timeout 65;
+    client_max_body_size 100M;
+
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name _;
+
+        root /var/www/html/public;
+        index index.php index.html;
+
+        charset utf-8;
+
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+
+        location = /favicon.ico { access_log off; log_not_found off; }
+        location = /robots.txt  { access_log off; log_not_found off; }
+
+        error_page 404 /index.php;
+
+        location ~ \\.php$ {
+            fastcgi_pass app:9000;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            fastcgi_param DOCUMENT_ROOT $realpath_root;
+        }
+
+        location ~ /\\.(?!well-known).* {
+            deny all;
+        }
+    }
+}
+",
+  "demo/docker/nginx/ssl/.gitkeep": "",
   "demo/package.json": "{
   "name": "demo",
   "version": "0.0.0",
@@ -678,8 +770,10 @@ services.json
 exports[`árbol generado por createProject (estructura + contenido) > monolith > estructura 1`] = `
 [
   "demo/",
+  "demo/.dockerignore",
   "demo/.env.example",
   "demo/.gitignore",
+  "demo/Dockerfile",
   "demo/README.md",
   "demo/app/",
   "demo/app/Http/",
@@ -704,6 +798,11 @@ exports[`árbol generado por createProject (estructura + contenido) > monolith >
   "demo/database/database.sqlite",
   "demo/database/migrations/",
   "demo/database/seeders/",
+  "demo/docker/",
+  "demo/docker/nginx/",
+  "demo/docker/nginx/nginx.conf",
+  "demo/docker/nginx/ssl/",
+  "demo/docker/nginx/ssl/.gitkeep",
   "demo/package.json",
   "demo/public/",
   "demo/public/index.php",

@@ -181,6 +181,26 @@ export interface HealthCheck {
 }
 
 /**
+ * Declaración de build de una imagen de contenedor.
+ *
+ * Agnóstico de framework: solo rutas relativas al directorio de deploy.
+ * El adapter genera el artefacto (Dockerfile) que se referencia aquí.
+ */
+export interface ImageBuild {
+  /**
+   * Directorio de contexto de build, relativo al directorio de deploy
+   * (p.ej. "." para la raíz del proyecto subido al VPS).
+   */
+  context: string;
+
+  /**
+   * Ruta del archivo de build (Dockerfile) relativa al contexto
+   * (p.ej. "Dockerfile").
+   */
+  dockerfile: string;
+}
+
+/**
  * Declaración de runtime de deploy para un proyecto.
  * 
  * El adapter expone esta declaración para que packages/deploy pueda
@@ -193,12 +213,39 @@ export interface HealthCheck {
 export interface DeployRuntime {
   /**
    * Lista de servicios que componen el runtime.
-   * 
+   *
    * Ejemplos:
    * - Backend completo: ["app", "nginx", "db", "redis", "worker", "scheduler"]
    * - Frontend estático: ["nginx"]
    */
   services: ServiceName[];
+
+  /**
+   * Declaración opcional de build de la imagen de los servicios de aplicación.
+   *
+   * Cuando está presente, la capa de deploy construye la imagen desde el
+   * contexto y Dockerfile indicados (en el directorio de deploy del VPS) en
+   * lugar de referenciar una imagen pre-publicada en un registry. Permite el
+   * primer deploy sin registry construyendo la imagen en el servidor.
+   *
+   * Es agnóstico de framework (Artículo II): el adapter es quien genera el
+   * contenido del Dockerfile; aquí solo se declaran rutas. El contexto y el
+   * Dockerfile son relativos al directorio de deploy.
+   */
+  build?: ImageBuild;
+
+  /**
+   * Variables de entorno sensibles que la capa de deploy debe inyectar en los
+   * servicios de aplicación (p.ej. una clave de aplicación generada fresca por
+   * deploy).
+   *
+   * Es agnóstico de framework (Artículo II): el adapter decide los nombres,
+   * valores y formato; la capa de deploy solo las renderiza como pares
+   * `CLAVE=valor` en el `environment:` de los servicios de aplicación, sin
+   * conocer su semántica. El adapter es responsable de generar valores frescos
+   * por deploy cuando corresponda.
+   */
+  secretEnv?: Record<string, string>;
 
   /**
    * Comando para construir la aplicación antes del deploy.
