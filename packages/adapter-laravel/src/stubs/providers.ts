@@ -1,5 +1,5 @@
 /**
- * Generador de AppServiceProvider para Laravel 11.
+ * Generador de AppServiceProvider para Laravel 12.
  */
 
 export function generateAppServiceProvider(): string {

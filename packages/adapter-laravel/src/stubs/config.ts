@@ -1,5 +1,5 @@
 /**
- * Generadores de archivos config/ para Laravel 11.
+ * Generadores de archivos config/ para Laravel 12.
  */
 
 /**
@@ -91,7 +91,7 @@ return [
     | Autoloaded Service Providers
     |--------------------------------------------------------------------------
     |
-    | En Laravel 11 los service providers del framework se cargan desde
+    | En Laravel 12 los service providers del framework se cargan desde
     | ServiceProvider::defaultProviders() y los de la aplicación desde
     | bootstrap/providers.php. NO se declara aquí la clave 'providers':
     | si estuviera presente (incluso como [] vacío) reemplazaría la lista

@@ -201,12 +201,12 @@ return [
   "license": "MIT",
   "require": {
     "php": "^8.2",
-    "laravel/framework": "^11.0",
+    "laravel/framework": "^12.0",
     "laravel/sanctum": "^4.0"
   },
   "require-dev": {
     "laravel/pint": "^1.0",
-    "phpunit/phpunit": "^11.0"
+    "phpunit/phpunit": "^11.5.3"
   },
   "autoload": {
     "psr-4": {
@@ -326,7 +326,7 @@ return [
     | Autoloaded Service Providers
     |--------------------------------------------------------------------------
     |
-    | En Laravel 11 los service providers del framework se cargan desde
+    | En Laravel 12 los service providers del framework se cargan desde
     | ServiceProvider::defaultProviders() y los de la aplicación desde
     | bootstrap/providers.php. NO se declara aquí la clave 'providers':
     | si estuviera presente (incluso como [] vacío) reemplazaría la lista
@@ -942,12 +942,12 @@ return [
   "license": "MIT",
   "require": {
     "php": "^8.2",
-    "laravel/framework": "^11.0",
+    "laravel/framework": "^12.0",
     "laravel/sanctum": "^4.0"
   },
   "require-dev": {
     "laravel/pint": "^1.0",
-    "phpunit/phpunit": "^11.0"
+    "phpunit/phpunit": "^11.5.3"
   },
   "autoload": {
     "psr-4": {
@@ -1067,7 +1067,7 @@ return [
     | Autoloaded Service Providers
     |--------------------------------------------------------------------------
     |
-    | En Laravel 11 los service providers del framework se cargan desde
+    | En Laravel 12 los service providers del framework se cargan desde
     | ServiceProvider::defaultProviders() y los de la aplicación desde
     | bootstrap/providers.php. NO se declara aquí la clave 'providers':
     | si estuviera presente (incluso como [] vacío) reemplazaría la lista
@@ -1694,12 +1694,12 @@ return [
   "license": "MIT",
   "require": {
     "php": "^8.2",
-    "laravel/framework": "^11.0",
+    "laravel/framework": "^12.0",
     "laravel/sanctum": "^4.0"
   },
   "require-dev": {
     "laravel/pint": "^1.0",
-    "phpunit/phpunit": "^11.0"
+    "phpunit/phpunit": "^11.5.3"
   },
   "autoload": {
     "psr-4": {
@@ -1819,7 +1819,7 @@ return [
     | Autoloaded Service Providers
     |--------------------------------------------------------------------------
     |
-    | En Laravel 11 los service providers del framework se cargan desde
+    | En Laravel 12 los service providers del framework se cargan desde
     | ServiceProvider::defaultProviders() y los de la aplicación desde
     | bootstrap/providers.php. NO se declara aquí la clave 'providers':
     | si estuviera presente (incluso como [] vacío) reemplazaría la lista

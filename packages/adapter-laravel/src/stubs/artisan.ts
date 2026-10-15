@@ -1,5 +1,5 @@
 /**
- * Generador del archivo artisan para Laravel 11.
+ * Generador del archivo artisan para Laravel 12.
  */
 
 export function generateArtisan(): string {

@@ -1,9 +1,9 @@
 /**
- * Generadores de archivos bootstrap/ para Laravel 11.
+ * Generadores de archivos bootstrap/ para Laravel 12.
  */
 
 /**
- * Genera bootstrap/app.php para Laravel 11.
+ * Genera bootstrap/app.php para Laravel 12.
  * 
  * Define la aplicación Laravel y configura routing, middleware y excepciones.
  */
@@ -31,7 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
 }
 
 /**
- * Genera bootstrap/providers.php para Laravel 11.
+ * Genera bootstrap/providers.php para Laravel 12.
  * 
  * Define los service providers que la aplicación carga.
  */
@@ -45,7 +45,7 @@ return [
 }
 
 /**
- * Genera bootstrap/cache/.gitignore para Laravel 11.
+ * Genera bootstrap/cache/.gitignore para Laravel 12.
  * 
  * Ignora todo el contenido de cache/ excepto el propio .gitignore.
  */
