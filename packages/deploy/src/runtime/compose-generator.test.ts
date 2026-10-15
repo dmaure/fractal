@@ -215,6 +215,20 @@ describe('ComposeGenerator', () => {
 
       expect(content).toContain('./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro');
     });
+
+    it('monta el webroot del challenge ACME en el contenedor nginx (FRA-71)', () => {
+      const config: ComposeConfig = {
+        runtime: createBackendBuildRuntime(),
+        projectName: 'buildapp',
+        outputPath: '/tmp/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      const content = result.content || '';
+
+      expect(content).toContain('./docker/nginx/ssl:/etc/nginx/ssl:ro');
+      expect(content).toContain('./docker/nginx/certbot:/var/www/certbot:ro');
+    });
   });
 
   describe('inyección de secretEnv del adapter (FRA-70, APP_KEY)', () => {

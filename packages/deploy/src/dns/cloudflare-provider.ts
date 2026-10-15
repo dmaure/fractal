@@ -99,10 +99,43 @@ export class CloudflareProvider {
 
   /**
    * Obtiene el Zone ID para un dominio.
+   *
+   * La zona de Cloudflare es el dominio registrable (p.ej. `codigofractal.dev`),
+   * no el subdominio completo (`prueba.codigofractal.dev`). Para resolverla,
+   * iteramos los sufijos del dominio quitando la etiqueta de la izquierda y
+   * consultamos `/zones?name=<candidato>` por cada uno, devolviendo el primer
+   * `id` encontrado. Así funciona tanto para apex como para subdominios.
    */
   private async getZoneId(domain: string): Promise<string | null> {
+    for (const candidate of this.zoneCandidates(domain)) {
+      const id = await this.queryZoneId(candidate);
+      if (id) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Genera los candidatos de zona a partir del dominio, del más específico al
+   * más general, hasta un mínimo de 2 etiquetas (p.ej. `codigofractal.dev`):
+   * `prueba.codigofractal.dev` → `codigofractal.dev`.
+   */
+  private zoneCandidates(domain: string): string[] {
+    const labels = domain.split('.');
+    const candidates: string[] = [];
+    for (let i = 0; i <= labels.length - 2; i++) {
+      candidates.push(labels.slice(i).join('.'));
+    }
+    return candidates;
+  }
+
+  /**
+   * Consulta el Zone ID para un nombre de zona exacto.
+   */
+  private async queryZoneId(name: string): Promise<string | null> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/zones?name=${domain}`, {
+      const response = await fetch(`${this.apiBaseUrl}/zones?name=${name}`, {
         headers: {
           'Authorization': `Bearer ${this.config.apiToken}`,
           'Content-Type': 'application/json',
@@ -192,8 +225,11 @@ export class CloudflareProvider {
    */
   private async createRecord(zoneId: string, record: DnsRecord): Promise<boolean> {
     try {
-      const recordName = record.name === '@' ? this.config.domain : record.name;
-      
+      // Nombre en forma FQDN, consistente con getExistingRecords: para apex es
+      // el dominio; para subdominios/www es `<name>.<domain>` (evita duplicados
+      // y nombres incorrectos al re-ejecutar sobre subdominios).
+      const recordName = record.name === '@' ? this.config.domain : `${record.name}.${this.config.domain}`;
+
       const response = await fetch(`${this.apiBaseUrl}/zones/${zoneId}/dns_records`, {
         method: 'POST',
         headers: {
@@ -225,8 +261,9 @@ export class CloudflareProvider {
     record: DnsRecord
   ): Promise<boolean> {
     try {
-      const recordName = record.name === '@' ? this.config.domain : record.name;
-      
+      // Forma FQDN, consistente con getExistingRecords y createRecord.
+      const recordName = record.name === '@' ? this.config.domain : `${record.name}.${this.config.domain}`;
+
       const response = await fetch(
         `${this.apiBaseUrl}/zones/${zoneId}/dns_records/${recordId}`,
         {

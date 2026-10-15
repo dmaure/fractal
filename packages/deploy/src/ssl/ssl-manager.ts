@@ -1,7 +1,7 @@
 import type { SslSshClient } from './types.js';
 import type { SslConfig, SslSetupResult } from './types.js';
 import { CertbotInstaller } from './certbot-installer.js';
-import { NginxSslConfigGenerator } from './nginx-ssl-config.js';
+import { ContainerCertInstaller } from './container-cert-installer.js';
 import { RenewalManager } from './renewal-manager.js';
 
 /**
@@ -11,12 +11,12 @@ import { RenewalManager } from './renewal-manager.js';
  */
 export class SslManager {
   private certbotInstaller: CertbotInstaller;
-  private nginxConfigGenerator: NginxSslConfigGenerator;
+  private containerCertInstaller: ContainerCertInstaller;
   private renewalManager: RenewalManager;
 
   constructor(private ssh: SslSshClient) {
     this.certbotInstaller = new CertbotInstaller(ssh);
-    this.nginxConfigGenerator = new NginxSslConfigGenerator(ssh);
+    this.containerCertInstaller = new ContainerCertInstaller(ssh);
     this.renewalManager = new RenewalManager(ssh);
   }
 
@@ -41,7 +41,8 @@ export class SslManager {
    * Pasos:
    * 1. Instala certbot
    * 2. Emite certificado Let's Encrypt
-   * 3. Configura nginx con SSL y redirect HTTP->HTTPS
+   * 3. Instala el certificado en el contenedor nginx (copia + reload por
+   *    `docker exec`) — el redirect HTTP->HTTPS vive en el nginx.conf del adapter
    * 4. Configura renovación automática
    */
   async setup(config: SslConfig): Promise<SslSetupResult> {
@@ -77,14 +78,16 @@ export class SslManager {
         };
       }
 
-      // Paso 3: Configurar nginx
-      const nginxConfig = await this.nginxConfigGenerator.generate({
+      // Paso 3: Instalar el certificado en el contenedor nginx (FRA-71).
+      // Copia el cert emitido al montaje /etc/nginx/ssl y recarga nginx vía
+      // `docker exec`; el redirect HTTP->HTTPS y los bloques TLS ya viven en el
+      // nginx.conf generado por el adapter.
+      const nginxConfig = await this.containerCertInstaller.install({
         domain: config.domain,
-        certPath: certificateIssuance.fullchainPath!,
-        keyPath: certificateIssuance.keyPath!,
-        rootPath: config.webrootPath || '/var/www/html',
+        deployDir: config.deployDir || '/home/deploy',
+        containerName: config.containerName || '',
       });
-      
+
       if (!nginxConfig.success) {
         return {
           success: false,

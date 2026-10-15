@@ -114,7 +114,10 @@ export class CertbotInstaller {
     
     try {
       const server = LETSENCRYPT_URLS[environment];
-      const webroot = webrootPath || '/var/www/html';
+      // FRA-71: por defecto el webroot es el directorio compartido del deploy,
+      // bind-mounteado en el contenedor nginx como /var/www/certbot. Los callers
+      // pueden sobrescribirlo (p.ej. el e2e usa su propia ruta).
+      const webroot = webrootPath || '/home/deploy/docker/nginx/certbot';
       
       steps.push(`Emitiendo certificado para ${domain}`);
       steps.push(`Entorno: ${environment}`);

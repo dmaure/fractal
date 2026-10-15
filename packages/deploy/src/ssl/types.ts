@@ -71,9 +71,22 @@ export interface SslConfig {
   
   /** Incluir subdominio www en el certificado */
   includeWww?: boolean;
-  
+
   /** Comando a ejecutar después de renovar el certificado */
   postRenewalHook?: string;
+
+  /**
+   * Directorio del deploy en el VPS (FRA-71). El certificado se copia a
+   * `<deployDir>/docker/nginx/ssl`, bind-mounteado como /etc/nginx/ssl en el
+   * contenedor nginx. Opcional para no romper callers que solo emiten el cert.
+   */
+  deployDir?: string;
+
+  /**
+   * Nombre del contenedor nginx (FRA-71), p.ej. `<projectName>_nginx`. Se usa
+   * para validar y recargar nginx vía `docker exec`. Opcional.
+   */
+  containerName?: string;
 }
 
 /**
@@ -154,27 +167,11 @@ export interface RenewalSetupResult {
 }
 
 /**
- * Configuración de nginx SSL.
- */
-export interface NginxSslConfig {
-  /** Dominio */
-  domain: string;
-  
-  /** Path al certificado */
-  certPath: string;
-  
-  /** Path a la clave privada */
-  keyPath: string;
-  
-  /** Puerto del backend (para proxy_pass) */
-  backendPort?: number;
-  
-  /** Path al directorio raíz (para frontend estático) */
-  rootPath?: string;
-}
-
-/**
  * Resultado de configuración de nginx SSL.
+ *
+ * Desde FRA-71 lo produce `ContainerCertInstaller` (instalación del cert en el
+ * contenedor nginx); se conserva el nombre del tipo y del campo `nginxConfig`
+ * en `SslSetupResult` para minimizar churn.
  */
 export interface NginxSslConfigResult {
   /** Indica si la configuración fue exitosa */
