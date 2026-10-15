@@ -1,9 +1,16 @@
 import { Client, type ConnectConfig } from 'ssh2';
-import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { readFile, rm } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { SshConfig, SshCommandResult } from './types.js';
 import { verifyHostKeyAgainstKnownHosts } from './host-key.js';
+
+/**
+ * Directorios/archivos excluidos por defecto al subir un proyecto: se
+ * regeneran dentro de la imagen o no deben viajar al servidor.
+ */
+const DEFAULT_UPLOAD_EXCLUDES = ['.git', 'node_modules', 'vendor', 'dist'];
 
 /**
  * Cliente SSH para conexión y ejecución de comandos remotos.
@@ -179,6 +186,145 @@ export class SshClient {
         }
       });
     });
+  }
+
+  /**
+   * Sube un directorio local al servidor remoto.
+   *
+   * Empaqueta el directorio en un tarball gzip local (excluyendo artefactos
+   * que se regeneran, p.ej. node_modules/vendor/.git), lo transfiere por SFTP
+   * y lo extrae en el directorio destino del servidor. Framework-agnostic: no
+   * asume ningún framework ni tipo de proyecto.
+   *
+   * @param localPath Ruta del directorio local a subir
+   * @param remotePath Ruta destino en el servidor (se crea si no existe)
+   * @param options.exclude Patrones a excluir (default: .git, node_modules, vendor, dist)
+   */
+  async uploadDirectory(
+    localPath: string,
+    remotePath: string,
+    options?: { exclude?: string[] }
+  ): Promise<{ success: boolean; error?: string }> {
+    const excludes = options?.exclude ?? DEFAULT_UPLOAD_EXCLUDES;
+
+    let tarballPath: string;
+    try {
+      tarballPath = await this.createTarball(localPath, excludes);
+    } catch (err) {
+      return {
+        success: false,
+        error: `No se pudo empaquetar el directorio local: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    const remoteTmp = `/tmp/fractal-upload-${Date.now()}.tar.gz`;
+
+    try {
+      return await new Promise((resolvePromise) => {
+        const client = new Client();
+        let settled = false;
+
+        const finish = (result: { success: boolean; error?: string }): void => {
+          if (settled) return;
+          settled = true;
+          client.end();
+          resolvePromise(result);
+        };
+
+        const timeout = setTimeout(() => {
+          finish({
+            success: false,
+            error: 'Timeout: la subida del directorio excedió el tiempo esperado',
+          });
+        }, this.config.timeout);
+
+        client.on('ready', () => {
+          client.sftp((sftpErr, sftp) => {
+            if (sftpErr) {
+              clearTimeout(timeout);
+              finish({ success: false, error: `Error al abrir SFTP: ${sftpErr.message}` });
+              return;
+            }
+
+            sftp.fastPut(tarballPath, remoteTmp, (putErr) => {
+              if (putErr) {
+                clearTimeout(timeout);
+                finish({ success: false, error: `Error al transferir el archivo: ${putErr.message}` });
+                return;
+              }
+
+              const extractCmd =
+                `mkdir -p '${remotePath}' && ` +
+                `tar -xzf '${remoteTmp}' -C '${remotePath}' && ` +
+                `rm -f '${remoteTmp}'`;
+
+              client.exec(extractCmd, (execErr, stream) => {
+                if (execErr) {
+                  clearTimeout(timeout);
+                  finish({ success: false, error: `Error al extraer en el servidor: ${execErr.message}` });
+                  return;
+                }
+
+                let stderr = '';
+                stream.stderr.on('data', (data: Buffer) => {
+                  stderr += data.toString();
+                });
+
+                stream.on('close', (code: number) => {
+                  clearTimeout(timeout);
+                  finish({
+                    success: code === 0,
+                    error: code === 0 ? undefined : stderr.trim() || `La extracción terminó con código ${code}`,
+                  });
+                });
+              });
+            });
+          });
+        });
+
+        client.on('error', (err) => {
+          clearTimeout(timeout);
+          const hostKeyError = this.consumeHostKeyError();
+          finish({ success: false, error: hostKeyError ?? `Error de conexión: ${err.message}` });
+        });
+
+        this.connect(client).catch((err) => {
+          clearTimeout(timeout);
+          const hostKeyError = this.consumeHostKeyError();
+          finish({ success: false, error: hostKeyError ?? `Error al conectar: ${err.message}` });
+        });
+      });
+    } finally {
+      await rm(tarballPath, { force: true }).catch(() => {});
+    }
+  }
+
+  /**
+   * Crea un tarball gzip del directorio local usando el `tar` del sistema.
+   * Devuelve la ruta del tarball temporal creado.
+   */
+  private async createTarball(localPath: string, excludes: string[]): Promise<string> {
+    const tarballPath = join(tmpdir(), `fractal-upload-${Date.now()}.tar.gz`);
+    const excludeArgs = excludes.map((pattern) => `--exclude=./${pattern}`);
+    const args = ['-czf', tarballPath, '-C', localPath, ...excludeArgs, '.'];
+
+    await new Promise<void>((resolveTar, rejectTar) => {
+      const proc = spawn('tar', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      proc.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+      proc.on('error', (err) => rejectTar(err));
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolveTar();
+        } else {
+          rejectTar(new Error(stderr.trim() || `tar terminó con código ${code}`));
+        }
+      });
+    });
+
+    return tarballPath;
   }
 
   /**
