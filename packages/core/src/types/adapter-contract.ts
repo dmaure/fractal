@@ -235,6 +235,19 @@ export interface DeployRuntime {
   build?: ImageBuild;
 
   /**
+   * Variables de entorno sensibles que la capa de deploy debe inyectar en los
+   * servicios de aplicación (p.ej. una clave de aplicación generada fresca por
+   * deploy).
+   *
+   * Es agnóstico de framework (Artículo II): el adapter decide los nombres,
+   * valores y formato; la capa de deploy solo las renderiza como pares
+   * `CLAVE=valor` en el `environment:` de los servicios de aplicación, sin
+   * conocer su semántica. El adapter es responsable de generar valores frescos
+   * por deploy cuando corresponda.
+   */
+  secretEnv?: Record<string, string>;
+
+  /**
    * Comando para construir la aplicación antes del deploy.
    * Opcional si no se requiere build.
    */
