@@ -32,6 +32,7 @@ import {
   generateStorageLogsGitignore,
 } from '../stubs/storage.js';
 import { generateConsoleRoutes } from '../stubs/routes.js';
+import { generateAppBladeView } from '../stubs/views.js';
 
 /**
  * Genera un proyecto Laravel en topología monolito.
@@ -141,6 +142,8 @@ async function generateDatabaseDirectory(projectPath: string): Promise<void> {
     join(databasePath, '.gitignore'),
     generateDatabaseGitignore()
   );
+
+  await writeFile(join(databasePath, 'database.sqlite'), '');
 }
 
 async function generateStorageDirectory(projectPath: string): Promise<void> {
@@ -227,6 +230,12 @@ async function generateResourcesDirectory(projectPath: string): Promise<void> {
   await writeFile(
     join(resourcesPath, 'css', 'app.css'),
     generateAppCss()
+  );
+
+  await mkdir(join(resourcesPath, 'views'), { recursive: true });
+  await writeFile(
+    join(resourcesPath, 'views', 'app.blade.php'),
+    generateAppBladeView()
   );
 }
 

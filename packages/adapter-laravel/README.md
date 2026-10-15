@@ -1,15 +1,15 @@
 # adapter-laravel
 
-Adapter de Fractal para Laravel 11.
+Adapter de Fractal para Laravel 12.
 
 Este paquete implementa el contrato de adapter (SPEC-0006) para generar proyectos Laravel idiomáticos en tres topologías: monolito, monorepo desacoplado y multirepo.
 
 ## Estructura generada
 
-El adapter genera un proyecto Laravel 11 ejecutable con:
+El adapter genera un proyecto Laravel 12 ejecutable con:
 
 ### Archivos de configuración
-- `composer.json` — dependencias Laravel 11 (laravel/framework ^11.0, laravel/sanctum ^4.0)
+- `composer.json` — dependencias Laravel 12 (laravel/framework ^12.0, laravel/sanctum ^4.0)
 - `package.json` — dependencias del SPA React + Vite
 - `.env.example` — variables de entorno sin credenciales reales
 - `.gitignore` — incluye `.env`, `vendor/`, `node_modules/`, etc.
@@ -17,7 +17,7 @@ El adapter genera un proyecto Laravel 11 ejecutable con:
 
 ### Esqueleto Laravel ejecutable
 - `artisan` — CLI de Laravel (ejecutable con `php artisan`)
-- `bootstrap/app.php` — configuración de la aplicación Laravel 11
+- `bootstrap/app.php` — configuración de la aplicación Laravel 12
 - `bootstrap/providers.php` — registro de service providers
 - `config/app.php` — configuración principal
 - `config/database.php` — configuración de base de datos
@@ -93,11 +93,11 @@ Los archivos del esqueleto Laravel se generan a partir de stubs TypeScript versi
 
 - **Determinismo:** los snapshots capturan el resultado exacto
 - **Offline-first:** `fractal new` funciona sin red (salvo install de dependencias)
-- **Control de versión:** coherencia con `laravel/framework ^11.0` declarado en `composer.json`
+- **Control de versión:** coherencia con `laravel/framework ^12.0` declarado en `composer.json`
 
-### Estructura Laravel 11
+### Estructura Laravel 12
 
-El adapter genera la estructura de Laravel 11:
+El adapter genera la estructura de Laravel 12:
 
 - `bootstrap/app.php` usa `Application::configure()` en vez del kernel HTTP/Console separado
 - `bootstrap/providers.php` lista los service providers en vez de `config/app.php`

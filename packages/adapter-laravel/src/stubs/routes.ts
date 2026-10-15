@@ -1,5 +1,5 @@
 /**
- * Generador de routes/console.php para Laravel 11.
+ * Generador de routes/console.php para Laravel 12.
  */
 
 export function generateConsoleRoutes(): string {

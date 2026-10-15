@@ -20,12 +20,12 @@ export function generateComposerJson(
     license: 'MIT',
     require: {
       php: '^8.2',
-      'laravel/framework': '^11.0',
+      'laravel/framework': '^12.0',
       'laravel/sanctum': '^4.0',
     },
     'require-dev': {
       'laravel/pint': '^1.0',
-      'phpunit/phpunit': '^11.0',
+      'phpunit/phpunit': '^11.5.3',
     },
     autoload: {
       'psr-4': {

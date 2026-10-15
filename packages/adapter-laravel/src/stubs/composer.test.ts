@@ -19,7 +19,7 @@ describe('generateComposerJson', () => {
     const parsed = JSON.parse(result);
 
     expect(parsed.require.php).toBe('^8.2');
-    expect(parsed.require['laravel/framework']).toBe('^11.0');
+    expect(parsed.require['laravel/framework']).toBe('^12.0');
     expect(parsed.require['laravel/sanctum']).toBe('^4.0');
   });
 
