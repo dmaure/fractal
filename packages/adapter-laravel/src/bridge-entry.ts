@@ -133,9 +133,15 @@ async function main(): Promise<void> {
           target = payload.target;
         }
 
+        const domain =
+          typeof payload.domain === 'string' ? payload.domain : undefined;
+        const projectName =
+          typeof payload.projectName === 'string'
+            ? payload.projectName
+            : undefined;
         response = {
           success: true,
-          data: getAdapterContract(target),
+          data: getAdapterContract(target, { domain, projectName }),
         };
         break;
       }

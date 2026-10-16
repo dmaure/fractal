@@ -307,12 +307,19 @@ ${appSource}
     projectName: string,
     runtime: ComposeConfig['runtime']
   ): string {
+    // La imagen referencia el registry y el tag de deploy (IMAGE_TAG) para que
+    // los redeploys por merge puedan `docker compose pull` la imagen publicada
+    // (FRA-72). DOCKER_REGISTRY e IMAGE_TAG se sustituyen en el servidor; en el
+    // primer deploy (sin registry) caen a localhost/latest y la imagen se
+    // construye localmente desde `build:`.
+    const imageRef = `    image: \${DOCKER_REGISTRY:-localhost}/${projectName}:\${IMAGE_TAG:-latest}`;
     if (runtime.build) {
       return `    build:
       context: ${runtime.build.context}
-      dockerfile: ${runtime.build.dockerfile}`;
+      dockerfile: ${runtime.build.dockerfile}
+${imageRef}`;
     }
-    return `    image: \${DOCKER_REGISTRY:-localhost}/${projectName}:latest`;
+    return imageRef;
   }
 
   /**

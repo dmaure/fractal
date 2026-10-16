@@ -211,7 +211,7 @@ export class GitHubActionsGenerator {
    */
   private generateWorkflow(config: DeployConfig, commands: DeployCommands): string {
     const timestamp = new Date().toISOString();
-    const imageTagExpr = '\${GITHUB_SHA:0:7}';
+    const imageTagExpr = '${{ github.sha }}';
 
     let workflow = `# Workflow de deploy generado por Fractal
 # Generado: ${timestamp}
@@ -267,7 +267,6 @@ jobs:
           SSH_USER: \${{ secrets.SSH_USER }}
           SSH_PRIVATE_KEY: \${{ secrets.SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: \${{ secrets.SSH_KNOWN_HOSTS }}
-          IMAGE_TAG: ${imageTagExpr}
         run: |
           # Configurar SSH con host key verification
           echo "\$SSH_PRIVATE_KEY" > deploy_key
@@ -277,12 +276,16 @@ jobs:
           echo "\$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
           
-          # Deploy al servidor (IMAGE_TAG ya está en env)
-          ssh -o StrictHostKeyChecking=yes -i deploy_key \$SSH_USER@\$SSH_HOST << ENDSSH
+          # Deploy al servidor. Los valores calculados en el runner (registry,
+          # tag de imagen y rama) se inyectan como entorno del shell remoto; el
+          # heredoc va entre comillas ('ENDSSH') para que el resto de variables
+          # se expandan en el servidor y no en el runner.
+          ssh -o StrictHostKeyChecking=yes -i deploy_key "\$SSH_USER@\$SSH_HOST" \\
+            "DOCKER_REGISTRY='ghcr.io/\${{ github.repository }}' IMAGE_TAG='${imageTagExpr}' GIT_BRANCH='\${{ github.ref_name }}' bash -s" << 'ENDSSH'
             set -e
-            
-            cd /var/www/${config.projectName}
-            
+
+            cd /home/deploy
+
             # Leer estado del servidor para obtener tag anterior para rollback
             STATE_FILE="/etc/fractal/state.json"
             PREVIOUS_TAG=""
@@ -296,8 +299,9 @@ jobs:
               echo "Previous successful tag: \$PREVIOUS_TAG"
             fi
             
-            # Actualizar compose con nueva imagen
-            export IMAGE_TAG=\$IMAGE_TAG
+            # Actualizar compose con la nueva imagen: DOCKER_REGISTRY e IMAGE_TAG
+            # vienen inyectados y docker compose los sustituye en el image: del
+            # servicio de aplicación.
             docker compose pull
             docker compose up -d --no-build
             
@@ -352,7 +356,7 @@ jobs:
               fi
               
               # Agregar entrada al historial
-              NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"passed","commitSha":"'\${GITHUB_SHA}'","branch":"'\${GITHUB_REF_NAME}'"}'
+              NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"passed","commitSha":"'\$IMAGE_TAG'","branch":"'\$GIT_BRANCH'"}'
               UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "
 import sys, json
 state = json.load(sys.stdin)
@@ -372,7 +376,7 @@ print(json.dumps(state, indent=2))
               # Registrar deploy fallido en el estado
               if [ -f "\$STATE_FILE" ]; then
                 CURRENT_STATE=\$(sudo cat \$STATE_FILE)
-                NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"failed","commitSha":"'\${GITHUB_SHA}'","branch":"'\${GITHUB_REF_NAME}'"}'
+                NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"failed","commitSha":"'\$IMAGE_TAG'","branch":"'\$GIT_BRANCH'"}'
                 UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "
 import sys, json
 state = json.load(sys.stdin)
