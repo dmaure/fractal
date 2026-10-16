@@ -115,16 +115,6 @@ describe('CloudflareProvider', () => {
         ok: true,
         json: async () => ({ success: true }),
       });
-      // getExistingRecords www (no existe)
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, result: [] }),
-      });
-      // createRecord www
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      });
 
       const result = await provider.setup();
 
@@ -135,10 +125,16 @@ describe('CloudflareProvider', () => {
       expect(mockFetch.mock.calls[1][0]).toContain('/zones?name=codigofractal.dev');
       // Los registros usan el zone id raíz detectado.
       expect(mockFetch.mock.calls[2][0]).toContain('/zones/zone-root-123/dns_records');
-      // www se crea como FQDN del subdominio.
-      const wwwCreateCall = mockFetch.mock.calls[5];
-      const wwwBody = JSON.parse((wwwCreateCall[1] as { body: string }).body);
-      expect(wwwBody.name).toBe('www.prueba.codigofractal.dev');
+      // Decisión de Diego (FRA-71): un subdominio NO lleva variante `www.`.
+      expect(result.records).toHaveLength(1);
+      expect(result.records[0].name).toBe('@');
+      expect(result.records.some(r => r.name === 'www')).toBe(false);
+      // Ninguna llamada a Cloudflare crea un registro `www`.
+      const createdWww = mockFetch.mock.calls.some(call => {
+        const body = call[1] && typeof call[1] === 'object' ? (call[1] as { body?: string }).body : undefined;
+        return typeof body === 'string' && body.includes('"name":"www');
+      });
+      expect(createdWww).toBe(false);
     });
 
     it('debe fallar si no encuentra la zona de Cloudflare', async () => {

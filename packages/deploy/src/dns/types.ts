@@ -129,19 +129,45 @@ export interface PropagationPollingOptions {
 }
 
 /**
- * Registros DNS por defecto según SPEC-0003 AC-5 y AC-6.
+ * Un dominio es "raíz" (apex/registrable) cuando tiene exactamente 2 etiquetas
+ * (p.ej. `codigofractal.dev`). Con 3 o más etiquetas ya es un subdominio
+ * (p.ej. `prueba.codigofractal.dev`).
+ *
+ * Reutiliza el mismo criterio de etiquetas que `zoneCandidates()` en el
+ * proveedor de Cloudflare, que toma el dominio registrable como mínimo de 2
+ * etiquetas. (Limitación conocida del MVP: no contempla TLDs de dos niveles
+ * como `co.uk`, igual que el resto del módulo DNS.)
  */
-export const DEFAULT_DNS_RECORDS = (domain: string, ip: string): DnsRecord[] => [
-  {
-    type: 'A',
-    name: '@',
-    value: ip,
-    ttl: 300,
-  },
-  {
-    type: 'A',
-    name: 'www',
-    value: ip,
-    ttl: 300,
-  },
-];
+export const isRootDomain = (domain: string): boolean =>
+  domain.split('.').length === 2;
+
+/**
+ * Registros DNS por defecto según SPEC-0003 AC-5 y AC-6.
+ *
+ * Decisión de Diego (FRA-71): la variante `www.` solo se agrega para el dominio
+ * raíz (p.ej. `codigofractal.dev` → `www.codigofractal.dev`). Si el dominio ya
+ * es un subdominio (p.ej. `prueba.codigofractal.dev`) no se crea `www`. Como
+ * `includeWww` se deriva de estos registros, la omisión aplica tanto al DNS de
+ * Cloudflare como al SAN del certificado de certbot.
+ */
+export const DEFAULT_DNS_RECORDS = (domain: string, ip: string): DnsRecord[] => {
+  const records: DnsRecord[] = [
+    {
+      type: 'A',
+      name: '@',
+      value: ip,
+      ttl: 300,
+    },
+  ];
+
+  if (isRootDomain(domain)) {
+    records.push({
+      type: 'A',
+      name: 'www',
+      value: ip,
+      ttl: 300,
+    });
+  }
+
+  return records;
+};
