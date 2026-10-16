@@ -762,8 +762,10 @@ export async function deployCommand(
   // Decisión de producto #2: includeWww desde DNS result
   const includeWww = dnsResult.records.some(record => record.name === 'www');
   
-  // Decisión de producto #3: postRenewalHook para Docker
-  const postRenewalHook = `docker exec ${projectName}_nginx nginx -s reload`;
+  // Decisión de producto #3: postRenewalHook para Docker (FRA-71). En cada
+  // renovación re-copia el cert al montaje /etc/nginx/ssl y recarga nginx del
+  // contenedor, porque certbot escribe el cert nuevo en /etc/letsencrypt/live.
+  const postRenewalHook = `cp -L /etc/letsencrypt/live/${params.domain}/fullchain.pem /home/deploy/docker/nginx/ssl/fullchain.pem && cp -L /etc/letsencrypt/live/${params.domain}/privkey.pem /home/deploy/docker/nginx/ssl/privkey.pem && docker exec ${projectName}_nginx nginx -s reload`;
   
   const sslStateManager = new StateManager(deployClient);
   
@@ -803,13 +805,16 @@ export async function deployCommand(
         environment: 'production',
         includeWww,
         postRenewalHook,
+        deployDir: '/home/deploy',
+        containerName: `${projectName}_nginx`,
+        webrootPath: '/home/deploy/docker/nginx/certbot',
       });
     }
   } else {
     await sslStateManager.markStep('ssl', 'pending', sslConfigHash);
-    
+
     console.log(chalk.dim('→ Instalando Certbot y emitiendo certificado...'));
-    
+
     const sslManager = new SslManager(adaptSshClient(deployClient));
     sslResult = await sslManager.setup({
       domain: params.domain,
@@ -817,6 +822,9 @@ export async function deployCommand(
       environment: 'production',
       includeWww,
       postRenewalHook,
+      deployDir: '/home/deploy',
+      containerName: `${projectName}_nginx`,
+      webrootPath: '/home/deploy/docker/nginx/certbot',
     });
   }
   
@@ -974,6 +982,25 @@ export async function uploadAndStartContainers(
   const uploadResult = await client.uploadDirectory(projectDir, remoteDir);
   if (!uploadResult.success) {
     return { success: false, stage: 'upload', error: uploadResult.error };
+  }
+
+  // FRA-71: cert temporal autofirmado para el arranque. El bloque 443 del
+  // nginx.conf referencia /etc/nginx/ssl/fullchain.pem; en el primer deploy ese
+  // archivo aún no existe (certbot corre después), así que nginx entraría en
+  // crash-loop. Generamos un cert autofirmado (365 días) solo si no hay uno ya;
+  // certbot lo reemplaza por el real más adelante en el mismo deploy. La vigencia
+  // larga es un placeholder que cubre el borde de un certbot lento o fallido sin
+  // servir un autofirmado ya vencido.
+  const bootstrapCertResult = await client.executeCommand(
+    `cd ${remoteDir} && (test -f ${remoteDir}/docker/nginx/ssl/fullchain.pem || openssl req -x509 -nodes -newkey rsa:2048 -days 365 -subj "/CN=localhost" -keyout ${remoteDir}/docker/nginx/ssl/privkey.pem -out ${remoteDir}/docker/nginx/ssl/fullchain.pem)`,
+    { timeoutMs: 60_000 }
+  );
+  if (!bootstrapCertResult.success) {
+    return {
+      success: false,
+      stage: 'compose',
+      error: bootstrapCertResult.stderr || bootstrapCertResult.error,
+    };
   }
 
   const composeUpResult = await client.executeCommand(

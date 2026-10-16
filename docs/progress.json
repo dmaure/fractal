@@ -89,7 +89,9 @@
         { "id": "T5", "ticket": "FRA-62", "label": "Habilitar typecheck de los tests de @fractal/deploy en CI", "estado": "completado" },
         { "id": "T6", "ticket": "FRA-64", "label": "e2e de deploy contra VPS efimero de Vultr en CI (DoD §9)", "estado": "completado" },
         { "id": "T7", "ticket": "FRA-65", "label": "Documentacion de usuario de fractal deploy (docs/guides/fractal-deploy.md)", "estado": "completado" },
-        { "id": "T8", "ticket": "FRA-68", "label": "Test automatizado de AC-1 (recoleccion interactiva de datos de deploy)", "estado": "completado" }
+        { "id": "T8", "ticket": "FRA-68", "label": "Test automatizado de AC-1 (recoleccion interactiva de datos de deploy)", "estado": "completado" },
+        { "id": "T9", "ticket": "FRA-69", "label": "/ renderiza en local y .env usable (MVP 1/5)", "estado": "completado" },
+        { "id": "T10", "ticket": "FRA-70", "label": "Dockerfile, llevar la app al VPS y nginx en Docker (MVP 2/5)", "estado": "completado" }
       ]
     },
     {

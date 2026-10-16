@@ -259,10 +259,13 @@ async function generateRoutesDirectory(projectPath: string): Promise<void> {
 }
 
 /**
- * Genera los artefactos de contenedor para el deploy (FRA-70):
- * Dockerfile y .dockerignore en la raíz, y docker/nginx/nginx.conf. El
- * directorio docker/nginx/ssl queda como placeholder (lo usa el montaje del
- * compose; TLS es FRA-71).
+ * Genera los artefactos de contenedor para el deploy (FRA-70, FRA-71):
+ * Dockerfile y .dockerignore en la raíz, y docker/nginx/nginx.conf. TLS ya está
+ * cableado (FRA-71): el directorio docker/nginx/ssl aloja el certificado
+ * Let's Encrypt (fullchain.pem/privkey.pem) que el nginx del contenedor monta,
+ * y docker/nginx/certbot es el webroot compartido del challenge ACME HTTP-01.
+ * Ambos directorios se crean como placeholders (los usan los montajes del
+ * compose) con un .gitkeep.
  */
 async function generateDockerAssets(projectPath: string): Promise<void> {
   await writeFile(join(projectPath, 'Dockerfile'), generateDockerfile());
@@ -275,6 +278,10 @@ async function generateDockerAssets(projectPath: string): Promise<void> {
   const sslPath = join(nginxPath, 'ssl');
   await mkdir(sslPath, { recursive: true });
   await writeFile(join(sslPath, '.gitkeep'), '');
+
+  const certbotPath = join(nginxPath, 'certbot');
+  await mkdir(certbotPath, { recursive: true });
+  await writeFile(join(certbotPath, '.gitkeep'), '');
 }
 
 function generateHealthController(): string {

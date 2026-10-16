@@ -337,6 +337,26 @@ describe('CertbotInstaller', () => {
       expect(certbotCall).toContain('-w /custom/webroot');
     });
 
+    it('usa el webroot compartido del deploy por defecto (FRA-71)', async () => {
+      vi.mocked(mockSsh.executeCommand)
+        .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
+        .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'Successfully received certificate',
+          stderr: '',
+        });
+
+      await installer.issueCertificate('example.com', 'admin@example.com', 'staging');
+
+      const mkdirCall = vi.mocked(mockSsh.executeCommand).mock.calls[0][0];
+      expect(mkdirCall).toContain('/home/deploy/docker/nginx/certbot/.well-known/acme-challenge');
+
+      const certbotCall = vi.mocked(mockSsh.executeCommand).mock.calls[2][0];
+      expect(certbotCall).toContain('-w /home/deploy/docker/nginx/certbot');
+    });
+
     it('maneja error al crear directorio de challenge', async () => {
       vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
         success: false,

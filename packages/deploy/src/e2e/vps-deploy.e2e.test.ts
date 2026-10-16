@@ -39,13 +39,13 @@
  *    (bind-mount del host) para que el challenge ACME HTTP-01 que certbot escribe
  *    en el host sea servido por el contenedor. Usamos Let's Encrypt STAGING para
  *    no gastar rate limits.
- *  - `NginxSslConfigGenerator` del módulo configura un nginx **del host**
- *    (sites-available / `systemctl reload nginx`), incompatible con el MVP
- *    containerizado. Por eso `SslManager.setup()` emite el certificado (lo que nos
- *    importa de AC-7: emisión real contra un dominio real) pero su paso de nginx
- *    del host NO aplica; servimos 443 desde el contenedor con el cert emitido.
- *    Afirmamos sobre `certificateIssuance.success`, no sobre `setup().success`.
- *    TODO(FRA-xx): ofrecer un generador de nginx containerizado en el módulo SSL.
+ *  - El módulo SSL sirve TLS desde el contenedor (FRA-71): `ContainerCertInstaller`
+ *    copia el cert emitido a `docker/nginx/ssl` y recarga nginx vía
+ *    `docker exec <contenedor> nginx -s reload`. Ese paso requiere `containerName`
+ *    y `deployDir`, que este test NO pasa a `SslManager.setup()` (solo nos importa
+ *    de AC-7 la emisión real contra un dominio real), así que el paso de contenedor
+ *    no aplica aquí: afirmamos sobre `certificateIssuance.success`, no sobre
+ *    `setup().success`. Montamos 443 en el contenedor con el cert emitido más abajo.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -548,9 +548,9 @@ describe.skipIf(!VPS_IP)('E2E · deploy contra VPS efímero real (SPEC-0003)', (
       console.log(`   certbotInstall: ${JSON.stringify(result.certbotInstall)}`);
       console.log(`   issuance: ${JSON.stringify(result.certificateIssuance)}`);
       if (result.nginxConfig) {
-        // Se espera que falle: NginxSslConfigGenerator opera sobre nginx del host,
-        // que no existe en el MVP containerizado (ver cabecera del archivo).
-        console.log(`   nginxConfig (host, se ignora): ${JSON.stringify(result.nginxConfig)}`);
+        // Se espera que falle: el paso de instalación en el contenedor requiere
+        // containerName/deployDir, que este test no pasa (ver cabecera del archivo).
+        console.log(`   nginxConfig (se ignora): ${JSON.stringify(result.nginxConfig)}`);
       }
 
       expect(

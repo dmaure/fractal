@@ -15,126 +15,23 @@ describe('SslManager', () => {
   });
 
   describe('setup', () => {
-    it('completa setup exitosamente con staging', async () => {
+    it('completa setup exitosamente con staging (instala el cert en el contenedor)', async () => {
       const config: SslConfig = {
         domain: 'example.com',
         email: 'admin@example.com',
         environment: 'staging',
+        deployDir: '/home/deploy',
+        containerName: 'myapp_nginx',
       };
 
-      // Mock para certbot install
-      vi.mocked(mockSsh.executeCommand)
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '/usr/bin/certbot',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'certbot 2.7.4',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'certbot',
-          stderr: '',
-        })
-        // Mock para certificate issuance
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'Successfully received certificate',
-          stderr: '',
-        })
-        // Mock para nginx config
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: false,
-          exitCode: 1,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'syntax is ok',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        // Mock para renewal setup
-        .mockResolvedValueOnce({
-          success: false,
-          exitCode: 1,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '/usr/bin/systemctl',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'active',
-          stderr: '',
-        });
+      // Todos los comandos SSH tienen éxito; el setup emite el cert, lo instala
+      // en el contenedor (cp + docker exec reload) y configura la renovación.
+      vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+        success: true,
+        exitCode: 0,
+        stdout: 'success',
+        stderr: '',
+      });
 
       const result = await manager.setup(config);
 
@@ -144,6 +41,17 @@ describe('SslManager', () => {
       expect(result.certificateIssuance?.domain).toBe('example.com');
       expect(result.nginxConfig?.success).toBe(true);
       expect(result.renewalSetup?.success).toBe(true);
+
+      // FRA-71: el paso de nginx ahora copia el cert al montaje del contenedor y
+      // recarga nginx vía docker exec (ya no configura nginx del host).
+      const commands = vi.mocked(mockSsh.executeCommand).mock.calls.map((c) => c[0]);
+      expect(commands).toContainEqual(
+        'sudo cp -L /etc/letsencrypt/live/example.com/fullchain.pem /home/deploy/docker/nginx/ssl/fullchain.pem'
+      );
+      expect(commands).toContainEqual('docker exec myapp_nginx nginx -s reload');
+      // Ya no se configura nginx del host (sites-available / sites-enabled).
+      expect(commands.some((c) => typeof c === 'string' && c.includes('sites-available'))).toBe(false);
+      expect(commands.some((c) => typeof c === 'string' && c.includes('sites-enabled'))).toBe(false);
     });
 
     it('usa entorno de staging correctamente', async () => {
@@ -276,6 +184,8 @@ describe('SslManager', () => {
         domain: 'example.com',
         email: 'admin@example.com',
         environment: 'staging',
+        deployDir: '/home/deploy',
+        containerName: 'myapp_nginx',
         postRenewalHook: 'docker exec myapp_nginx nginx -s reload',
       };
 
@@ -296,11 +206,13 @@ describe('SslManager', () => {
       expect(renewalCalls[0]).toContain('docker exec myapp_nginx nginx -s reload');
     });
 
-    it('usa systemctl reload nginx por defecto cuando no se especifica hook', async () => {
+    it('no configura post-renewal hook cuando no se especifica (sin fallback a systemctl)', async () => {
       const config: SslConfig = {
         domain: 'example.com',
         email: 'admin@example.com',
         environment: 'staging',
+        deployDir: '/home/deploy',
+        containerName: 'myapp_nginx',
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
@@ -315,9 +227,10 @@ describe('SslManager', () => {
       const renewalCalls = vi.mocked(mockSsh.executeCommand).mock.calls
         .map(call => call[0])
         .filter(cmd => typeof cmd === 'string' && cmd.includes('renewal-hooks'));
-      
-      expect(renewalCalls.length).toBeGreaterThan(0);
-      expect(renewalCalls[0]).toContain('systemctl reload nginx');
+
+      // Sin nginx en el host, ya no hay fallback a `systemctl reload nginx`:
+      // si no se pasa hook, RenewalManager no configura ninguno.
+      expect(renewalCalls.length).toBe(0);
     });
 
     it('maneja error en instalación de certbot', async () => {
@@ -377,11 +290,13 @@ describe('SslManager', () => {
       expect(result.error).toBe('Emisión de certificado falló');
     });
 
-    it('maneja error en configuración de nginx', async () => {
+    it('maneja error al instalar el cert en el contenedor nginx', async () => {
       const config: SslConfig = {
         domain: 'example.com',
         email: 'admin@example.com',
         environment: 'staging',
+        deployDir: '/home/deploy',
+        containerName: 'myapp_nginx',
       };
 
       vi.mocked(mockSsh.executeCommand)
@@ -437,11 +352,14 @@ describe('SslManager', () => {
       expect(result.error).toBe('Configuración de nginx falló');
     });
 
-    it('configura post-renewal hook para nginx', async () => {
+    it('configura el post-renewal hook provisto por el caller', async () => {
       const config: SslConfig = {
         domain: 'example.com',
         email: 'admin@example.com',
         environment: 'staging',
+        deployDir: '/home/deploy',
+        containerName: 'myapp_nginx',
+        postRenewalHook: 'docker exec myapp_nginx nginx -s reload',
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
@@ -456,9 +374,9 @@ describe('SslManager', () => {
       const renewalCalls = vi.mocked(mockSsh.executeCommand).mock.calls
         .map(call => call[0])
         .filter(cmd => typeof cmd === 'string' && cmd.includes('renewal-hooks'));
-      
+
       expect(renewalCalls.length).toBeGreaterThan(0);
-      expect(renewalCalls[0]).toContain('systemctl reload nginx');
+      expect(renewalCalls[0]).toContain('docker exec myapp_nginx nginx -s reload');
     });
   });
 

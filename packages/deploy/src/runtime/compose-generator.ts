@@ -137,6 +137,7 @@ ${appSource}
       - app_code:/var/www/html:ro
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - ./docker/nginx/certbot:/var/www/certbot:ro
     networks:
       - ${projectName}_network`;
       
@@ -333,6 +334,7 @@ ${appSource}
       - ./dist:/usr/share/nginx/html:ro
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - ./docker/nginx/certbot:/var/www/certbot:ro
     networks:
       - ${projectName}_network
 
