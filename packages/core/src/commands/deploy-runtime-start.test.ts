@@ -28,7 +28,7 @@ describe('uploadAndStartContainers (FRA-70, FRA-71)', () => {
 
     const [bootstrapCmd] = executeCommand.mock.calls[0];
     expect(bootstrapCmd).toContain('test -f /home/deploy/docker/nginx/ssl/fullchain.pem');
-    expect(bootstrapCmd).toContain('openssl req -x509 -nodes -newkey rsa:2048 -days 1');
+    expect(bootstrapCmd).toContain('openssl req -x509 -nodes -newkey rsa:2048 -days 365');
     expect(bootstrapCmd).toContain('/home/deploy/docker/nginx/ssl/privkey.pem');
 
     // Se construye la imagen en el servidor (--build) en el mismo directorio.

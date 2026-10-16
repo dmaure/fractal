@@ -184,6 +184,8 @@ describe('SslManager', () => {
         domain: 'example.com',
         email: 'admin@example.com',
         environment: 'staging',
+        deployDir: '/home/deploy',
+        containerName: 'myapp_nginx',
         postRenewalHook: 'docker exec myapp_nginx nginx -s reload',
       };
 
@@ -204,11 +206,13 @@ describe('SslManager', () => {
       expect(renewalCalls[0]).toContain('docker exec myapp_nginx nginx -s reload');
     });
 
-    it('usa systemctl reload nginx por defecto cuando no se especifica hook', async () => {
+    it('no configura post-renewal hook cuando no se especifica (sin fallback a systemctl)', async () => {
       const config: SslConfig = {
         domain: 'example.com',
         email: 'admin@example.com',
         environment: 'staging',
+        deployDir: '/home/deploy',
+        containerName: 'myapp_nginx',
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
@@ -223,9 +227,10 @@ describe('SslManager', () => {
       const renewalCalls = vi.mocked(mockSsh.executeCommand).mock.calls
         .map(call => call[0])
         .filter(cmd => typeof cmd === 'string' && cmd.includes('renewal-hooks'));
-      
-      expect(renewalCalls.length).toBeGreaterThan(0);
-      expect(renewalCalls[0]).toContain('systemctl reload nginx');
+
+      // Sin nginx en el host, ya no hay fallback a `systemctl reload nginx`:
+      // si no se pasa hook, RenewalManager no configura ninguno.
+      expect(renewalCalls.length).toBe(0);
     });
 
     it('maneja error en instalación de certbot', async () => {
@@ -347,11 +352,14 @@ describe('SslManager', () => {
       expect(result.error).toBe('Configuración de nginx falló');
     });
 
-    it('configura post-renewal hook para nginx', async () => {
+    it('configura el post-renewal hook provisto por el caller', async () => {
       const config: SslConfig = {
         domain: 'example.com',
         email: 'admin@example.com',
         environment: 'staging',
+        deployDir: '/home/deploy',
+        containerName: 'myapp_nginx',
+        postRenewalHook: 'docker exec myapp_nginx nginx -s reload',
       };
 
       vi.mocked(mockSsh.executeCommand).mockResolvedValue({
@@ -366,9 +374,9 @@ describe('SslManager', () => {
       const renewalCalls = vi.mocked(mockSsh.executeCommand).mock.calls
         .map(call => call[0])
         .filter(cmd => typeof cmd === 'string' && cmd.includes('renewal-hooks'));
-      
+
       expect(renewalCalls.length).toBeGreaterThan(0);
-      expect(renewalCalls[0]).toContain('systemctl reload nginx');
+      expect(renewalCalls[0]).toContain('docker exec myapp_nginx nginx -s reload');
     });
   });
 

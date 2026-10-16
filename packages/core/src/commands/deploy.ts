@@ -987,10 +987,12 @@ export async function uploadAndStartContainers(
   // FRA-71: cert temporal autofirmado para el arranque. El bloque 443 del
   // nginx.conf referencia /etc/nginx/ssl/fullchain.pem; en el primer deploy ese
   // archivo aún no existe (certbot corre después), así que nginx entraría en
-  // crash-loop. Generamos un cert autofirmado (1 día) solo si no hay uno ya;
-  // certbot lo reemplaza por el real más adelante en el flujo.
+  // crash-loop. Generamos un cert autofirmado (365 días) solo si no hay uno ya;
+  // certbot lo reemplaza por el real más adelante en el mismo deploy. La vigencia
+  // larga es un placeholder que cubre el borde de un certbot lento o fallido sin
+  // servir un autofirmado ya vencido.
   const bootstrapCertResult = await client.executeCommand(
-    `cd ${remoteDir} && (test -f ${remoteDir}/docker/nginx/ssl/fullchain.pem || openssl req -x509 -nodes -newkey rsa:2048 -days 1 -subj "/CN=localhost" -keyout ${remoteDir}/docker/nginx/ssl/privkey.pem -out ${remoteDir}/docker/nginx/ssl/fullchain.pem)`,
+    `cd ${remoteDir} && (test -f ${remoteDir}/docker/nginx/ssl/fullchain.pem || openssl req -x509 -nodes -newkey rsa:2048 -days 365 -subj "/CN=localhost" -keyout ${remoteDir}/docker/nginx/ssl/privkey.pem -out ${remoteDir}/docker/nginx/ssl/fullchain.pem)`,
     { timeoutMs: 60_000 }
   );
   if (!bootstrapCertResult.success) {

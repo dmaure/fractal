@@ -50,6 +50,43 @@ describe('ContainerCertInstaller', () => {
     expect(commands).toContainEqual('docker exec myapp_nginx nginx -s reload');
   });
 
+  it('falla si containerName está vacío sin emitir ningún docker exec', async () => {
+    vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+      success: true,
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+    });
+
+    const result = await installer.install({ ...config, containerName: '' });
+
+    expect(result.success).toBe(false);
+    expect(result.steps).toEqual([]);
+    expect(result.error).toBe(
+      'containerName y deployDir son requeridos para instalar el certificado en el contenedor'
+    );
+    // No se debe ejecutar ningún comando (ni docker exec) sin containerName.
+    expect(mockSsh.executeCommand).not.toHaveBeenCalled();
+  });
+
+  it('falla si deployDir está vacío sin emitir ningún comando', async () => {
+    vi.mocked(mockSsh.executeCommand).mockResolvedValue({
+      success: true,
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+    });
+
+    const result = await installer.install({ ...config, deployDir: '' });
+
+    expect(result.success).toBe(false);
+    expect(result.steps).toEqual([]);
+    expect(result.error).toBe(
+      'containerName y deployDir son requeridos para instalar el certificado en el contenedor'
+    );
+    expect(mockSsh.executeCommand).not.toHaveBeenCalled();
+  });
+
   it('falla si no se puede copiar fullchain.pem', async () => {
     vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
       success: false,

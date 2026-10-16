@@ -8,11 +8,17 @@ export interface ContainerCertInstallConfig {
   /** Dominio del certificado (ruta /etc/letsencrypt/live/<domain>/) */
   domain: string;
 
-  /** Directorio del deploy en el VPS (p.ej. /home/deploy) */
-  deployDir: string;
+  /**
+   * Directorio del deploy en el VPS (p.ej. /home/deploy). Opcional en el tipo;
+   * `install()` valida en runtime que esté presente.
+   */
+  deployDir?: string;
 
-  /** Nombre del contenedor nginx (p.ej. <projectName>_nginx) */
-  containerName: string;
+  /**
+   * Nombre del contenedor nginx (p.ej. <projectName>_nginx). Opcional en el
+   * tipo; `install()` valida en runtime que esté presente.
+   */
+  containerName?: string;
 }
 
 /**
@@ -55,6 +61,15 @@ export class ContainerCertInstaller {
   ): Promise<NginxSslConfigResult> {
     const steps: string[] = [];
     const { domain, deployDir, containerName } = config;
+
+    if (!containerName || !deployDir) {
+      return {
+        success: false,
+        steps: [],
+        error:
+          'containerName y deployDir son requeridos para instalar el certificado en el contenedor',
+      };
+    }
 
     try {
       const liveDir = `/etc/letsencrypt/live/${domain}`;

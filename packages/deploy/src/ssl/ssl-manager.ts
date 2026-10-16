@@ -85,7 +85,7 @@ export class SslManager {
       const nginxConfig = await this.containerCertInstaller.install({
         domain: config.domain,
         deployDir: config.deployDir || '/home/deploy',
-        containerName: config.containerName || '',
+        containerName: config.containerName,
       });
 
       if (!nginxConfig.success) {
@@ -98,9 +98,12 @@ export class SslManager {
         };
       }
 
-      // Paso 4: Configurar renovación automática
+      // Paso 4: Configurar renovación automática. El hook de recarga lo provee
+      // el caller (deploy.ts pasa `docker exec <proyecto>_nginx nginx -s reload`);
+      // ya no hay nginx en el host, así que no aplica ningún fallback a
+      // `systemctl reload nginx`. Si llega undefined, RenewalManager no setea hook.
       const renewalSetup = await this.renewalManager.setup({
-        postRenewalHook: config.postRenewalHook || 'systemctl reload nginx',
+        postRenewalHook: config.postRenewalHook,
       });
       
       if (!renewalSetup.success) {
