@@ -16,6 +16,9 @@ const state = vi.hoisted(() => ({
   fastPutArgs: [] as Array<{ local: string; remote: string }>,
   execCloseCode: 0,
   sftpError: null as Error | null,
+  // Si es true, fastPut nunca llama a su callback: simula una transferencia
+  // colgada para ejercitar el timeout de la subida.
+  hangFastPut: false,
 }));
 
 vi.mock('ssh2', async () => {
@@ -39,6 +42,7 @@ vi.mock('ssh2', async () => {
       const sftp = {
         fastPut: (local: string, remote: string, done: (err: Error | null) => void) => {
           state.fastPutArgs.push({ local, remote });
+          if (state.hangFastPut) return; // nunca resuelve: fuerza el timeout
           done(null);
         },
       };
@@ -69,6 +73,7 @@ describe('SshClient.uploadDirectory', () => {
     state.fastPutArgs = [];
     state.execCloseCode = 0;
     state.sftpError = null;
+    state.hangFastPut = false;
 
     localDir = await mkdtemp(join(tmpdir(), 'fractal-upload-src-'));
     await writeFile(join(localDir, 'app.txt'), 'contenido');
@@ -120,6 +125,21 @@ describe('SshClient.uploadDirectory', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('SFTP');
+
+    await rm(localDir, { recursive: true, force: true });
+  });
+
+  it('respeta el timeoutMs propio de la subida (independiente del readyTimeout)', async () => {
+    // La transferencia se cuelga; el presupuesto de la subida (10ms) debe
+    // disparar el timeout antes que el readyTimeout de conexión (5000ms).
+    state.hangFastPut = true;
+    const client = makeClient();
+    const result = await client.uploadDirectory(localDir, '/home/deploy', {
+      timeoutMs: 10,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Timeout');
 
     await rm(localDir, { recursive: true, force: true });
   });

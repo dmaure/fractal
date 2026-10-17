@@ -7,7 +7,7 @@ import type { DeployCommandOptions } from '../types/deploy-command.js';
 import type { AdapterContract } from '../types/adapter-contract.js';
 import { resolveSingleAdapter } from '../adapter-resolver.js';
 import { invokeAdapter } from '../adapter-bridge.js';
-import { promptDeployParams, loadDeployParamsFromEnv, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
+import { promptDeployParams, loadDeployParamsFromEnv, loadUploadTimeoutMsFromEnv, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
 // NOTA (FRA-46): `@fractal/deploy` arrastra `ssh2` (módulo nativo) de forma
 // transitiva. Importarlo estáticamente aquí hacía que cargar el CLI —y por lo
 // tanto cualquier comando, incluido `fractal status`— fallara si `ssh2` no está
@@ -665,7 +665,8 @@ export async function deployCommand(
     deployClient,
     projectDir,
     '/home/deploy',
-    projectName
+    projectName,
+    loadUploadTimeoutMsFromEnv()
   );
 
   if (!runtimeStart.success) {
@@ -998,7 +999,7 @@ interface RuntimeDeployClient {
   uploadDirectory(
     localPath: string,
     remotePath: string,
-    options?: { exclude?: string[] }
+    options?: { exclude?: string[]; timeoutMs?: number }
   ): Promise<{ success: boolean; error?: string }>;
   executeCommand(
     command: string,
@@ -1026,14 +1027,20 @@ interface RuntimeDeployClient {
  * @param projectDir Directorio local del proyecto a subir
  * @param remoteDir Directorio del VPS donde vive el docker-compose.yml
  * @param projectName Nombre del proyecto; determina el nombre del volumen app_code
+ * @param uploadTimeoutMs Presupuesto de tiempo (ms) para toda la subida del
+ *   proyecto. Se pasa explícito a `uploadDirectory` para no reusar el
+ *   readyTimeout de conexión SSH (120s); ver `loadUploadTimeoutMsFromEnv`.
  */
 export async function uploadAndStartContainers(
   client: RuntimeDeployClient,
   projectDir: string,
   remoteDir: string,
-  projectName: string
+  projectName: string,
+  uploadTimeoutMs: number
 ): Promise<{ success: boolean; stage?: 'upload' | 'compose'; error?: string }> {
-  const uploadResult = await client.uploadDirectory(projectDir, remoteDir);
+  const uploadResult = await client.uploadDirectory(projectDir, remoteDir, {
+    timeoutMs: uploadTimeoutMs,
+  });
   if (!uploadResult.success) {
     return { success: false, stage: 'upload', error: uploadResult.error };
   }

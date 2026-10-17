@@ -17,13 +17,17 @@ describe('uploadAndStartContainers (FRA-70, FRA-71, FRA-73)', () => {
       { uploadDirectory, executeCommand },
       '/local/project',
       '/home/deploy',
-      'myapp'
+      'myapp',
+      600_000
     );
 
     expect(result.success).toBe(true);
 
-    // Se sube el directorio del proyecto al directorio de deploy.
-    expect(uploadDirectory).toHaveBeenCalledWith('/local/project', '/home/deploy');
+    // Se sube el directorio del proyecto al directorio de deploy, con su
+    // propio presupuesto de tiempo (no el readyTimeout de conexión de 120s).
+    expect(uploadDirectory).toHaveBeenCalledWith('/local/project', '/home/deploy', {
+      timeoutMs: 600_000,
+    });
 
     // Dos comandos: primero el cert temporal (FRA-71), luego el compose up.
     expect(executeCommand).toHaveBeenCalledTimes(2);
@@ -49,7 +53,8 @@ describe('uploadAndStartContainers (FRA-70, FRA-71, FRA-73)', () => {
       { uploadDirectory, executeCommand },
       '/local/project',
       '/home/deploy',
-      'myapp'
+      'myapp',
+      600_000
     );
 
     expect(result.success).toBe(false);
@@ -71,7 +76,8 @@ describe('uploadAndStartContainers (FRA-70, FRA-71, FRA-73)', () => {
       { uploadDirectory, executeCommand },
       '/local/project',
       '/home/deploy',
-      'myapp'
+      'myapp',
+      600_000
     );
 
     expect(result.success).toBe(false);
@@ -94,12 +100,32 @@ describe('uploadAndStartContainers (FRA-70, FRA-71, FRA-73)', () => {
       { uploadDirectory, executeCommand },
       '/local/project',
       '/home/deploy',
-      'myapp'
+      'myapp',
+      600_000
     );
 
     expect(result.success).toBe(false);
     expect(result.stage).toBe('compose');
     expect(result.error).toBe('build failed');
     expect(executeCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it('pasa el timeout de subida recibido a uploadDirectory (presupuesto propio)', async () => {
+    const uploadDirectory = vi.fn().mockResolvedValue({ success: true });
+    const executeCommand = vi.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' });
+
+    await uploadAndStartContainers(
+      { uploadDirectory, executeCommand },
+      '/local/project',
+      '/home/deploy',
+      'myapp',
+      300_000
+    );
+
+    // El presupuesto propio de la subida se propaga tal cual; no se reusa el
+    // readyTimeout de conexión SSH (120s).
+    expect(uploadDirectory).toHaveBeenCalledWith('/local/project', '/home/deploy', {
+      timeoutMs: 300_000,
+    });
   });
 });

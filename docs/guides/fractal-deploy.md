@@ -181,6 +181,7 @@ mismas validaciones de IP, dominio y email que en los prompts).
 | `FRACTAL_DEPLOY_GIT_REPOSITORY` | sí | — | URL del repositorio Git (infiere el proveedor de CI/CD) |
 | `FRACTAL_DEPLOY_PRODUCTION_BRANCH` | no | `main` | rama de producción |
 | `FRACTAL_DEPLOY_SSL_ENV` | no | `production` | `production` o `staging` (staging evita los rate limits de Let's Encrypt; útil en CI) |
+| `FRACTAL_DEPLOY_UPLOAD_TIMEOUT` | no | `600` | timeout **en segundos** para la subida del proyecto al servidor (pack + transfer + extract). Independiente del timeout de conexión SSH (120s); subílo para proyectos grandes o enlaces lentos |
 
 En **multirepo** con coordinación pendiente (o con `--reconfigure`) se requieren
 además `FRACTAL_DEPLOY_SIBLING_GIT_URL` y `FRACTAL_DEPLOY_SIBLING_DOMAIN` (URL y

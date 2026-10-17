@@ -392,6 +392,28 @@ export function loadDeployParamsFromEnv(
 }
 
 /**
+ * Default (en segundos) del presupuesto de tiempo para subir el proyecto al
+ * servidor. Deliberadamente muy por encima del readyTimeout de conexión SSH
+ * (120s): la subida (pack + transfer SFTP + extract) de proyectos grandes no
+ * debe morir con ese timeout corto de conexión.
+ */
+export const DEFAULT_UPLOAD_TIMEOUT_SECONDS = 600;
+
+/**
+ * Lee `FRACTAL_DEPLOY_UPLOAD_TIMEOUT` (en segundos) y lo devuelve en
+ * milisegundos, consistente con el resto de las perillas `FRACTAL_DEPLOY_*`.
+ * Un valor ausente, vacío, no numérico (NaN) o no positivo cae al default de
+ * 600s. Este presupuesto es independiente del readyTimeout de conexión (120s).
+ */
+export function loadUploadTimeoutMsFromEnv(): number {
+  const raw = process.env.FRACTAL_DEPLOY_UPLOAD_TIMEOUT?.trim();
+  const seconds = raw ? Number(raw) : NaN;
+  const effectiveSeconds =
+    Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_UPLOAD_TIMEOUT_SECONDS;
+  return effectiveSeconds * 1000;
+}
+
+/**
  * Prompt para confirmar que el usuario quiere proceder con el deploy.
  */
 export async function confirmDeploy(params: DeployParams): Promise<boolean> {

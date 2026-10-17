@@ -201,13 +201,16 @@ export class SshClient {
    * @param localPath Ruta del directorio local a subir
    * @param remotePath Ruta destino en el servidor (se crea si no existe)
    * @param options.exclude Patrones a excluir (default: .git, node_modules, vendor, dist)
+   * @param options.timeoutMs Presupuesto de tiempo para toda la subida (pack+transfer+extract).
+   *   Si no se especifica, usa `this.config.timeout` (el readyTimeout de conexión).
    */
   async uploadDirectory(
     localPath: string,
     remotePath: string,
-    options?: { exclude?: string[] }
+    options?: { exclude?: string[]; timeoutMs?: number }
   ): Promise<{ success: boolean; error?: string }> {
     const excludes = options?.exclude ?? DEFAULT_UPLOAD_EXCLUDES;
+    const uploadTimeout = options?.timeoutMs ?? this.config.timeout;
 
     let tarballPath: string;
     try {
@@ -238,7 +241,7 @@ export class SshClient {
             success: false,
             error: 'Timeout: la subida del directorio excedió el tiempo esperado',
           });
-        }, this.config.timeout);
+        }, uploadTimeout);
 
         client.on('ready', () => {
           client.sftp((sftpErr, sftp) => {
