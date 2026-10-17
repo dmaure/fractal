@@ -55,7 +55,10 @@ vi.mock('ssh2', async () => {
     end(): void {}
   }
 
-  return { Client };
+  // El código importa ssh2 como módulo CommonJS (`import ssh2 from 'ssh2'`),
+  // así que el mock debe exponer `Client` en el export default además del
+  // export nombrado.
+  return { default: { Client }, Client };
 });
 
 describe('SshClient.uploadDirectory', () => {

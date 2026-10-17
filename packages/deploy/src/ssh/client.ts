@@ -1,4 +1,6 @@
-import { Client, type ConnectConfig } from 'ssh2';
+import ssh2 from 'ssh2';
+import type { Client as SshClientInstance, ConnectConfig } from 'ssh2';
+const { Client } = ssh2;
 import { readFile, rm } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
@@ -331,7 +333,7 @@ export class SshClient {
    * Establece la conexión SSH con las credenciales configuradas.
    * Siempre verifica la clave del host: ssh2 auto-acepta si hostVerifier falta.
    */
-  private async connect(client: Client): Promise<void> {
+  private async connect(client: SshClientInstance): Promise<void> {
     const connectConfig: ConnectConfig = {
       host: this.config.host,
       port: this.config.port,
