@@ -1,31 +1,40 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SshClient } from './client.js';
 
 /**
- * Tests de SshClient.uploadDirectory (FRA-70). ssh2 se mockea por completo:
- * NO se abre ninguna conexión real. El empaquetado local con `tar` sí ocurre
- * de verdad sobre un directorio temporal, para cubrir la ruta completa salvo
- * la red.
+ * Tests de SshClient.uploadDirectory (FRA-70 / FRA-73). ssh2 se mockea por
+ * completo: NO se abre ninguna conexión real. El empaquetado local con `tar` sí
+ * ocurre de verdad sobre un directorio temporal, para cubrir la ruta completa
+ * salvo la red. Desde FRA-73 el tarball se extrae por el canal de ejecución
+ * (`tar -xzf -` leyendo de stdin), no por SFTP.
  */
 
 const state = vi.hoisted(() => ({
   lastExecCommand: '',
-  fastPutArgs: [] as Array<{ local: string; remote: string }>,
-  execCloseCode: 0,
-  sftpError: null as Error | null,
-  // Si es true, fastPut nunca llama a su callback: simula una transferencia
-  // colgada para ejercitar el timeout de la subida.
-  hangFastPut: false,
+  execCommands: [] as string[],
+  execCloseCode: 0 as number | null,
+  // Nº de intentos iniciales que fallan por transporte (cb de exec con error)
+  // antes de que uno tenga éxito. Simula una conexión que se cae y se recupera.
+  transportFailures: 0,
+  // Si es true, el stream nunca emite 'close': simula una transferencia colgada
+  // para ejercitar el presupuesto total de la subida.
+  hangExec: false,
 }));
 
 vi.mock('ssh2', async () => {
   const { EventEmitter } = await import('node:events');
 
+  // Stream dúplex falso: `on`/`emit` vienen de EventEmitter y agregamos
+  // `write`/`end` para que `readStream.pipe(stream)` lo acepte como destino.
   class FakeStream extends EventEmitter {
     stderr = new EventEmitter();
+    write(): boolean {
+      return true;
+    }
+    end(): void {}
   }
 
   class Client extends EventEmitter {
@@ -34,25 +43,19 @@ vi.mock('ssh2', async () => {
       setImmediate(() => this.emit('ready'));
     }
 
-    sftp(cb: (err: Error | null, sftp?: unknown) => void): void {
-      if (state.sftpError) {
-        cb(state.sftpError);
-        return;
-      }
-      const sftp = {
-        fastPut: (local: string, remote: string, done: (err: Error | null) => void) => {
-          state.fastPutArgs.push({ local, remote });
-          if (state.hangFastPut) return; // nunca resuelve: fuerza el timeout
-          done(null);
-        },
-      };
-      cb(null, sftp);
-    }
-
     exec(command: string, cb: (err: Error | null, stream?: FakeStream) => void): void {
       state.lastExecCommand = command;
+      state.execCommands.push(command);
+
+      if (state.transportFailures > 0) {
+        state.transportFailures--;
+        cb(new Error('fallo de transporte simulado'));
+        return;
+      }
+
       const stream = new FakeStream();
       cb(null, stream);
+      if (state.hangExec) return; // nunca emite 'close': fuerza el timeout total
       setImmediate(() => stream.emit('close', state.execCloseCode));
     }
 
@@ -65,15 +68,22 @@ vi.mock('ssh2', async () => {
   return { default: { Client }, Client };
 });
 
+const TARBALL_RE = /^fractal-upload-.*\.tar\.gz$/;
+
+async function countLocalTarballs(): Promise<number> {
+  const entries = await readdir(tmpdir());
+  return entries.filter((name) => TARBALL_RE.test(name)).length;
+}
+
 describe('SshClient.uploadDirectory', () => {
   let localDir: string;
 
   beforeEach(async () => {
     state.lastExecCommand = '';
-    state.fastPutArgs = [];
+    state.execCommands = [];
     state.execCloseCode = 0;
-    state.sftpError = null;
-    state.hangFastPut = false;
+    state.transportFailures = 0;
+    state.hangExec = false;
 
     localDir = await mkdtemp(join(tmpdir(), 'fractal-upload-src-'));
     await writeFile(join(localDir, 'app.txt'), 'contenido');
@@ -87,52 +97,75 @@ describe('SshClient.uploadDirectory', () => {
       timeout: 5000,
     });
 
-  it('empaqueta, transfiere por SFTP y extrae el directorio en el servidor', async () => {
+  it('empaqueta y extrae el directorio por el canal de ejecución (tar -xzf -)', async () => {
+    const tarballsBefore = await countLocalTarballs();
+
     const client = makeClient();
     const result = await client.uploadDirectory(localDir, '/home/deploy');
 
     expect(result.success).toBe(true);
     expect(result.error).toBeUndefined();
 
-    // Se transfirió exactamente un tarball.
-    expect(state.fastPutArgs).toHaveLength(1);
-    expect(state.fastPutArgs[0].remote).toMatch(/^\/tmp\/fractal-upload-.*\.tar\.gz$/);
+    // Un solo intento, sin reintentos.
+    expect(state.execCommands).toHaveLength(1);
 
-    // El comando remoto crea el destino, extrae y limpia el temporal.
+    // El comando remoto crea el destino y extrae desde stdin; ya no hay un
+    // temporal remoto ni un `rm -f`.
     expect(state.lastExecCommand).toContain("mkdir -p '/home/deploy'");
-    expect(state.lastExecCommand).toContain("tar -xzf '/tmp/fractal-upload-");
-    expect(state.lastExecCommand).toContain("-C '/home/deploy'");
-    expect(state.lastExecCommand).toContain('rm -f');
+    expect(state.lastExecCommand).toContain("tar -xzf - -C '/home/deploy'");
+    expect(state.lastExecCommand).not.toContain('rm -f');
+
+    // El tarball local se limpió al terminar.
+    expect(await countLocalTarballs()).toBe(tarballsBefore);
 
     await rm(localDir, { recursive: true, force: true });
   });
 
-  it('devuelve error si la extracción remota falla', async () => {
+  it('devuelve error y NO reintenta si tar termina con código ≠ 0', async () => {
     state.execCloseCode = 2;
     const client = makeClient();
     const result = await client.uploadDirectory(localDir, '/home/deploy');
 
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
+    // Fallo determinístico: un solo intento.
+    expect(state.execCommands).toHaveLength(1);
 
     await rm(localDir, { recursive: true, force: true });
   });
 
-  it('propaga un error si no se puede abrir SFTP', async () => {
-    state.sftpError = new Error('sftp no disponible');
+  it('reintenta ante un fallo de transporte y tiene éxito en el segundo intento', async () => {
+    state.transportFailures = 1; // el primer intento falla por transporte
     const client = makeClient();
     const result = await client.uploadDirectory(localDir, '/home/deploy');
 
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('SFTP');
+    expect(result.success).toBe(true);
+    expect(result.error).toBeUndefined();
+    // Se reintentó: exec se llamó dos veces.
+    expect(state.execCommands).toHaveLength(2);
 
     await rm(localDir, { recursive: true, force: true });
-  });
+  }, 10_000);
+
+  it('agota los reintentos (máx 3) ante fallos de transporte persistentes', async () => {
+    state.transportFailures = 99; // siempre falla por transporte
+    const client = makeClient();
+    // Presupuesto amplio para que los backoffs (2s + 4s) no lo corten.
+    const result = await client.uploadDirectory(localDir, '/home/deploy', {
+      timeoutMs: 20_000,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('transporte');
+    expect(state.execCommands).toHaveLength(3);
+
+    await rm(localDir, { recursive: true, force: true });
+  }, 15_000);
 
   it('respeta el timeoutMs propio de la subida (independiente del readyTimeout)', async () => {
     // La transferencia se cuelga; el presupuesto de la subida (10ms) debe
     // disparar el timeout antes que el readyTimeout de conexión (5000ms).
-    state.hangFastPut = true;
+    state.hangExec = true;
     const client = makeClient();
     const result = await client.uploadDirectory(localDir, '/home/deploy', {
       timeoutMs: 10,

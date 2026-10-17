@@ -2,6 +2,7 @@ import ssh2 from 'ssh2';
 import type { Client as SshClientInstance, ConnectConfig } from 'ssh2';
 const { Client } = ssh2;
 import { readFile, rm } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -194,15 +195,24 @@ export class SshClient {
    * Sube un directorio local al servidor remoto.
    *
    * Empaqueta el directorio en un tarball gzip local (excluyendo artefactos
-   * que se regeneran, p.ej. node_modules/vendor/.git), lo transfiere por SFTP
-   * y lo extrae en el directorio destino del servidor. Framework-agnostic: no
-   * asume ningún framework ni tipo de proyecto.
+   * que se regeneran, p.ej. node_modules/vendor/.git) y lo extrae en el
+   * servidor transmitiéndolo por el canal de ejecución (`tar -xzf -` leyendo de
+   * stdin), sin dejar ningún temporal remoto. Se evita `sftp.fastPut` porque se
+   * cuelga indefinidamente si la conexión muere a mitad de la transferencia.
+   * Framework-agnostic: no asume ningún framework ni tipo de proyecto.
+   *
+   * Robustez del transporte: la conexión usa keepalive (ver `connect`) para
+   * detectar un peer muerto, y la subida se reintenta hasta 3 veces ante fallos
+   * de transporte (backoff 2s/4s). Un fallo determinístico de `tar` (código de
+   * salida ≠ 0) NO se reintenta. Todos los intentos comparten el mismo
+   * presupuesto total `timeoutMs`.
    *
    * @param localPath Ruta del directorio local a subir
    * @param remotePath Ruta destino en el servidor (se crea si no existe)
    * @param options.exclude Patrones a excluir (default: .git, node_modules, vendor, dist)
-   * @param options.timeoutMs Presupuesto de tiempo para toda la subida (pack+transfer+extract).
-   *   Si no se especifica, usa `this.config.timeout` (el readyTimeout de conexión).
+   * @param options.timeoutMs Presupuesto de tiempo para TODA la subida (pack+transfer+extract,
+   *   incluidos todos los reintentos). Si no se especifica, usa `this.config.timeout`
+   *   (el readyTimeout de conexión).
    */
   async uploadDirectory(
     localPath: string,
@@ -222,20 +232,24 @@ export class SshClient {
       };
     }
 
-    const remoteTmp = `/tmp/fractal-upload-${Date.now()}.tar.gz`;
+    // El tarball se extrae directamente desde stdin del canal de ejecución, así
+    // que no queda ningún temporal remoto que limpiar. Mismo quoting de
+    // `remotePath` que la versión por SFTP.
+    const extractCmd =
+      `mkdir -p '${remotePath}' && ` +
+      `tar -xzf - -C '${remotePath}'`;
 
     try {
       return await new Promise((resolvePromise) => {
-        const client = new Client();
         let settled = false;
 
         const finish = (result: { success: boolean; error?: string }): void => {
           if (settled) return;
           settled = true;
-          client.end();
           resolvePromise(result);
         };
 
+        // Presupuesto total para TODA la subida (todos los reintentos incluidos).
         const timeout = setTimeout(() => {
           finish({
             success: false,
@@ -243,65 +257,140 @@ export class SshClient {
           });
         }, uploadTimeout);
 
-        client.on('ready', () => {
-          client.sftp((sftpErr, sftp) => {
-            if (sftpErr) {
-              clearTimeout(timeout);
-              finish({ success: false, error: `Error al abrir SFTP: ${sftpErr.message}` });
-              return;
-            }
-
-            sftp.fastPut(tarballPath, remoteTmp, (putErr) => {
-              if (putErr) {
-                clearTimeout(timeout);
-                finish({ success: false, error: `Error al transferir el archivo: ${putErr.message}` });
-                return;
-              }
-
-              const extractCmd =
-                `mkdir -p '${remotePath}' && ` +
-                `tar -xzf '${remoteTmp}' -C '${remotePath}' && ` +
-                `rm -f '${remoteTmp}'`;
-
-              client.exec(extractCmd, (execErr, stream) => {
-                if (execErr) {
-                  clearTimeout(timeout);
-                  finish({ success: false, error: `Error al extraer en el servidor: ${execErr.message}` });
-                  return;
-                }
-
-                let stderr = '';
-                stream.stderr.on('data', (data: Buffer) => {
-                  stderr += data.toString();
-                });
-
-                stream.on('close', (code: number) => {
-                  clearTimeout(timeout);
-                  finish({
-                    success: code === 0,
-                    error: code === 0 ? undefined : stderr.trim() || `La extracción terminó con código ${code}`,
-                  });
-                });
-              });
+        void this.uploadWithRetries(tarballPath, extractCmd, () => settled).then(
+          (result) => {
+            clearTimeout(timeout);
+            finish(result);
+          },
+          (err) => {
+            clearTimeout(timeout);
+            finish({
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
             });
-          });
-        });
-
-        client.on('error', (err) => {
-          clearTimeout(timeout);
-          const hostKeyError = this.consumeHostKeyError();
-          finish({ success: false, error: hostKeyError ?? `Error de conexión: ${err.message}` });
-        });
-
-        this.connect(client).catch((err) => {
-          clearTimeout(timeout);
-          const hostKeyError = this.consumeHostKeyError();
-          finish({ success: false, error: hostKeyError ?? `Error al conectar: ${err.message}` });
-        });
+          }
+        );
       });
     } finally {
       await rm(tarballPath, { force: true }).catch(() => {});
     }
+  }
+
+  /**
+   * Sube el tarball reintentando solo ante fallos de transporte, dentro del
+   * presupuesto total que controla `uploadDirectory`. Un intento que termina
+   * con un código de salida de `tar` ≠ 0 es un fallo determinístico y NO se
+   * reintenta. `isSettled` indica que el presupuesto total ya venció: en ese
+   * caso no se inician nuevos intentos.
+   */
+  private async uploadWithRetries(
+    tarballPath: string,
+    remoteCommand: string,
+    isSettled: () => boolean
+  ): Promise<{ success: boolean; error?: string }> {
+    const maxAttempts = 3;
+    const backoffsMs = [2_000, 4_000];
+    let lastTransportError = 'error de transporte desconocido';
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (isSettled()) break;
+
+      try {
+        // Un intento resuelve (éxito o fallo determinístico de tar) o rechaza
+        // (fallo de transporte, reintentable).
+        return await this.uploadAttempt(tarballPath, remoteCommand);
+      } catch (err) {
+        lastTransportError = err instanceof Error ? err.message : String(err);
+        const backoff = backoffsMs[attempt - 1];
+        if (attempt < maxAttempts && backoff !== undefined && !isSettled()) {
+          await new Promise<void>((resolveBackoff) => setTimeout(resolveBackoff, backoff));
+        }
+      }
+    }
+
+    return {
+      success: false,
+      error: `Error de transporte al subir el proyecto tras ${maxAttempts} intentos: ${lastTransportError}`,
+    };
+  }
+
+  /**
+   * Un único intento de subida: conecta, abre un canal de ejecución que corre
+   * `tar -xzf -` y le vuelca el tarball por stdin. Resuelve con el resultado
+   * cuando `tar` termina (éxito o código ≠ 0, ambos determinísticos) y rechaza
+   * ante cualquier fallo de transporte (error del cliente, del canal, de lectura
+   * local, o un cierre sin código de salida limpio) para que el reintento lo
+   * capture.
+   */
+  private uploadAttempt(
+    tarballPath: string,
+    remoteCommand: string
+  ): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolveAttempt, rejectAttempt) => {
+      const client = new Client();
+      let settled = false;
+
+      const resolveOnce = (result: { success: boolean; error?: string }): void => {
+        if (settled) return;
+        settled = true;
+        client.end();
+        resolveAttempt(result);
+      };
+
+      const rejectOnce = (error: string): void => {
+        if (settled) return;
+        settled = true;
+        client.end();
+        rejectAttempt(new Error(error));
+      };
+
+      client.on('ready', () => {
+        client.exec(remoteCommand, (execErr, stream) => {
+          if (execErr) {
+            rejectOnce(`Error al abrir el canal de ejecución: ${execErr.message}`);
+            return;
+          }
+
+          let stderr = '';
+          stream.stderr.on('data', (data: Buffer) => {
+            stderr += data.toString();
+          });
+          // Drenar stdout para que el stream fluya hasta el cierre.
+          stream.on('data', () => {});
+
+          stream.on('close', (code: number | null) => {
+            if (typeof code !== 'number') {
+              // Cierre sin código de salida: el canal murió, es transporte.
+              rejectOnce('La conexión se cerró antes de terminar la transferencia');
+              return;
+            }
+            resolveOnce({
+              success: code === 0,
+              error:
+                code === 0
+                  ? undefined
+                  : stderr.trim() || `La extracción remota terminó con código ${code}`,
+            });
+          });
+
+          const readStream = createReadStream(tarballPath);
+          readStream.on('error', (readErr) => {
+            rejectOnce(`Error al leer el tarball local: ${readErr.message}`);
+          });
+          // El pipe cierra stdin al terminar, así `tar -xzf -` recibe EOF.
+          readStream.pipe(stream);
+        });
+      });
+
+      client.on('error', (err) => {
+        const hostKeyError = this.consumeHostKeyError();
+        rejectOnce(hostKeyError ?? `Error de conexión: ${err.message}`);
+      });
+
+      this.connect(client).catch((err) => {
+        rejectOnce(`Error al conectar: ${err.message}`);
+      });
+    });
   }
 
   /**
@@ -342,6 +431,8 @@ export class SshClient {
       port: this.config.port,
       username: this.config.username,
       readyTimeout: this.config.timeout,
+      keepaliveInterval: 15_000,
+      keepaliveCountMax: 8,
       hostVerifier: (key: Buffer, verify: (valid: boolean) => void) => {
         void this.verifyHostKey(key).then(verify, () => verify(false));
       },
