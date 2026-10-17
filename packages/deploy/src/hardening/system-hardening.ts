@@ -96,6 +96,30 @@ export class SystemHardening {
       }
       steps.push(`Usuario ${config.deployUser} creado con privilegios sudo`);
 
+      // 1b. Conceder sudo sin contraseña (NOPASSWD) al usuario deploy (FRA-73).
+      //
+      // POR QUÉ: los módulos de provisioning (runtime, SSL) y el workflow de
+      // redeploy generado ejecutan `sudo` NO interactivo como este usuario sobre
+      // una sesión SSH por clave (sin TTY). La sola pertenencia al grupo sudo
+      // exige contraseña y no alcanza para un `sudo` sin TTY; hace falta un
+      // drop-in NOPASSWD. Corre como root y ANTES de que hardenSshd deshabilite
+      // el login de root (ver orden de los pasos más abajo).
+      const sudoGranted = await this.grantPasswordlessSudo(config.deployUser);
+      if (!sudoGranted) {
+        await this.stateManager.markStep(
+          'hardening',
+          'failed',
+          configHash,
+          `No se pudo conceder sudo sin contraseña a ${config.deployUser}`
+        );
+        return {
+          success: false,
+          steps,
+          error: `No se pudo conceder sudo sin contraseña a ${config.deployUser}`,
+        };
+      }
+      steps.push(`Sudo sin contraseña (NOPASSWD) habilitado para ${config.deployUser}`);
+
       // 2. Configurar SSH para el usuario deploy
       const sshConfigured = await this.setupSshForUser(
         config.deployUser,
@@ -217,6 +241,27 @@ export class SystemHardening {
     );
 
     return sudoResult.success;
+  }
+
+  /**
+   * Concede sudo sin contraseña (NOPASSWD) al usuario, de forma idempotente y
+   * validada con visudo.
+   *
+   * POR QUÉ (FRA-73): los módulos de provisioning y el workflow de redeploy
+   * generado corren `sudo` NO interactivo como este usuario sobre una sesión SSH
+   * por clave (sin TTY). La pertenencia al grupo sudo exige contraseña, así que
+   * no alcanza. El drop-in se valida con `visudo -cf` para no dejar nunca un
+   * sudoers roto, y `tee` lo reescribe en cada corrida (idempotente). Agnóstico
+   * de framework: solo usa utilidades estándar de Linux.
+   */
+  private async grantPasswordlessSudo(username: string): Promise<boolean> {
+    const sudoersPath = `/etc/sudoers.d/90-fractal-${username}`;
+    const result = await this.sshClient.executeCommand(
+      `printf '%s ALL=(ALL) NOPASSWD:ALL\\n' ${username} | sudo tee ${sudoersPath} > /dev/null && ` +
+      `sudo chmod 440 ${sudoersPath} && ` +
+      `sudo visudo -cf ${sudoersPath}`
+    );
+    return result.success;
   }
 
   /**

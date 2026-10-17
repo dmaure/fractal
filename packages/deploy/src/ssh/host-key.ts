@@ -1,7 +1,8 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { createHash, createHmac } from 'node:crypto';
 import { dirname } from 'node:path';
-import { utils } from 'ssh2';
+import ssh2 from 'ssh2';
+const { utils } = ssh2;
 import type { UnknownHostInfo } from './types.js';
 
 export interface PresentedHostKey {

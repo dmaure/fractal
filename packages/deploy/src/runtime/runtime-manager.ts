@@ -170,10 +170,17 @@ export class RuntimeManager {
       
       const content = generationResult.content;
 
-      // Escribir archivo
-      const escapedContent = content.replace(/'/g, "'\\''");
+      // Escribir archivo.
+      //
+      // El delimitador del heredoc va ENTRECOMILLADO (`<< 'FRACTAL_EOF'`), por lo
+      // que el shell trata el cuerpo como literal: no expande variables ni
+      // procesa comillas. Por eso el contenido se escribe tal cual, SIN escapar
+      // las comillas simples: escaparlas (p.ej. `'` -> `'\''`) insertaría esas
+      // secuencias de forma literal en el archivo y rompería el YAML en la
+      // primera línea con comillas (`version: '3.8'`), que docker compose
+      // rechaza con `did not find expected key`.
       const result = await this.sshClient.executeCommand(
-        `cat > ${config.outputPath} << 'FRACTAL_EOF'\n${escapedContent}\nFRACTAL_EOF`
+        `cat > ${config.outputPath} << 'FRACTAL_EOF'\n${content}\nFRACTAL_EOF`
       );
 
       return {

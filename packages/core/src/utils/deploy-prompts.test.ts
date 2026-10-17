@@ -1,6 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { input, select, password } from '@inquirer/prompts';
-import { formatUnknownHostWarning, promptDeployParams } from './deploy-prompts.js';
+import {
+  formatUnknownHostWarning,
+  promptDeployParams,
+  loadUploadTimeoutMsFromEnv,
+} from './deploy-prompts.js';
 import type { DeployParams } from '../types/deploy-command.js';
 
 // Mock de @inquirer/prompts: vitest sube (hoist) esta llamada por encima de los
@@ -345,5 +349,46 @@ describe('promptDeployParams (AC-1 · recolección de datos)', () => {
     expect(gitValidate).toBeDefined();
     expect(gitValidate!('ftp://x')).not.toBe(true);
     expect(gitValidate!('https://github.com/acme/app')).toBe(true);
+  });
+});
+
+describe('loadUploadTimeoutMsFromEnv (FRA-73 · presupuesto de subida)', () => {
+  const VAR = 'FRACTAL_DEPLOY_UPLOAD_TIMEOUT';
+  let previous: string | undefined;
+
+  beforeEach(() => {
+    previous = process.env[VAR];
+    delete process.env[VAR];
+  });
+
+  afterEach(() => {
+    if (previous === undefined) {
+      delete process.env[VAR];
+    } else {
+      process.env[VAR] = previous;
+    }
+  });
+
+  it('usa el default de 600s (600000 ms), muy por encima de los 120s de conexión', () => {
+    expect(loadUploadTimeoutMsFromEnv()).toBe(600_000);
+  });
+
+  it('lee la variable en segundos y la convierte a ms', () => {
+    process.env[VAR] = '900';
+    expect(loadUploadTimeoutMsFromEnv()).toBe(900_000);
+  });
+
+  it('cae al default ante un valor no numérico (NaN), vacío o no positivo', () => {
+    process.env[VAR] = 'abc';
+    expect(loadUploadTimeoutMsFromEnv()).toBe(600_000);
+
+    process.env[VAR] = '   ';
+    expect(loadUploadTimeoutMsFromEnv()).toBe(600_000);
+
+    process.env[VAR] = '0';
+    expect(loadUploadTimeoutMsFromEnv()).toBe(600_000);
+
+    process.env[VAR] = '-5';
+    expect(loadUploadTimeoutMsFromEnv()).toBe(600_000);
   });
 });
