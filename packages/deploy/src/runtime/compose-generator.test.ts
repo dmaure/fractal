@@ -170,7 +170,7 @@ describe('ComposeGenerator', () => {
       healthcheck: { path: '/api/health' },
     });
 
-    it('should build the app service from the declared Dockerfile instead of referencing a registry image', () => {
+    it('should build from the declared Dockerfile AND tag it as the registry image so redeploys can pull it (FRA-72)', () => {
       const config: ComposeConfig = {
         runtime: createBackendBuildRuntime(),
         projectName: 'buildapp',
@@ -181,8 +181,9 @@ describe('ComposeGenerator', () => {
       const content = result.content || '';
 
       expect(content).toContain('build:\n      context: .\n      dockerfile: Dockerfile');
-      // Al declarar build, la app ya no referencia una imagen de registry.
-      expect(content).not.toContain('DOCKER_REGISTRY');
+      // FRA-72: además del build local, la app referencia el registry+tag para
+      // que los redeploys por merge puedan hacer docker compose pull.
+      expect(content).toContain('image: ${DOCKER_REGISTRY:-localhost}/buildapp:${IMAGE_TAG:-latest}');
     });
 
     it('should serve the app code through a shared named volume, not a host bind mount', () => {

@@ -567,7 +567,7 @@ export async function deployCommand(
 
   const contractResult = await invokeAdapter(
     adapter.command,
-    { action: 'get-contract', target: targetType }
+    { action: 'get-contract', target: targetType, domain: params.domain, projectName }
   );
 
   if (!contractResult.success) {

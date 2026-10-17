@@ -125,9 +125,46 @@ export const LARAVEL_FRONTEND_DEPLOY_RUNTIME: DeployRuntime = {
  *   por default genera una clave aleatoria fresca.
  * @returns Contrato del adapter Laravel con el runtime del target pedido
  */
+/**
+ * Construye las variables de entorno de producción del backend Laravel que la
+ * capa de deploy inyecta en los servicios de aplicación (app/worker/scheduler).
+ *
+ * Incluye la APP_KEY fresca, el modo de producción, la URL pública (si se
+ * conoce el dominio) y la conexión a la base de datos PostgreSQL del compose.
+ * Los valores de base de datos usan sustitución de docker compose
+ * (`${VAR:-default}`) para coincidir con el servicio `db` del compose sin
+ * hornear secretos en el archivo; el default de nombre/usuario replica el del
+ * servicio `db` (el projectName).
+ */
+function buildBackendSecretEnv(
+  appKey: string,
+  domain?: string,
+  projectName?: string
+): Record<string, string> {
+  const dbName = projectName && projectName.trim() !== '' ? projectName : 'app';
+  const secretEnv: Record<string, string> = {
+    [LARAVEL_APP_KEY_ENV]: appKey,
+    APP_ENV: 'production',
+    APP_DEBUG: 'false',
+    DB_CONNECTION: 'pgsql',
+    DB_PORT: '5432',
+    DB_DATABASE: `\${DB_DATABASE:-${dbName}}`,
+    DB_USERNAME: `\${DB_USERNAME:-${dbName}}`,
+    DB_PASSWORD: '${DB_PASSWORD}',
+  };
+  if (domain && domain.trim() !== '') {
+    secretEnv.APP_URL = `https://${domain}`;
+  }
+  return secretEnv;
+}
+
 export function getAdapterContract(
   target: DeployTarget = 'backend-full',
-  options: { generateAppKey?: () => string } = {}
+  options: {
+    generateAppKey?: () => string;
+    domain?: string;
+    projectName?: string;
+  } = {}
 ): LaravelAdapterContract {
   if (target === 'frontend-static') {
     return {
@@ -141,9 +178,7 @@ export function getAdapterContract(
   const appKey = (options.generateAppKey ?? generateAppKey)();
   const deployRuntime: DeployRuntime = {
     ...LARAVEL_BACKEND_DEPLOY_RUNTIME,
-    secretEnv: {
-      [LARAVEL_APP_KEY_ENV]: appKey,
-    },
+    secretEnv: buildBackendSecretEnv(appKey, options.domain, options.projectName),
   };
 
   return {

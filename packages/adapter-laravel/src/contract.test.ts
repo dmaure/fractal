@@ -114,6 +114,43 @@ describe('getAdapterContract', () => {
   });
 });
 
+describe('env vars de producción del backend (FRA-72)', () => {
+  it('inyecta APP_ENV=production y APP_DEBUG=false', () => {
+    const c = getAdapterContract('backend-full');
+    expect(c.deployRuntime.secretEnv?.APP_ENV).toBe('production');
+    expect(c.deployRuntime.secretEnv?.APP_DEBUG).toBe('false');
+  });
+
+  it('inyecta la conexión a PostgreSQL del compose', () => {
+    const c = getAdapterContract('backend-full', { projectName: 'miapp' });
+    const env = c.deployRuntime.secretEnv ?? {};
+    expect(env.DB_CONNECTION).toBe('pgsql');
+    expect(env.DB_PORT).toBe('5432');
+    // Usa sustitución de docker compose y por default coincide con el servicio db.
+    expect(env.DB_DATABASE).toBe('${DB_DATABASE:-miapp}');
+    expect(env.DB_USERNAME).toBe('${DB_USERNAME:-miapp}');
+    expect(env.DB_PASSWORD).toBe('${DB_PASSWORD}');
+  });
+
+  it('inyecta APP_URL con el dominio del deploy cuando se provee', () => {
+    const c = getAdapterContract('backend-full', {
+      domain: 'prueba.codigofractal.dev',
+      projectName: 'miapp',
+    });
+    expect(c.deployRuntime.secretEnv?.APP_URL).toBe('https://prueba.codigofractal.dev');
+  });
+
+  it('omite APP_URL si no se conoce el dominio', () => {
+    const c = getAdapterContract('backend-full');
+    expect(c.deployRuntime.secretEnv?.APP_URL).toBeUndefined();
+  });
+
+  it('el frontend estático no lleva env de producción', () => {
+    const c = getAdapterContract('frontend-static', { domain: 'x.example.com' });
+    expect(c.deployRuntime.secretEnv).toBeUndefined();
+  });
+});
+
 describe('generateAppKey', () => {
   it('genera una clave con prefijo base64: y 32 bytes', () => {
     const key = generateAppKey();

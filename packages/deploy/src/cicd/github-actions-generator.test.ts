@@ -421,4 +421,34 @@ describe('GitHubActionsGenerator', () => {
       });
     });
   });
+
+  describe('redeploy workflow (FRA-72)', () => {
+    const backendConfig: DeployConfig = {
+      provider: 'github-actions',
+      targetType: 'backend-full',
+      runtime: BACKEND_RUNTIME,
+      projectName: 'myapi',
+      productionBranch: 'production',
+      domain: 'api.example.com',
+      outputPath: '/tmp/test-github-fra72.yml',
+    };
+
+    it('deploys into the provisioning directory /home/deploy, not /var/www', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      expect(content).toContain('cd /home/deploy');
+      expect(content).not.toContain('cd /var/www/');
+    });
+
+    it('injects the registry and image tag so the server pulls the published image', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      expect(content).toContain("DOCKER_REGISTRY='ghcr.io/${{ github.repository }}'");
+      expect(content).toContain("IMAGE_TAG='${{ github.sha }}'");
+      expect(content).toContain('docker compose pull');
+    });
+
+    it('uses a quoted heredoc so server-side variables are not expanded on the runner', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      expect(content).toContain("bash -s\" << 'ENDSSH'");
+    });
+  });
 });

@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-10-14",
+  "actualizado": "2026-10-16",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -91,7 +91,9 @@
         { "id": "T7", "ticket": "FRA-65", "label": "Documentacion de usuario de fractal deploy (docs/guides/fractal-deploy.md)", "estado": "completado" },
         { "id": "T8", "ticket": "FRA-68", "label": "Test automatizado de AC-1 (recoleccion interactiva de datos de deploy)", "estado": "completado" },
         { "id": "T9", "ticket": "FRA-69", "label": "/ renderiza en local y .env usable (MVP 1/5)", "estado": "completado" },
-        { "id": "T10", "ticket": "FRA-70", "label": "Dockerfile, llevar la app al VPS y nginx en Docker (MVP 2/5)", "estado": "completado" }
+        { "id": "T10", "ticket": "FRA-70", "label": "Dockerfile, llevar la app al VPS y nginx en Docker (MVP 2/5)", "estado": "completado" },
+        { "id": "T11", "ticket": "FRA-71", "label": "SSL/nginx dentro de Docker y Cloudflare con subdominio (MVP 3/5)", "estado": "completado" },
+        { "id": "T12", "ticket": "FRA-72", "label": "Workflow de redeploy por merge y env vars de produccion del monolito (MVP 4/5)", "estado": "completado" }
       ]
     },
     {
