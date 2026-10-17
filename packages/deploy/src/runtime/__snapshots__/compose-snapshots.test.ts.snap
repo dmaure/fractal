@@ -117,6 +117,7 @@ networks:
 
 volumes:
   app_code:
+    name: myapi_app_code
     driver: local
   db_data:
     driver: local
@@ -273,6 +274,7 @@ networks:
 
 volumes:
   app_code:
+    name: project-api_app_code
     driver: local
   db_data:
     driver: local

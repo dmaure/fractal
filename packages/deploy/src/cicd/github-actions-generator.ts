@@ -303,8 +303,14 @@ jobs:
             # vienen inyectados y docker compose los sustituye en el image: del
             # servicio de aplicación.
             docker compose pull
+            # FRA-73: refrescar el volumen app_code para que el código de la
+            # imagen nueva llegue a producción. Docker solo puebla el volumen al
+            # crearlo, así que sin el drop el redeploy serviría el código viejo.
+            # db_data NO se toca: los datos de la base persisten.
+            docker compose down --remove-orphans 2>/dev/null || true
+            docker volume rm -f ${config.projectName}_app_code 2>/dev/null || true
             docker compose up -d --no-build
-            
+
             # Esperar que los contenedores estén listos
             sleep 10
 `;
@@ -395,7 +401,12 @@ print(json.dumps(state, indent=2))
                 
                 # Asegurar que la imagen anterior esté disponible
                 docker compose pull || echo "⚠ Pull failed, using local image"
-                
+
+                # FRA-73: refrescar el volumen app_code también en el rollback,
+                # para que se sirva el código de la imagen anterior y no el del
+                # volumen viejo. db_data no se toca.
+                docker compose down --remove-orphans 2>/dev/null || true
+                docker volume rm -f ${config.projectName}_app_code 2>/dev/null || true
                 docker compose up -d
                 echo "✓ Rolled back to \$PREVIOUS_TAG"
                 
