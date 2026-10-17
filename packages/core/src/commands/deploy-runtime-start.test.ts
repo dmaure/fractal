@@ -2,12 +2,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { uploadAndStartContainers } from './deploy.js';
 
 /**
- * Tests del helper de arranque del runtime (FRA-70, FRA-71): sube el proyecto al
- * VPS, genera un cert temporal autofirmado para el arranque (FRA-71) y ejecuta
- * `docker compose up -d --build`. El cliente se mockea; no se abre ninguna
- * conexión real.
+ * Tests del helper de arranque del runtime (FRA-70, FRA-71, FRA-73): sube el
+ * proyecto al VPS, genera un cert temporal autofirmado para el arranque (FRA-71)
+ * y ejecuta la secuencia build → down → drop del volumen app_code → up (FRA-73),
+ * que refresca el código en cada redeploy. El cliente se mockea; no se abre
+ * ninguna conexión real.
  */
-describe('uploadAndStartContainers (FRA-70, FRA-71)', () => {
+describe('uploadAndStartContainers (FRA-70, FRA-71, FRA-73)', () => {
   it('sube el proyecto, genera el cert de arranque y arranca los contenedores', async () => {
     const uploadDirectory = vi.fn().mockResolvedValue({ success: true });
     const executeCommand = vi.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' });
@@ -15,7 +16,8 @@ describe('uploadAndStartContainers (FRA-70, FRA-71)', () => {
     const result = await uploadAndStartContainers(
       { uploadDirectory, executeCommand },
       '/local/project',
-      '/home/deploy'
+      '/home/deploy',
+      'myapp'
     );
 
     expect(result.success).toBe(true);
@@ -31,9 +33,12 @@ describe('uploadAndStartContainers (FRA-70, FRA-71)', () => {
     expect(bootstrapCmd).toContain('openssl req -x509 -nodes -newkey rsa:2048 -days 365');
     expect(bootstrapCmd).toContain('/home/deploy/docker/nginx/ssl/privkey.pem');
 
-    // Se construye la imagen en el servidor (--build) en el mismo directorio.
+    // FRA-73: build → down → drop del volumen app_code del proyecto → up, en el
+    // mismo directorio. El volumen lleva el nombre del proyecto.
     const [composeCmd] = executeCommand.mock.calls[1];
-    expect(composeCmd).toBe('cd /home/deploy && docker compose up -d --build');
+    expect(composeCmd).toBe(
+      'cd /home/deploy && docker compose build && (docker compose down --remove-orphans 2>/dev/null || true) && (docker volume rm -f myapp_app_code 2>/dev/null || true) && docker compose up -d'
+    );
   });
 
   it('se detiene en la etapa de subida si falla el upload', async () => {
@@ -43,7 +48,8 @@ describe('uploadAndStartContainers (FRA-70, FRA-71)', () => {
     const result = await uploadAndStartContainers(
       { uploadDirectory, executeCommand },
       '/local/project',
-      '/home/deploy'
+      '/home/deploy',
+      'myapp'
     );
 
     expect(result.success).toBe(false);
@@ -64,7 +70,8 @@ describe('uploadAndStartContainers (FRA-70, FRA-71)', () => {
     const result = await uploadAndStartContainers(
       { uploadDirectory, executeCommand },
       '/local/project',
-      '/home/deploy'
+      '/home/deploy',
+      'myapp'
     );
 
     expect(result.success).toBe(false);
@@ -86,7 +93,8 @@ describe('uploadAndStartContainers (FRA-70, FRA-71)', () => {
     const result = await uploadAndStartContainers(
       { uploadDirectory, executeCommand },
       '/local/project',
-      '/home/deploy'
+      '/home/deploy',
+      'myapp'
     );
 
     expect(result.success).toBe(false);
