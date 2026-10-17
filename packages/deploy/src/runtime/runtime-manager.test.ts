@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 import { RuntimeManager } from './runtime-manager.js';
+import { ComposeGenerator } from './compose-generator.js';
 import type { SshClient } from '../ssh/client.js';
 import type { RuntimeConfig } from './types.js';
 import type { DeployRuntime } from '@fractal/core';
@@ -255,6 +257,81 @@ describe('RuntimeManager', () => {
       prohibitedTerms.forEach((term) => {
         expect(allCommands).not.toContain(term);
       });
+    });
+  });
+
+  // Regresión FRA-73: el docker-compose.yml se escribe en el servidor con un
+  // heredoc de delimitador ENTRECOMILLADO (`<< 'FRACTAL_EOF'`), cuyo cuerpo el
+  // shell trata como literal. Escapar las comillas simples antes (`'` -> `'\''`)
+  // insertaba esas secuencias de forma literal y rompía `version: '3.8'` en la
+  // línea 5; `docker compose up` lo rechazaba con `did not find expected key`.
+  // El snapshot no lo detectaba porque solo compara strings; aquí PARSEAMOS lo
+  // que realmente se manda al servidor.
+  describe('writeComposeFile: YAML válido en el servidor', () => {
+    // Runtime análogo al del adapter Laravel real: inyecta secretEnv con
+    // interpolaciones de docker compose, igual que el e2e contra el VPS.
+    const createBackendRuntimeWithSecrets = (): DeployRuntime => ({
+      services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+      build: { context: '.', dockerfile: 'Dockerfile' },
+      secretEnv: {
+        APP_KEY: 'base64:TEST0000000000000000000000000000000000000000=',
+        APP_ENV: 'production',
+        DB_DATABASE: '${DB_DATABASE:-fractale2e}',
+        DB_PASSWORD: '${DB_PASSWORD}',
+      },
+      buildCommand: 'docker build -t test:latest .',
+      migrateCommand: 'docker compose exec app migrate',
+      port: 8000,
+      healthcheck: { path: '/api/health' },
+    });
+
+    it('escribe un compose que parsea como YAML válido y no corrompe las comillas', async () => {
+      const commands: string[] = [];
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          commands.push(cmd);
+          return {
+            success: true,
+            stdout: 'Docker version 24.0.7\nDocker Compose version v2.24.5',
+            stderr: '',
+            exitCode: 0,
+          };
+        }
+      );
+
+      const config: RuntimeConfig = {
+        compose: {
+          runtime: createBackendRuntimeWithSecrets(),
+          projectName: 'fractale2e',
+          outputPath: '/home/deploy/docker-compose.yml',
+        },
+      };
+
+      await manager.setup(config);
+
+      // Localizar el comando que escribe el compose vía heredoc.
+      const writeCmd = commands.find((c) => c.includes("<< 'FRACTAL_EOF'"));
+      expect(writeCmd).toBeDefined();
+
+      const match = (writeCmd as string).match(
+        /<< 'FRACTAL_EOF'\n([\s\S]*)\nFRACTAL_EOF$/
+      );
+      expect(match).not.toBeNull();
+      const body = (match as RegExpMatchArray)[1];
+
+      // El cuerpo NO debe contener la secuencia de escape '\'' (la corrupción).
+      expect(body).not.toContain("'\\''");
+
+      // El cuerpo escrito debe ser EXACTAMENTE el compose generado (sin escapes).
+      const expected = new ComposeGenerator().generate(config.compose).content;
+      expect(body).toBe(expected);
+
+      // Y debe parsear como YAML válido: esto es lo que exige docker compose.
+      const parsed = parseYaml(body) as Record<string, unknown>;
+      expect(parsed).toHaveProperty('services');
+      expect(parsed.version).toBe('3.8');
+      const volumes = parsed.volumes as Record<string, { name?: string }>;
+      expect(volumes.app_code.name).toBe('fractale2e_app_code');
     });
   });
 });
