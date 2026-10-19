@@ -255,7 +255,9 @@ jobs:
         working-directory: ${{ env.FRACTAL_E2E_PROJECT_DIR }}
         env:
           FRACTAL_DEPLOY_SERVER_IP: ${{ env.FRACTAL_E2E_VPS_IP }}
-          FRACTAL_DEPLOY_SSH_USER: root
+          # El primer deploy endurece el SSH: PermitRootLogin no. El redeploy
+          # entra como `deploy` con la misma clave (se instaló en authorized_keys).
+          FRACTAL_DEPLOY_SSH_USER: deploy
           FRACTAL_DEPLOY_AUTH_METHOD: key
           FRACTAL_DEPLOY_SSH_KEY_PATH: ${{ env.FRACTAL_E2E_SSH_KEY_PATH }}
           FRACTAL_DEPLOY_DOMAIN: ${{ env.FRACTAL_E2E_DOMAIN }}
