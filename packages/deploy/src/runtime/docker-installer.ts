@@ -29,6 +29,15 @@ export class DockerInstaller {
         const composeCheck = await this.checkComposeInstalled();
         if (composeCheck.installed) {
           steps.push(`Docker Compose ya instalado: ${composeCheck.version}`);
+          const groupResult = await this.ensureCurrentUserInDockerGroup();
+          if (!groupResult.success) {
+            return {
+              success: false,
+              steps,
+              error: 'No se pudo agregar el usuario al grupo docker',
+            };
+          }
+          steps.push('Usuario agregado al grupo docker');
           return {
             success: true,
             steps,
@@ -102,7 +111,22 @@ export class DockerInstaller {
       }
       steps.push('Servicio Docker activo');
 
-      // 7. Obtener versiones finales
+      // 7. Dar al usuario actual acceso al socket de Docker.
+      //    Sin el grupo `docker`, `docker compose` como `deploy` falla con
+      //    `permission denied ... unix:///var/run/docker.sock` (e2e FRA-73).
+      //    Cada executeCommand abre una sesión SSH nueva, así que el compose
+      //    posterior ya ve la membresía.
+      const groupResult = await this.ensureCurrentUserInDockerGroup();
+      if (!groupResult.success) {
+        return {
+          success: false,
+          steps,
+          error: 'No se pudo agregar el usuario al grupo docker',
+        };
+      }
+      steps.push('Usuario agregado al grupo docker');
+
+      // 8. Obtener versiones finales
       const finalDockerCheck = await this.checkDockerInstalled();
       const finalComposeCheck = await this.checkComposeInstalled();
 
@@ -245,6 +269,22 @@ export class DockerInstaller {
       'sudo apt-get install -y -qq docker-compose-plugin'
     );
 
+    return { success: result.success };
+  }
+
+  /**
+   * Agrega al usuario de la sesión SSH actual al grupo `docker` para que
+   * pueda hablar con `/var/run/docker.sock` sin sudo. `usermod -aG` es
+   * idempotente. Agnóstico de framework: solo usa utilidades de Linux.
+   *
+   * Destapado por el e2e real de FRA-73: el install de Docker corría con
+   * sudo, pero el `docker compose build/up` posterior se ejecutaba como
+   * `deploy` y el socket rechazaba la conexión.
+   */
+  async ensureCurrentUserInDockerGroup(): Promise<{ success: boolean }> {
+    const result = await this.sshClient.executeCommand(
+      'sudo usermod -aG docker "$(id -un)"'
+    );
     return { success: result.success };
   }
 
