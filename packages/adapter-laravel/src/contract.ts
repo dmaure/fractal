@@ -146,6 +146,12 @@ function buildBackendSecretEnv(
     [LARAVEL_APP_KEY_ENV]: appKey,
     APP_ENV: 'production',
     APP_DEBUG: 'false',
+    // Laravel 12 defaulta sesión/cache/queue a \`database\`. El primer
+    // fractal deploy no corre migrate; sin estas overrides \`/\` da 500
+    // (sessions/cache tables inexistentes). file/sync igualan .env.example.
+    SESSION_DRIVER: 'file',
+    CACHE_STORE: 'file',
+    QUEUE_CONNECTION: 'sync',
     DB_CONNECTION: 'pgsql',
     DB_PORT: '5432',
     DB_DATABASE: `\${DB_DATABASE:-${dbName}}`,
