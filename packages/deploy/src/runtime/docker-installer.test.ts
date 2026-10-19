@@ -28,7 +28,9 @@ describe('DockerInstaller', () => {
           exitCode: 0,
           stdout: 'Docker Compose version v2.24.5',
           stderr: '',
-        });
+        })
+        // ensureCurrentUserInDockerGroup
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 });
 
       const result = await installer.install();
 
@@ -37,6 +39,7 @@ describe('DockerInstaller', () => {
       expect(result.composeVersion).toBe('2.24.5');
       expect(result.steps).toContain('Docker ya instalado: 24.0.7');
       expect(result.steps).toContain('Docker Compose ya instalado: 2.24.5');
+      expect(result.steps).toContain('Usuario agregado al grupo docker');
     });
   });
 
@@ -76,6 +79,8 @@ describe('DockerInstaller', () => {
           stdout: 'active',
           stderr: '',
         }) // is-active
+        // ensureCurrentUserInDockerGroup
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
         // Final version checks
         .mockResolvedValueOnce({
           success: true,
@@ -97,6 +102,7 @@ describe('DockerInstaller', () => {
       expect(result.steps).toContain('Docker CE instalado');
       expect(result.steps).toContain('Docker Compose plugin instalado');
       expect(result.steps).toContain('Servicio Docker activo');
+      expect(result.steps).toContain('Usuario agregado al grupo docker');
       expect(result.dockerVersion).toBe('24.0.7');
       expect(result.composeVersion).toBe('2.24.5');
     });
@@ -181,11 +187,74 @@ describe('DockerInstaller', () => {
           exitCode: 0,
           stdout: 'Docker Compose version v2.24.5',
           stderr: '',
-        });
+        })
+        // ensureCurrentUserInDockerGroup
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 });
 
       const result = await installer.install();
 
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('install - grupo docker', () => {
+    it('agrega al usuario actual al grupo docker para acceder al socket', async () => {
+      const commands: string[] = [];
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          commands.push(cmd);
+          if (cmd.includes('docker --version')) {
+            return {
+              success: true,
+              exitCode: 0,
+              stdout: 'Docker version 24.0.7, build...',
+              stderr: '',
+            };
+          }
+          if (cmd.includes('docker compose version')) {
+            return {
+              success: true,
+              exitCode: 0,
+              stdout: 'Docker Compose version v2.24.5',
+              stderr: '',
+            };
+          }
+          return { success: true, stdout: '', stderr: '', exitCode: 0 };
+        }
+      );
+
+      const result = await installer.install();
+
+      expect(result.success).toBe(true);
+      expect(commands.some((c) => c.includes('usermod -aG docker'))).toBe(true);
+      expect(result.steps).toContain('Usuario agregado al grupo docker');
+    });
+
+    it('falla si no se puede agregar el usuario al grupo docker', async () => {
+      vi.mocked(mockSshClient.executeCommand)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'Docker version 24.0.7, build...',
+          stderr: '',
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'Docker Compose version v2.24.5',
+          stderr: '',
+        })
+        .mockResolvedValueOnce({
+          success: false,
+          exitCode: 1,
+          stdout: '',
+          stderr: 'usermod failed',
+        });
+
+      const result = await installer.install();
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('grupo docker');
     });
   });
 

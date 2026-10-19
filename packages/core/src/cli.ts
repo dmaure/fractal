@@ -44,6 +44,10 @@ program
     '--reconfigure',
     'Reconfigura las variables cruzadas en multirepo'
   )
+  .option(
+    '--non-interactive',
+    'Ejecuta el deploy sin prompts, leyendo los parámetros de variables de entorno (FRACTAL_DEPLOY_*)'
+  )
   .action(async (options: DeployCommandOptions) => {
     try {
       await deployCommand(options);

@@ -260,12 +260,15 @@ ${appSource}
     if (hasApp || hasDb || hasCacheService) {
       compose += 'volumes:\n';
       if (hasApp) {
-        // Volumen compartido con el código de la app. Docker lo puebla desde
-        // la imagen construida solo al CREARLO (primer deploy, volumen vacío);
-        // nginx lo monta en solo-lectura para servir public/ y delegar PHP al
-        // contenedor de la app. En redeploys el volumen ya existe y NO se
-        // re-puebla con la imagen nueva: refrescarlo es parte de FRA-73.
-        compose += '  app_code:\n    driver: local\n';
+        // Volumen compartido con el código de la app, con nombre explícito y
+        // determinista (`${projectName}_app_code`). Docker lo puebla desde la
+        // imagen construida solo al CREARLO (volumen vacío); en redeploys ya
+        // existe y NO se re-puebla con la imagen nueva. El nombre explícito es
+        // lo que permite que el flujo de deploy lo elimine y lo recree en cada
+        // redeploy (FRA-73): así Docker lo vuelve a poblar desde la imagen recién
+        // construida y el código llega a producción en cada redeploy. El servidor
+        // web lo monta en solo-lectura para servir los archivos estáticos.
+        compose += `  app_code:\n    name: ${projectName}_app_code\n    driver: local\n`;
       }
       if (hasDb) {
         compose += '  db_data:\n    driver: local\n';

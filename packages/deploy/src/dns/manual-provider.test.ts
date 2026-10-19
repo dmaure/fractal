@@ -113,6 +113,29 @@ describe('ManualProvider', () => {
       expect(result.message).toContain('propagado correctamente');
     });
 
+    it('en un subdominio confirma propagación con solo el A del subdominio (FRA-71)', async () => {
+      const queried: string[] = [];
+      const mockDnsResolver = vi.fn().mockImplementation((domain: string) => {
+        queried.push(domain);
+        if (domain === 'e2e-1.codigofractal.dev') {
+          return Promise.resolve('192.0.2.1');
+        }
+        return Promise.resolve(null);
+      });
+      const provider = new ManualProvider({
+        ...config,
+        domain: 'e2e-1.codigofractal.dev',
+      }, mockDnsResolver);
+
+      const result = await provider.checkPropagation();
+
+      expect(result.propagated).toBe(true);
+      expect(result.rootIp).toBe('192.0.2.1');
+      expect(result.wwwIp).toBeUndefined();
+      expect(queried).toEqual(['e2e-1.codigofractal.dev']);
+      expect(queried.some((d) => d.startsWith('www.'))).toBe(false);
+    });
+
     it('debe reportar que no ha propagado cuando solo el root resuelve', async () => {
       // Mock DNS resolver: root ok, www falla
       const mockDnsResolver = vi.fn().mockImplementation((domain: string) => {

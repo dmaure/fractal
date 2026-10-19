@@ -6,7 +6,7 @@ import type {
   PropagationPollingOptions,
   DnsResolver,
 } from './types.js';
-import { DEFAULT_DNS_RECORDS } from './types.js';
+import { DEFAULT_DNS_RECORDS, evaluateDnsPropagation, isRootDomain } from './types.js';
 
 /**
  * Proveedor DNS manual.
@@ -124,32 +124,21 @@ export class ManualProvider {
   }
 
   /**
-   * Verifica si el DNS ha propagado.
-   * Verifica que tanto el dominio raíz como www resuelvan a la IP correcta.
+   * Verifica si el DNS ha propagado a los registros que realmente se piden.
+   * `www` solo se consulta en dominio raíz (FRA-71).
    */
   async checkPropagation(): Promise<DnsPropagationResult> {
     try {
       const rootResult = await this.dnsResolver(this.config.domain);
-      const wwwResult = await this.dnsResolver(`www.${this.config.domain}`);
-
-      const rootMatches = rootResult === this.config.serverIp;
-      const wwwMatches = wwwResult === this.config.serverIp;
-
-      if (rootMatches && wwwMatches) {
-        return {
-          propagated: true,
-          rootIp: rootResult,
-          wwwIp: wwwResult,
-          message: 'DNS propagado correctamente',
-        };
-      }
-
-      return {
-        propagated: false,
-        rootIp: rootResult || undefined,
-        wwwIp: wwwResult || undefined,
-        message: `Esperando propagación: root=${rootResult || 'sin resolver'}, www=${wwwResult || 'sin resolver'}`,
-      };
+      const wwwResult = isRootDomain(this.config.domain)
+        ? await this.dnsResolver(`www.${this.config.domain}`)
+        : null;
+      return evaluateDnsPropagation(
+        this.config.domain,
+        this.config.serverIp,
+        rootResult,
+        wwwResult
+      );
     } catch (error) {
       return {
         propagated: false,

@@ -5,7 +5,7 @@ import type {
   DnsPropagationResult,
   DnsResolver,
 } from './types.js';
-import { DEFAULT_DNS_RECORDS } from './types.js';
+import { DEFAULT_DNS_RECORDS, evaluateDnsPropagation, isRootDomain } from './types.js';
 
 /**
  * Proveedor DNS para Cloudflare.
@@ -290,8 +290,8 @@ export class CloudflareProvider {
   }
 
   /**
-   * Espera a que el DNS propague.
-   * Verifica que tanto el dominio raíz como www resuelvan a la IP correcta.
+   * Espera a que el DNS propague a los registros que realmente se crean.
+   * `www` solo se exige en dominio raíz (FRA-71).
    */
   private async waitForPropagation(): Promise<DnsPropagationResult> {
     const maxAttempts = 60; // 5 minutos con intervalos de 5 segundos
@@ -315,31 +315,21 @@ export class CloudflareProvider {
   }
 
   /**
-   * Verifica si el DNS ha propagado.
+   * Verifica si el DNS ha propagado a los registros que realmente se crean.
+   * `www` solo se consulta en dominio raíz (FRA-71).
    */
   private async checkPropagation(): Promise<DnsPropagationResult> {
     try {
       const rootResult = await this.dnsResolver(this.config.domain);
-      const wwwResult = await this.dnsResolver(`www.${this.config.domain}`);
-
-      const rootMatches = rootResult === this.config.serverIp;
-      const wwwMatches = wwwResult === this.config.serverIp;
-
-      if (rootMatches && wwwMatches) {
-        return {
-          propagated: true,
-          rootIp: rootResult,
-          wwwIp: wwwResult,
-          message: 'DNS propagado correctamente',
-        };
-      }
-
-      return {
-        propagated: false,
-        rootIp: rootResult || undefined,
-        wwwIp: wwwResult || undefined,
-        message: `Esperando propagación: root=${rootResult || 'sin resolver'}, www=${wwwResult || 'sin resolver'}`,
-      };
+      const wwwResult = isRootDomain(this.config.domain)
+        ? await this.dnsResolver(`www.${this.config.domain}`)
+        : null;
+      return evaluateDnsPropagation(
+        this.config.domain,
+        this.config.serverIp,
+        rootResult,
+        wwwResult
+      );
     } catch (error) {
       return {
         propagated: false,

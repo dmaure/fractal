@@ -27,6 +27,12 @@ describe('dockerfile', () => {
       expect(result).toContain('EXPOSE 9000');
       expect(result).toContain('CMD ["php-fpm"]');
     });
+
+    it('desactiva clear_env de php-fpm para que APP_KEY llegue a Laravel', () => {
+      const result = generateDockerfile();
+      expect(result).toContain('clear_env = no');
+      expect(result).toContain('zz-fractal.conf');
+    });
   });
 
   describe('generateDockerignore', () => {

@@ -1,12 +1,16 @@
 name: Deploy E2E (VPS efímero)
 
-# E2E real de `fractal deploy` (SPEC-0003 DoD §9 / FRA-64).
+# E2E real de `fractal new` + `fractal deploy` (SPEC-0003 DoD §9 / FRA-64, FRA-73).
 #
 # Provisiona un VPS Vultr efímero (Ubuntu LTS), crea un registro DNS DNS-only en
-# Cloudflare (subdominio de codigofractal.dev), corre el test que deja una página
-# básica funcionando por HTTP y HTTPS (Let's Encrypt staging), y SIEMPRE destruye
-# el VPS, la SSH key de Vultr y el registro DNS al final (`if: always()`), aun si
-# el test falla.
+# Cloudflare (subdominio de codigofractal.dev), y corre el CLI de verdad:
+#   1. `fractal new` genera un proyecto monolito.
+#   2. `fractal deploy --non-interactive` lo despliega en el VPS (SSL Let's Encrypt
+#      staging), y se verifica la app por HTTPS y la redirección HTTP→HTTPS.
+#   3. Se modifica la landing, se vuelve a desplegar y se verifica que el cambio
+#      llega a producción (prueba del refresco del volumen app_code, FRA-73).
+# SIEMPRE destruye el VPS, la SSH key de Vultr y el registro DNS al final
+# (`if: always()`), aun si algún paso falla.
 #
 # Secrets (GitHub Environment `dev`): VULTR_API_KEY, CLOUDFLARE_API_TOKEN,
 # CLOUDFLARE_ZONE_ID.
@@ -15,14 +19,16 @@ on:
   pull_request:
     paths:
       - 'packages/deploy/**'
-      - 'packages/core/src/commands/deploy*'
+      - 'packages/core/**'
+      - 'packages/adapter-laravel/**'
       - '.github/workflows/deploy-e2e.yml'
       - 'docs/specs/0003-*'
   push:
     branches: [master]
     paths:
       - 'packages/deploy/**'
-      - 'packages/core/src/commands/deploy*'
+      - 'packages/core/**'
+      - 'packages/adapter-laravel/**'
       - '.github/workflows/deploy-e2e.yml'
       - 'docs/specs/0003-*'
   workflow_dispatch:
@@ -37,7 +43,7 @@ jobs:
     name: deploy e2e contra VPS efímero
     runs-on: ubuntu-latest
     environment: dev
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       VULTR_REGION: ewr
       # vc2-2c-4gb (2 vCPU / 4 GB / 80 GB): supera el mínimo de 2 GB de RAM de
@@ -164,14 +170,127 @@ jobs:
           echo "CF_DNS_RECORD_ID=$REC_ID" >> "$GITHUB_ENV"
           echo "   record_id=$REC_ID"
 
-      - name: Correr el E2E
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          LETSENCRYPT_EMAIL: e2e@codigofractal.dev
+      # `fractal new` corre el chequeo de requisitos de runtime en el runner, que
+      # para el target de referencia necesita php + composer (contrato del adapter:
+      # php >= 8.2, composer >= 2.5). Espejo del job e2e-laravel de ci.yml.
+      - name: Setup PHP y Composer en el runner (para fractal new)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, json, sqlite3, pdo_sqlite
+          tools: composer:v2
+
+      - name: fractal new — generar el proyecto monolito
         run: |
-          cd packages/deploy
-          pnpm exec vitest run src/e2e/vps-deploy.e2e.test.ts
+          set -euo pipefail
+          # fractal new inicializa git: necesita una identidad configurada.
+          git config --global user.email "e2e@codigofractal.dev"
+          git config --global user.name "Fractal E2E Bot"
+
+          # Ruta absoluta al CLI compilado; se persiste para los pasos siguientes
+          # (el estado del shell no sobrevive entre steps).
+          FRACTAL="$PWD/packages/core/dist/cli.js"
+          echo "FRACTAL_CLI=$FRACTAL" >> "$GITHUB_ENV"
+
+          WORK="$RUNNER_TEMP/fractal-e2e-work"
+          mkdir -p "$WORK"
+          cd "$WORK"
+          node "$FRACTAL" new fractale2e --topology monolith --force
+          echo "FRACTAL_E2E_PROJECT_DIR=$WORK/fractale2e" >> "$GITHUB_ENV"
+
+      - name: fractal deploy --non-interactive — deploy real al VPS
+        working-directory: ${{ env.FRACTAL_E2E_PROJECT_DIR }}
+        env:
+          FRACTAL_DEPLOY_SERVER_IP: ${{ env.FRACTAL_E2E_VPS_IP }}
+          FRACTAL_DEPLOY_SSH_USER: root
+          FRACTAL_DEPLOY_AUTH_METHOD: key
+          FRACTAL_DEPLOY_SSH_KEY_PATH: ${{ env.FRACTAL_E2E_SSH_KEY_PATH }}
+          FRACTAL_DEPLOY_DOMAIN: ${{ env.FRACTAL_E2E_DOMAIN }}
+          FRACTAL_DEPLOY_EMAIL: e2e@codigofractal.dev
+          # El registro A ya lo creó el workflow; 'manual' hace que deploy solo
+          # espere la propagación sin necesitar credenciales de Cloudflare.
+          FRACTAL_DEPLOY_DNS_PROVIDER: manual
+          # Una URL de github.com infiere el proveedor github-actions.
+          FRACTAL_DEPLOY_GIT_REPOSITORY: https://github.com/dmaure/fractal.git
+          FRACTAL_DEPLOY_PRODUCTION_BRANCH: master
+          # Let's Encrypt staging para no gastar los rate limits de producción.
+          FRACTAL_DEPLOY_SSL_ENV: staging
+        run: |
+          set -euo pipefail
+          node "$FRACTAL_CLI" deploy --non-interactive
+
+      - name: Verificar la app por HTTPS (y la redirección HTTP→HTTPS)
+        env:
+          FRACTAL_E2E_DOMAIN: ${{ env.FRACTAL_E2E_DOMAIN }}
+        run: |
+          set -euo pipefail
+          URL="https://$FRACTAL_E2E_DOMAIN/"
+          echo "→ Esperando 200 + 'está corriendo' en $URL (cert de staging: -k)..."
+          OK=0
+          for i in $(seq 1 30); do
+            # -k porque el cert de staging no es de confianza. `|| true`/`|| echo`
+            # dentro del loop para no abortar ante un fallo transitorio de curl.
+            CODE="$(curl -ksS -m 15 -o /dev/null -w '%{http_code}' "$URL" || echo 000)"
+            BODY="$(curl -ksS -m 15 "$URL" || true)"
+            echo "   intento $i/30: HTTP $CODE"
+            if [ "$CODE" = "200" ] && printf '%s' "$BODY" | grep -q 'está corriendo'; then
+              OK=1; break
+            fi
+            sleep 10
+          done
+          if [ "$OK" != "1" ]; then
+            echo "✗ La app no respondió 200 con 'está corriendo' a tiempo"; exit 1
+          fi
+          echo "✓ App sirviendo por HTTPS"
+
+          echo "→ Verificando la redirección HTTP→HTTPS..."
+          REDIR="$(curl -s -m 15 -o /dev/null -w '%{http_code}' "http://$FRACTAL_E2E_DOMAIN/" || echo 000)"
+          echo "   HTTP devolvió $REDIR"
+          case "$REDIR" in
+            301|302|308) echo "✓ Redirección HTTP→HTTPS OK ($REDIR)";;
+            *) echo "✗ Se esperaba 301/302/308 en HTTP, se obtuvo $REDIR"; exit 1;;
+          esac
+
+      - name: Probar que un cambio llega a producción (redeploy + refresco de volumen, FRA-73)
+        working-directory: ${{ env.FRACTAL_E2E_PROJECT_DIR }}
+        env:
+          FRACTAL_DEPLOY_SERVER_IP: ${{ env.FRACTAL_E2E_VPS_IP }}
+          # El primer deploy endurece el SSH: PermitRootLogin no. El redeploy
+          # entra como `deploy` con la misma clave (se instaló en authorized_keys).
+          FRACTAL_DEPLOY_SSH_USER: deploy
+          FRACTAL_DEPLOY_AUTH_METHOD: key
+          FRACTAL_DEPLOY_SSH_KEY_PATH: ${{ env.FRACTAL_E2E_SSH_KEY_PATH }}
+          FRACTAL_DEPLOY_DOMAIN: ${{ env.FRACTAL_E2E_DOMAIN }}
+          FRACTAL_DEPLOY_EMAIL: e2e@codigofractal.dev
+          FRACTAL_DEPLOY_DNS_PROVIDER: manual
+          FRACTAL_DEPLOY_GIT_REPOSITORY: https://github.com/dmaure/fractal.git
+          FRACTAL_DEPLOY_PRODUCTION_BRANCH: master
+          FRACTAL_DEPLOY_SSL_ENV: staging
+        run: |
+          set -euo pipefail
+          MARKER="fractal-redeploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "→ Marcador: $MARKER"
+          # Introducir un cambio verificable en la landing generada.
+          sed -i "s#está corriendo#está corriendo ${MARKER}#" resources/views/app.blade.php
+
+          echo "→ Redeploy (debe refrescar el volumen app_code y servir el código nuevo)..."
+          node "$FRACTAL_CLI" deploy --non-interactive
+
+          URL="https://$FRACTAL_E2E_DOMAIN/"
+          echo "→ Esperando a que el marcador aparezca en $URL ..."
+          OK=0
+          for i in $(seq 1 30); do
+            BODY="$(curl -ksS -m 15 "$URL" || true)"
+            if printf '%s' "$BODY" | grep -q "$MARKER"; then
+              OK=1; break
+            fi
+            echo "   intento $i/30: marcador aún no visible"
+            sleep 10
+          done
+          if [ "$OK" != "1" ]; then
+            echo "✗ El marcador nunca apareció: el volumen app_code no se refrescó"; exit 1
+          fi
+          echo "✓ El cambio llegó a producción (volumen app_code refrescado)"
 
       - name: Teardown — destruir VPS, SSH key y DNS (siempre)
         if: always()

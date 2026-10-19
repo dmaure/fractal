@@ -240,6 +240,180 @@ export async function promptDeployParams(
 }
 
 /**
+ * Variante NO interactiva de `promptDeployParams`: arma los `DeployParams`
+ * leyendo variables de entorno `FRACTAL_DEPLOY_*` en vez de preguntar. Pensada
+ * para CI/CD (el e2e real de FRA-73). Aplica las MISMAS reglas de validación que
+ * `promptDeployParams` (IPv4, dominio, email) y lanza un `Error` con un mensaje
+ * claro que lista cada variable faltante o inválida. No imprime ni pregunta nada.
+ *
+ * @param askSiblingInfo Si debe exigir la info del repositorio hermano (multirepo).
+ * @param currentRole Rol del repositorio actual (api o web), si existe.
+ */
+export function loadDeployParamsFromEnv(
+  askSiblingInfo = false,
+  currentRole?: 'api' | 'web'
+): DeployParams {
+  // Mismas reglas de validación que promptDeployParams.
+  const ipRegex =
+    /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  const errors: string[] = [];
+  const env = process.env;
+
+  // Devuelve el valor recortado, o undefined si está ausente o vacío.
+  const get = (name: string): string | undefined => {
+    const v = env[name];
+    return v && v.trim() ? v.trim() : undefined;
+  };
+
+  // Servidor
+  const serverIp = get('FRACTAL_DEPLOY_SERVER_IP');
+  if (!serverIp) {
+    errors.push('FRACTAL_DEPLOY_SERVER_IP es requerida');
+  } else if (!ipRegex.test(serverIp)) {
+    errors.push(
+      `FRACTAL_DEPLOY_SERVER_IP inválida: "${serverIp}" (formato IPv4 esperado, ej: 192.168.1.1)`
+    );
+  }
+
+  const sshUser = get('FRACTAL_DEPLOY_SSH_USER') ?? 'root';
+
+  const authMethodRaw = get('FRACTAL_DEPLOY_AUTH_METHOD') ?? 'key';
+  if (authMethodRaw !== 'key' && authMethodRaw !== 'password') {
+    errors.push(
+      `FRACTAL_DEPLOY_AUTH_METHOD inválida: "${authMethodRaw}" (valores: key | password)`
+    );
+  }
+  const authMethod = authMethodRaw as SshAuthMethod;
+
+  let sshKeyPath: string | undefined;
+  let sshPassword: string | undefined;
+  if (authMethod === 'key') {
+    sshKeyPath = get('FRACTAL_DEPLOY_SSH_KEY_PATH');
+    if (!sshKeyPath) {
+      errors.push('FRACTAL_DEPLOY_SSH_KEY_PATH es requerida con FRACTAL_DEPLOY_AUTH_METHOD=key');
+    }
+  } else if (authMethod === 'password') {
+    sshPassword = get('FRACTAL_DEPLOY_SSH_PASSWORD');
+    if (!sshPassword) {
+      errors.push(
+        'FRACTAL_DEPLOY_SSH_PASSWORD es requerida con FRACTAL_DEPLOY_AUTH_METHOD=password'
+      );
+    }
+  }
+
+  // Dominio y DNS
+  const domainRaw = get('FRACTAL_DEPLOY_DOMAIN');
+  if (!domainRaw) {
+    errors.push('FRACTAL_DEPLOY_DOMAIN es requerida');
+  } else if (!domainRegex.test(domainRaw)) {
+    errors.push(`FRACTAL_DEPLOY_DOMAIN inválido: "${domainRaw}" (ej: example.com)`);
+  }
+
+  const emailRaw = get('FRACTAL_DEPLOY_EMAIL');
+  if (!emailRaw) {
+    errors.push('FRACTAL_DEPLOY_EMAIL es requerida');
+  } else if (!emailRegex.test(emailRaw)) {
+    errors.push(`FRACTAL_DEPLOY_EMAIL inválido: "${emailRaw}" (ej: admin@example.com)`);
+  }
+
+  const dnsProviderRaw = get('FRACTAL_DEPLOY_DNS_PROVIDER') ?? 'manual';
+  if (
+    dnsProviderRaw !== 'cloudflare' &&
+    dnsProviderRaw !== 'route53' &&
+    dnsProviderRaw !== 'manual'
+  ) {
+    errors.push(
+      `FRACTAL_DEPLOY_DNS_PROVIDER inválido: "${dnsProviderRaw}" (valores: cloudflare | route53 | manual)`
+    );
+  }
+  const dnsProvider = dnsProviderRaw as DnsProvider;
+
+  let dnsApiToken: string | undefined;
+  if (dnsProvider === 'cloudflare' || dnsProvider === 'route53') {
+    dnsApiToken = get('FRACTAL_DEPLOY_DNS_API_TOKEN');
+    if (!dnsApiToken) {
+      errors.push(
+        `FRACTAL_DEPLOY_DNS_API_TOKEN es requerida con FRACTAL_DEPLOY_DNS_PROVIDER=${dnsProvider}`
+      );
+    }
+  }
+
+  // Repositorio Git
+  const gitRepository = get('FRACTAL_DEPLOY_GIT_REPOSITORY');
+  if (!gitRepository) {
+    errors.push('FRACTAL_DEPLOY_GIT_REPOSITORY es requerida');
+  }
+
+  const productionBranch = get('FRACTAL_DEPLOY_PRODUCTION_BRANCH') ?? 'main';
+
+  // Hermano (multirepo con coordinación pendiente o --reconfigure)
+  let siblingInfo: { gitUrl: string; domain: string } | undefined;
+  if (askSiblingInfo && currentRole) {
+    const siblingGitUrl = get('FRACTAL_DEPLOY_SIBLING_GIT_URL');
+    const siblingDomain = get('FRACTAL_DEPLOY_SIBLING_DOMAIN');
+    if (!siblingGitUrl) {
+      errors.push('FRACTAL_DEPLOY_SIBLING_GIT_URL es requerida en multirepo con coordinación pendiente');
+    }
+    if (!siblingDomain) {
+      errors.push('FRACTAL_DEPLOY_SIBLING_DOMAIN es requerida en multirepo con coordinación pendiente');
+    } else if (!domainRegex.test(siblingDomain)) {
+      errors.push(`FRACTAL_DEPLOY_SIBLING_DOMAIN inválido: "${siblingDomain}" (ej: api.example.com)`);
+    }
+    if (siblingGitUrl && siblingDomain) {
+      siblingInfo = { gitUrl: siblingGitUrl, domain: siblingDomain.toLowerCase() };
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      'No se pudo armar la configuración de deploy no interactiva. ' +
+        'Revisá las variables de entorno FRACTAL_DEPLOY_*:\n' +
+        errors.map((e) => `  • ${e}`).join('\n')
+    );
+  }
+
+  return {
+    serverIp: serverIp!,
+    sshUser,
+    authMethod,
+    sshPassword,
+    sshKeyPath,
+    domain: domainRaw!.toLowerCase(),
+    email: emailRaw!.toLowerCase(),
+    dnsProvider,
+    dnsApiToken,
+    gitRepository: gitRepository!,
+    productionBranch,
+    siblingInfo,
+  };
+}
+
+/**
+ * Default (en segundos) del presupuesto de tiempo para subir el proyecto al
+ * servidor. Deliberadamente muy por encima del readyTimeout de conexión SSH
+ * (120s): la subida (pack + transfer SFTP + extract) de proyectos grandes no
+ * debe morir con ese timeout corto de conexión.
+ */
+export const DEFAULT_UPLOAD_TIMEOUT_SECONDS = 600;
+
+/**
+ * Lee `FRACTAL_DEPLOY_UPLOAD_TIMEOUT` (en segundos) y lo devuelve en
+ * milisegundos, consistente con el resto de las perillas `FRACTAL_DEPLOY_*`.
+ * Un valor ausente, vacío, no numérico (NaN) o no positivo cae al default de
+ * 600s. Este presupuesto es independiente del readyTimeout de conexión (120s).
+ */
+export function loadUploadTimeoutMsFromEnv(): number {
+  const raw = process.env.FRACTAL_DEPLOY_UPLOAD_TIMEOUT?.trim();
+  const seconds = raw ? Number(raw) : NaN;
+  const effectiveSeconds =
+    Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_UPLOAD_TIMEOUT_SECONDS;
+  return effectiveSeconds * 1000;
+}
+
+/**
  * Prompt para confirmar que el usuario quiere proceder con el deploy.
  */
 export async function confirmDeploy(params: DeployParams): Promise<boolean> {

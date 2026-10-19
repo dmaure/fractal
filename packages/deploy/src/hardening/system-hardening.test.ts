@@ -221,13 +221,15 @@ describe('SystemHardening', () => {
       const result = await systemHardening.harden(validConfig);
 
       expect(result.success).toBe(true);
-      expect(result.steps).toHaveLength(4);
+      expect(result.steps).toHaveLength(5);
       expect(result.steps[0]).toContain('Usuario deploy creado');
-      expect(result.steps[1]).toContain('Clave SSH agregada');
+      // FRA-73: el grant NOPASSWD es un paso propio justo después de crear el usuario.
+      expect(result.steps[1]).toContain('Sudo sin contraseña (NOPASSWD) habilitado');
+      expect(result.steps[2]).toContain('Clave SSH agregada');
       // El firewall se configura ANTES de endurecer sshd; deshabilitar root
       // debe ser la última acción privilegiada (ver harden()).
-      expect(result.steps[2]).toContain('Firewall UFW configurado');
-      expect(result.steps[3]).toContain('SSH endurecido');
+      expect(result.steps[3]).toContain('Firewall UFW configurado');
+      expect(result.steps[4]).toContain('SSH endurecido');
       expect(result.error).toBeUndefined();
 
       const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
@@ -238,6 +240,12 @@ describe('SystemHardening', () => {
         cmd.includes('KbdInteractiveAuthentication no')
       )).toBe(true);
       expect(sshCommands.some((cmd: string) => cmd.includes('sshd -T'))).toBe(true);
+      // FRA-73: se escribe y valida el drop-in NOPASSWD para el usuario deploy.
+      expect(sshCommands.some((cmd: string) =>
+        cmd.includes('/etc/sudoers.d/90-fractal-deploy') &&
+        cmd.includes('NOPASSWD:ALL') &&
+        cmd.includes('visudo -cf')
+      )).toBe(true);
     });
 
     it('debe fallar si no se puede crear el usuario deploy', async () => {
@@ -340,7 +348,7 @@ describe('SystemHardening', () => {
       const result = await systemHardening.harden(validConfig);
 
       expect(result.success).toBe(true);
-      expect(result.steps).toHaveLength(4);
+      expect(result.steps).toHaveLength(5);
     });
 
     it('debe fallar si no se puede configurar SSH', async () => {
@@ -379,7 +387,8 @@ describe('SystemHardening', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No se pudo configurar SSH');
-      expect(result.steps).toHaveLength(1); // Solo creación de usuario
+      // Usuario creado + grant NOPASSWD (FRA-73); SSH key aún no.
+      expect(result.steps).toHaveLength(2);
     });
 
     it('debe fallar si la configuración de sshd es inválida', async () => {
@@ -438,9 +447,9 @@ describe('SystemHardening', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No se pudo endurecer la configuración de SSH');
-      // hardenSshd corre último (tras el firewall), así que llegan 3 pasos
-      // antes de fallar: usuario, SSH key y firewall.
-      expect(result.steps).toHaveLength(3); // Usuario, SSH key y firewall
+      // hardenSshd corre último (tras el firewall), así que llegan 4 pasos
+      // antes de fallar: usuario, grant NOPASSWD (FRA-73), SSH key y firewall.
+      expect(result.steps).toHaveLength(4);
     });
 
     it('debe instalar UFW si no está presente', async () => {
@@ -651,9 +660,9 @@ describe('SystemHardening', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No se pudo configurar el firewall');
-      // El firewall corre antes que hardenSshd, así que al fallar solo hay 2
-      // pasos: usuario y SSH key (el hardening de SSH aún no se ejecutó).
-      expect(result.steps).toHaveLength(2); // Usuario y SSH key
+      // El firewall corre antes que hardenSshd, así que al fallar hay 3 pasos:
+      // usuario, grant NOPASSWD (FRA-73) y SSH key (el hardening de SSH aún no).
+      expect(result.steps).toHaveLength(3);
     });
 
     it('debe usar puertos por defecto si no se especifican', async () => {
@@ -714,8 +723,9 @@ describe('SystemHardening', () => {
       const result = await systemHardening.harden(configWithoutPorts);
 
       expect(result.success).toBe(true);
-      // El firewall es ahora el 3er paso (índice 2); hardenSshd va último.
-      expect(result.steps[2]).toContain('22, 80, 443');
+      // Con el grant NOPASSWD (FRA-73) el firewall pasa a ser el 4º paso
+      // (índice 3): usuario, NOPASSWD, SSH key, firewall; hardenSshd va último.
+      expect(result.steps[3]).toContain('22, 80, 443');
     });
 
     it('debe escapar correctamente la clave SSH pública', async () => {
@@ -869,8 +879,9 @@ describe('SystemHardening', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No se pudo endurecer la configuración de SSH');
-      // hardenSshd corre último: usuario, SSH key y firewall ya pasaron.
-      expect(result.steps).toHaveLength(3);
+      // hardenSshd corre último: usuario, grant NOPASSWD (FRA-73), SSH key y
+      // firewall ya pasaron.
+      expect(result.steps).toHaveLength(4);
 
       const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
       expect(sshCommands.some((cmd: string) =>

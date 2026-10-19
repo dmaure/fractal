@@ -44,6 +44,13 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progre
 RUN chown -R www-data:www-data storage bootstrap/cache \\
     && chmod -R ug+rwX storage bootstrap/cache
 
+# php-fpm, por default, vacía el entorno del worker (\`clear_env = yes\`).
+# Las variables que compose inyecta (APP_KEY, DB_*, APP_URL) no llegarían
+# a PHP y Laravel respondería 500 en \`/\` (EncryptCookies exige APP_KEY).
+# Destapado por el e2e real de FRA-73: HTTPS devolvía 500 estable.
+RUN printf '%s\\n' '[www]' 'clear_env = no' \\
+    > /usr/local/etc/php-fpm.d/zz-fractal.conf
+
 EXPOSE 9000
 
 CMD ["php-fpm"]

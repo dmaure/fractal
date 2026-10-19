@@ -121,6 +121,13 @@ describe('env vars de producción del backend (FRA-72)', () => {
     expect(c.deployRuntime.secretEnv?.APP_DEBUG).toBe('false');
   });
 
+  it('inyecta session/cache/queue en file/sync (sin tablas de BD en el primer deploy)', () => {
+    const c = getAdapterContract('backend-full');
+    expect(c.deployRuntime.secretEnv?.SESSION_DRIVER).toBe('file');
+    expect(c.deployRuntime.secretEnv?.CACHE_STORE).toBe('file');
+    expect(c.deployRuntime.secretEnv?.QUEUE_CONNECTION).toBe('sync');
+  });
+
   it('inyecta la conexión a PostgreSQL del compose', () => {
     const c = getAdapterContract('backend-full', { projectName: 'miapp' });
     const env = c.deployRuntime.secretEnv ?? {};

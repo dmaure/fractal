@@ -7,14 +7,14 @@ import type { DeployCommandOptions } from '../types/deploy-command.js';
 import type { AdapterContract } from '../types/adapter-contract.js';
 import { resolveSingleAdapter } from '../adapter-resolver.js';
 import { invokeAdapter } from '../adapter-bridge.js';
-import { promptDeployParams, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
+import { promptDeployParams, loadDeployParamsFromEnv, loadUploadTimeoutMsFromEnv, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
 // NOTA (FRA-46): `@fractal/deploy` arrastra `ssh2` (módulo nativo) de forma
 // transitiva. Importarlo estáticamente aquí hacía que cargar el CLI —y por lo
 // tanto cualquier comando, incluido `fractal status`— fallara si `ssh2` no está
 // disponible. Por eso solo importamos TIPOS a nivel de módulo (se borran en
 // compilación) y cargamos las implementaciones con un `import()` dinámico dentro
 // de `deployCommand`, cuando el comando deploy realmente se ejecuta.
-import type { TargetType, CicdProvider, CrossVarWriter } from '@fractal/deploy';
+import type { TargetType, CicdProvider, CrossVarWriter, LetsEncryptEnvironment } from '@fractal/deploy';
 
 /**
  * Deriva la clave pública SSH desde una clave privada usando ssh-keygen.
@@ -224,6 +224,7 @@ export async function deployCommand(
     SystemHardening,
     RuntimeManager,
     DnsManager,
+    DEFAULT_DNS_RECORDS,
     StateManager,
     SslManager,
     adaptSshClient,
@@ -233,7 +234,19 @@ export async function deployCommand(
   console.log(chalk.blue('🚀 Fractal Deploy — Provisioning de VPS production-ready\n'));
 
   const projectDir = resolve(process.cwd());
-  
+
+  // Modo no interactivo (FRA-73): sin prompts; los parámetros vienen de
+  // variables de entorno FRACTAL_DEPLOY_* y toda confirmación se da por sí.
+  // Es el modo que usa el e2e real en CI.
+  const nonInteractive = options.nonInteractive === true;
+
+  // Verificación TOFU del host: interactiva por defecto; en modo no interactivo
+  // se acepta automáticamente (no hay humano que confirme la huella). Se usa en
+  // AMBOS clientes SSH (el inicial como root y el de reconexión como deploy).
+  const onUnknownHost = nonInteractive
+    ? async () => true
+    : (info: Parameters<typeof confirmUnknownHost>[0]) => confirmUnknownHost(info);
+
   // AC-13: Verificar si hay manifiesto de multirepo
   const manifestManager = new ManifestManager(projectDir);
   const manifestResult = manifestManager.read();
@@ -258,12 +271,14 @@ export async function deployCommand(
     }
   }
   
-  // AC-1: Recolección de datos
-  const params = await promptDeployParams(askSiblingInfo, currentRole);
-  
-  // Confirmación antes de proceder
-  const confirmed = await confirmDeploy(params);
-  
+  // AC-1: Recolección de datos (interactiva o desde el entorno en modo CI)
+  const params = nonInteractive
+    ? loadDeployParamsFromEnv(askSiblingInfo, currentRole)
+    : await promptDeployParams(askSiblingInfo, currentRole);
+
+  // Confirmación antes de proceder (automática en modo no interactivo)
+  const confirmed = nonInteractive ? true : await confirmDeploy(params);
+
   if (!confirmed) {
     console.log(chalk.yellow('\n⚠️  Deploy cancelado por el usuario'));
     process.exit(0);
@@ -338,7 +353,7 @@ export async function deployCommand(
     privateKeyPath: params.authMethod === 'key' ? params.sshKeyPath : undefined,
     // El handshake espera la confirmación TOFU interactiva si el host es nuevo.
     timeout: 120_000,
-    onUnknownHost: (info) => confirmUnknownHost(info),
+    onUnknownHost,
   });
   
   console.log(chalk.dim('→ Probando conectividad SSH...'));
@@ -428,8 +443,14 @@ export async function deployCommand(
     
     process.exit(1);
   }
-  
-  console.log(chalk.green('✓ Puertos 80 y 443 disponibles'));
+
+  if (portsResult.occupiedPorts.length > 0) {
+    // AC-14: ocupados por el runtime de Fractal (state.json presente).
+    // Es un redeploy, no un VPS ajeno; se sigue para refrescar app_code.
+    console.log(chalk.green('✓ Puertos 80 y 443 ocupados por el runtime de Fractal (redeploy)'));
+  } else {
+    console.log(chalk.green('✓ Puertos 80 y 443 disponibles'));
+  }
   
   // AC-3: Hardening del sistema
   console.log(chalk.blue('\n🔐 Endureciendo el sistema...\n'));
@@ -452,13 +473,29 @@ export async function deployCommand(
     
     // Usar la misma clave privada para reconectar como deploy
     deployPrivateKeyPath = params.sshKeyPath;
+  } else if (params.authMethod === 'password' && nonInteractive) {
+    // En modo no interactivo no se puede pedir el par de claves del usuario
+    // deploy: se leen de variables de entorno dedicadas.
+    sshPublicKey = process.env.FRACTAL_DEPLOY_DEPLOY_PUBLIC_KEY?.trim() ?? null;
+    deployPrivateKeyPath = process.env.FRACTAL_DEPLOY_DEPLOY_KEY_PATH?.trim();
+
+    if (!sshPublicKey || !deployPrivateKeyPath) {
+      console.error(
+        chalk.red(
+          '\n❌ Error: en modo no interactivo con autenticación por contraseña hay que proveer ' +
+            'FRACTAL_DEPLOY_DEPLOY_PUBLIC_KEY (clave pública del usuario deploy) y ' +
+            'FRACTAL_DEPLOY_DEPLOY_KEY_PATH (ruta a la clave privada para reconectar como deploy).'
+        )
+      );
+      process.exit(1);
+    }
   } else if (params.authMethod === 'password') {
     // Solicitar clave pública y clave privada para el usuario deploy
     const { input } = await import('@inquirer/prompts');
     console.log(chalk.yellow('\n⚠️  Autenticación por contraseña detectada'));
     console.log(chalk.dim('   Después del hardening, la autenticación por contraseña se deshabilitará.'));
     console.log(chalk.dim('   Se necesita un par de claves SSH para el usuario deploy.\n'));
-    
+
     sshPublicKey = await input({
       message: 'Clave pública SSH para el usuario deploy:',
       validate: (value) => {
@@ -523,7 +560,7 @@ export async function deployCommand(
     username: 'deploy',
     privateKeyPath: deployPrivateKeyPath,
     timeout: 120_000,
-    onUnknownHost: (info) => confirmUnknownHost(info),
+    onUnknownHost,
   });
   
   const deployConnectionResult = await deployClient.testConnection();
@@ -634,7 +671,9 @@ export async function deployCommand(
   const runtimeStart = await uploadAndStartContainers(
     deployClient,
     projectDir,
-    '/home/deploy'
+    '/home/deploy',
+    projectName,
+    loadUploadTimeoutMsFromEnv()
   );
 
   if (!runtimeStart.success) {
@@ -689,14 +728,13 @@ export async function deployCommand(
       // manual
       console.log(chalk.yellow('→ Configuración DNS manual requerida\n'));
       console.log(chalk.dim('Crea los siguientes registros DNS en tu proveedor:\n'));
-      console.log(chalk.white(`   Tipo: A`));
-      console.log(chalk.white(`   Nombre: @`));
-      console.log(chalk.white(`   Valor: ${params.serverIp}`));
-      console.log(chalk.white(`   TTL: 300\n`));
-      console.log(chalk.white(`   Tipo: A`));
-      console.log(chalk.white(`   Nombre: www`));
-      console.log(chalk.white(`   Valor: ${params.serverIp}`));
-      console.log(chalk.white(`   TTL: 300\n`));
+      // FRA-71: www solo para dominio raíz; un subdominio no pide www.
+      for (const record of DEFAULT_DNS_RECORDS(params.domain, params.serverIp)) {
+        console.log(chalk.white(`   Tipo: ${record.type}`));
+        console.log(chalk.white(`   Nombre: ${record.name}`));
+        console.log(chalk.white(`   Valor: ${record.value}`));
+        console.log(chalk.white(`   TTL: ${record.ttl ?? 300}\n`));
+      }
       
       dnsResult = await DnsManager.setup({
         provider: 'manual',
@@ -758,7 +796,13 @@ export async function deployCommand(
 
   // AC-7: SSL con Let's Encrypt
   console.log(chalk.blue('\n🔒 Configurando SSL...\n'));
-  
+
+  // Entorno de Let's Encrypt: production por defecto; staging solo si se pide
+  // explícitamente (FRACTAL_DEPLOY_SSL_ENV=staging), p. ej. en el e2e de CI para
+  // no gastar los rate limits de producción (FRA-73).
+  const sslEnvironment: LetsEncryptEnvironment =
+    process.env.FRACTAL_DEPLOY_SSL_ENV === 'staging' ? 'staging' : 'production';
+
   // Decisión de producto #2: includeWww desde DNS result
   const includeWww = dnsResult.records.some(record => record.name === 'www');
   
@@ -802,7 +846,7 @@ export async function deployCommand(
       sslResult = await sslManager.setup({
         domain: params.domain,
         email: params.email,
-        environment: 'production',
+        environment: sslEnvironment,
         includeWww,
         postRenewalHook,
         deployDir: '/home/deploy',
@@ -819,7 +863,7 @@ export async function deployCommand(
     sslResult = await sslManager.setup({
       domain: params.domain,
       email: params.email,
-      environment: 'production',
+      environment: sslEnvironment,
       includeWww,
       postRenewalHook,
       deployDir: '/home/deploy',
@@ -869,7 +913,13 @@ export async function deployCommand(
   
   if (!ciProvider) {
     console.log(chalk.yellow('→ No se pudo inferir el proveedor de CI/CD desde la URL del repositorio'));
-    ciProvider = await promptCiProvider();
+    if (nonInteractive) {
+      // Sin prompt disponible: se asume GitHub Actions por defecto.
+      ciProvider = 'github-actions';
+      console.log(chalk.dim('   Modo no interactivo: usando GitHub Actions por defecto'));
+    } else {
+      ciProvider = await promptCiProvider();
+    }
   } else {
     const providerName = ciProvider === 'github-actions' ? 'GitHub Actions' : 'GitLab CI';
     console.log(chalk.dim(`→ Proveedor detectado: ${providerName}`));
@@ -955,7 +1005,7 @@ interface RuntimeDeployClient {
   uploadDirectory(
     localPath: string,
     remotePath: string,
-    options?: { exclude?: string[] }
+    options?: { exclude?: string[]; timeoutMs?: number }
   ): Promise<{ success: boolean; error?: string }>;
   executeCommand(
     command: string,
@@ -965,7 +1015,23 @@ interface RuntimeDeployClient {
 
 /**
  * FRA-70: sube el proyecto al VPS y arranca los contenedores construyendo la
- * imagen en el servidor (`docker compose up -d --build`).
+ * imagen en el servidor.
+ *
+ * FRA-73 (refresco de volumen): en vez de un simple `docker compose up -d
+ * --build`, corre build → down → drop del volumen `app_code` → up de `app` →
+ * up del resto. El volumen `<projectName>_app_code` guarda el código de la app
+ * y Docker solo lo puebla al CREARLO; sin este refresco, un redeploy levantaría
+ * los contenedores con el código viejo del volumen y el cambio nunca llegaría a
+ * producción. En el primer deploy el `down` y el `volume rm` son no-ops
+ * inofensivos; en redeploys sueltan el volumen viejo para que `up` lo repueble
+ * desde la imagen recién construida. El volumen `db_data` NO se elimina, así
+ * que los datos de la base persisten.
+ *
+ * El up se parte en dos porque Docker copia la imagen al volumen vacío cuando
+ * se crea el primer contenedor que lo monta. Si `app`, `worker` y `scheduler`
+ * se crean juntos, los tres copian en paralelo y el daemon falla con
+ * `mkdir .../storage/logs: file exists`. Levantar `app` primero serializa esa
+ * copia; el segundo `up -d` arranca el resto contra un volumen ya poblado.
  *
  * Agnóstico de framework: sube el directorio del proyecto tal cual y delega el
  * build al Dockerfile que el adapter dejó en el árbol generado.
@@ -973,13 +1039,21 @@ interface RuntimeDeployClient {
  * @param client Cliente con capacidad de subir directorios y ejecutar comandos
  * @param projectDir Directorio local del proyecto a subir
  * @param remoteDir Directorio del VPS donde vive el docker-compose.yml
+ * @param projectName Nombre del proyecto; determina el nombre del volumen app_code
+ * @param uploadTimeoutMs Presupuesto de tiempo (ms) para toda la subida del
+ *   proyecto. Se pasa explícito a `uploadDirectory` para no reusar el
+ *   readyTimeout de conexión SSH (120s); ver `loadUploadTimeoutMsFromEnv`.
  */
 export async function uploadAndStartContainers(
   client: RuntimeDeployClient,
   projectDir: string,
-  remoteDir: string
+  remoteDir: string,
+  projectName: string,
+  uploadTimeoutMs: number
 ): Promise<{ success: boolean; stage?: 'upload' | 'compose'; error?: string }> {
-  const uploadResult = await client.uploadDirectory(projectDir, remoteDir);
+  const uploadResult = await client.uploadDirectory(projectDir, remoteDir, {
+    timeoutMs: uploadTimeoutMs,
+  });
   if (!uploadResult.success) {
     return { success: false, stage: 'upload', error: uploadResult.error };
   }
@@ -1003,9 +1077,14 @@ export async function uploadAndStartContainers(
     };
   }
 
+  // FRA-73: build → down → drop del volumen app_code → up de app → up del resto.
+  // El drop fuerza a Docker a repoblar `${projectName}_app_code` desde la imagen
+  // recién construida (ver JSDoc). El up de `app` primero evita la carrera de
+  // populate cuando varios servicios montan el volumen vacío. db_data NO se
+  // elimina: la BD persiste.
   const composeUpResult = await client.executeCommand(
-    `cd ${remoteDir} && docker compose up -d --build`,
-    { timeoutMs: 600_000 } // 10 minutos timeout
+    `cd ${remoteDir} && docker compose build && (docker compose down --remove-orphans 2>/dev/null || true) && (docker volume rm -f ${projectName}_app_code 2>/dev/null || true) && docker compose up -d app && docker compose up -d`,
+    { timeoutMs: 900_000 } // 15 minutos: ahora incluye build + reinicio completo
   );
   if (!composeUpResult.success) {
     return {

@@ -14,6 +14,13 @@ export type SshAuthMethod = 'password' | 'key';
 export interface DeployCommandOptions {
   /** Reconfigura las variables cruzadas en multirepo */
   reconfigure?: boolean;
+
+  /**
+   * Ejecuta el deploy sin prompts interactivos, leyendo todos los parámetros de
+   * variables de entorno `FRACTAL_DEPLOY_*`. Pensado para CI/CD (p. ej. el e2e
+   * real de FRA-73). Ver `loadDeployParamsFromEnv`.
+   */
+  nonInteractive?: boolean;
 }
 
 /**

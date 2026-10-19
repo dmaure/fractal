@@ -31,16 +31,19 @@ fractal deploy [opciones]
 ```
 
 Se ejecuta **dentro del directorio del proyecto generado** (el que creó
-`fractal new`). No recibe argumentos posicionales: toda la configuración se
-recolecta de forma interactiva.
+`fractal new`). No recibe argumentos posicionales: por defecto toda la
+configuración se recolecta de forma interactiva, pero con `--non-interactive`
+se lee de variables de entorno (ver [Modo no interactivo](#modo-no-interactivo-cicd)).
 
 | Opción | Descripción |
 |---|---|
 | `--reconfigure` | Reconfigura las variables cruzadas en multirepo: fuerza volver a preguntar la URL y el dominio del repositorio hermano y reescribe las variables cruzadas, incluso si el manifiesto ya estaba `resolved`. Útil si cambiás de dominio después del primer deploy. |
+| `--non-interactive` | Ejecuta el deploy **sin prompts**: lee todos los parámetros de variables de entorno `FRACTAL_DEPLOY_*` y da por confirmado el resumen. Pensado para CI/CD (es lo que usa el e2e real). Ver [Modo no interactivo](#modo-no-interactivo-cicd). |
 
-`--reconfigure` es la única opción del comando. Todo lo demás —IP, usuario SSH,
-método de autenticación, dominio, proveedor DNS, repositorio Git y rama de
-producción— se pregunta en prompts interactivos.
+En modo interactivo (el default) todo —IP, usuario SSH, método de autenticación,
+dominio, proveedor DNS, repositorio Git y rama de producción— se pregunta en
+prompts. `--non-interactive` es la alternativa no interactiva: esos mismos datos
+se toman de variables de entorno en vez de preguntarse.
 
 ---
 
@@ -108,7 +111,9 @@ Al correr `fractal deploy` dentro del proyecto, el comando ejecuta en orden:
 4. **Valida distribución y recursos (AC-2).** Detecta sistema operativo,
    CPUs, RAM y disco, y aborta si no cumple los mínimos.
 5. **Valida los puertos (AC-14).** Comprueba que 80 y 443 estén libres. Si hay
-   servicios preexistentes, aborta sin modificar nada.
+   servicios preexistentes **no gestionados por Fractal**, aborta sin
+   modificar nada. Si `/etc/fractal/state.json` ya existe (redeploy), 80/443
+   ocupados por el propio nginx se aceptan y el comando sigue.
 6. **Endurece el sistema (AC-3).** Obtiene la clave pública SSH (la deriva de la
    privada, o la pide si usás contraseña) y crea el usuario `deploy` no-root,
    deshabilita el login root y la autenticación por contraseña por SSH, y
@@ -120,11 +125,23 @@ Al correr `fractal deploy` dentro del proyecto, el comando ejecuta en orden:
    le pide el contrato para el target (`get-contract`) y lee su `deployRuntime`
    —servicios, comandos de build/migración, puerto y healthcheck— en vez de
    hardcodearlos. Instala Docker CE y el plugin de Compose de forma idempotente,
-   escribe `docker-compose.yml` en `/home/deploy/` y después corre
-   `docker compose up -d` para levantar los contenedores.
-9. **Configura el DNS (AC-5 / AC-6).** Con Cloudflare crea los registros A del
-   dominio raíz y `www` y espera la propagación. En manual, te muestra los
-   registros exactos a crear y hace polling. Ver
+   agrega al usuario `deploy` al grupo `docker` (para hablar con el socket
+   sin sudo), escribe `docker-compose.yml` en `/home/deploy/` y, si el runtime
+   declara servicio `db`, genera `DB_PASSWORD` en `/home/deploy/.env` la
+   primera vez (el compose la interpola; no viaja por el repositorio). Sube el
+   proyecto y levanta los contenedores con la secuencia _build → down →
+   recreación del volumen `app_code` → up de `app` → up del resto_. El volumen
+   `app_code` guarda el código de la app y Docker solo lo puebla al crearlo;
+   recrearlo en cada (re)deploy fuerza a que se repueble desde la imagen recién
+   construida, de modo que un cambio pusheado realmente llega a producción. El
+   `up` de `app` primero serializa esa copia: si `app`, `worker` y `scheduler`
+   se crean juntos sobre el volumen vacío, el daemon falla con `mkdir … file
+   exists`. El volumen de la base de datos **no** se toca, así que los datos
+   persisten entre deploys.
+9. **Configura el DNS (AC-5 / AC-6).** Crea el registro A del dominio y espera
+   la propagación. La variante `www` solo se pide si el dominio es raíz
+   (`codigofractal.dev`); un subdominio (p.ej. el e2e) no crea ni espera
+   `www.<subdominio>`. En manual te muestra exactamente esos registros. Ver
    [Proveedores de DNS](#proveedores-de-dns).
 10. **Escribe las variables cruzadas al disco (multirepo).** Si recolectaste la
     info del hermano, persiste las variables cruzadas: `.env.production` si el
@@ -143,6 +160,47 @@ con control de estado: el progreso del provisioning se guarda en un archivo en
 el propio VPS (`/etc/fractal/state.json`), no en el repositorio. Por eso el
 comando es **idempotente** (AC-11): si lo volvés a correr con los mismos
 parámetros, los pasos ya aplicados no se repiten.
+
+---
+
+## Modo no interactivo (CI/CD)
+
+Con `fractal deploy --non-interactive` el comando no abre ningún prompt: toma
+todos los parámetros de variables de entorno `FRACTAL_DEPLOY_*`, da por
+confirmado el resumen y acepta automáticamente la huella de un host SSH nuevo
+(no hay humano que la verifique). Es el modo que usa el **e2e real** del
+repositorio (`.github/workflows/deploy-e2e.yml`), que provisiona un VPS efímero
+y corre `fractal new` + `fractal deploy --non-interactive` de punta a punta.
+
+Si falta una variable requerida o alguna tiene formato inválido, el comando
+aborta con un error que lista exactamente qué variable arreglar (se aplican las
+mismas validaciones de IP, dominio y email que en los prompts).
+
+| Variable | Requerida | Default | Notas |
+|---|---|---|---|
+| `FRACTAL_DEPLOY_SERVER_IP` | sí | — | IPv4 del VPS |
+| `FRACTAL_DEPLOY_SSH_USER` | no | `root` | usuario SSH del primer provisioning. En un redeploy, después del hardening, tiene que ser `deploy` (`PermitRootLogin no`) |
+| `FRACTAL_DEPLOY_AUTH_METHOD` | no | `key` | `key` o `password` |
+| `FRACTAL_DEPLOY_SSH_KEY_PATH` | si `AUTH_METHOD=key` | — | ruta a la clave privada |
+| `FRACTAL_DEPLOY_SSH_PASSWORD` | si `AUTH_METHOD=password` | — | contraseña SSH |
+| `FRACTAL_DEPLOY_DOMAIN` | sí | — | dominio de la app (se normaliza a minúsculas) |
+| `FRACTAL_DEPLOY_EMAIL` | sí | — | email para Let's Encrypt |
+| `FRACTAL_DEPLOY_DNS_PROVIDER` | no | `manual` | `cloudflare`, `route53` o `manual` |
+| `FRACTAL_DEPLOY_DNS_API_TOKEN` | si el proveedor es `cloudflare`/`route53` | — | token/credenciales del proveedor DNS |
+| `FRACTAL_DEPLOY_GIT_REPOSITORY` | sí | — | URL del repositorio Git (infiere el proveedor de CI/CD) |
+| `FRACTAL_DEPLOY_PRODUCTION_BRANCH` | no | `main` | rama de producción |
+| `FRACTAL_DEPLOY_SSL_ENV` | no | `production` | `production` o `staging` (staging evita los rate limits de Let's Encrypt; útil en CI) |
+| `FRACTAL_DEPLOY_UPLOAD_TIMEOUT` | no | `600` | timeout **en segundos** para la subida del proyecto al servidor (pack + transfer + extract). Independiente del timeout de conexión SSH (120s); subílo para proyectos grandes o enlaces lentos |
+
+En **multirepo** con coordinación pendiente (o con `--reconfigure`) se requieren
+además `FRACTAL_DEPLOY_SIBLING_GIT_URL` y `FRACTAL_DEPLOY_SIBLING_DOMAIN` (URL y
+dominio del repositorio hermano).
+
+Con **autenticación por contraseña** (`FRACTAL_DEPLOY_AUTH_METHOD=password`), como
+no se pueden pedir las claves del usuario `deploy` por prompt, hay que proveerlas
+por entorno: `FRACTAL_DEPLOY_DEPLOY_PUBLIC_KEY` (la clave pública que se instala
+para el usuario `deploy`) y `FRACTAL_DEPLOY_DEPLOY_KEY_PATH` (ruta a la clave
+privada correspondiente para reconectarse como `deploy`).
 
 ---
 
@@ -187,11 +245,12 @@ variable cruzada.
 En el prompt de proveedor DNS hay tres opciones; la opción por defecto es
 **manual**:
 
-- **Cloudflare** — automatizado. Te pide un API token y crea los registros A
-  del dominio raíz y `www` apuntando a la IP del VPS, y espera a que la
-  propagación se confirme.
+- **Cloudflare** — automatizado. Te pide un API token y crea el registro A
+  del dominio apuntando a la IP del VPS (y `www` solo si el dominio es raíz),
+  y espera a que la propagación se confirme.
 - **Manual** — el CLI te muestra los registros exactos a crear en tu proveedor
-  y hace polling hasta detectar la propagación:
+  (los mismos: `@`, más `www` solo en dominio raíz) y hace polling hasta
+  detectar la propagación. Ejemplo para un dominio raíz:
 
   ```
   → Configuración DNS manual requerida
@@ -251,7 +310,14 @@ Actions, ejecuta:
 1. **Build y push** de la imagen Docker a GitHub Container Registry
    (`ghcr.io`), etiquetada con el SHA corto del commit y `latest`.
 2. **Deploy al servidor** por SSH (con `StrictHostKeyChecking=yes`): `docker
-   compose pull` y `docker compose up -d`.
+   compose pull`, recreación del volumen `app_code` (el `down` + `docker volume
+   rm` del volumen de código) y `docker compose up -d app` seguido de
+   `docker compose up -d`. Recrear el volumen en cada redeploy hace que la
+   imagen recién publicada repueble el código, de modo que el merge realmente
+   llega a producción; el `up` de `app` primero evita que worker y scheduler
+   copien en paralelo sobre el volumen vacío. El volumen de la base de datos no
+   se toca. El rollback aplica el mismo refresco antes de volver a levantar la
+   imagen anterior.
 3. **Migraciones** y **comandos post-deploy** (los declara el contrato del
    adapter; para el backend de referencia son `migrate` y limpieza de caches).
 4. **Healthcheck** contra `https://<dominio><ruta-de-healthcheck>`, reintentando
@@ -401,7 +467,9 @@ Si deseas usar este VPS, detén los servicios que ocupan estos puertos.
 Hay un servicio no gestionado por Fractal escuchando en 80 o 443 (AC-14). El
 comando aborta **sin modificar nada**: sobrescribir un servidor de producción en
 uso es demasiado riesgoso, y no hay flag de override en esta versión. Detené el
-servicio que ocupa esos puertos y volvé a correr.
+servicio que ocupa esos puertos y volvé a correr. Si el ocupante es el runtime
+que Fractal levantó en un deploy anterior (`/etc/fractal/state.json` presente),
+no es este error: el comando continúa y refresca el volumen `app_code`.
 
 ### Recursos insuficientes o distribución no soportada
 

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 import { ComposeGenerator } from './compose-generator.js';
 import type { ComposeConfig } from './types.js';
 import type { DeployRuntime } from '@fractal/core';
@@ -453,6 +454,66 @@ describe('ComposeGenerator', () => {
       for (const term of forbiddenTerms) {
         expect(content).not.toContain(term);
       }
+    });
+  });
+
+  // El snapshot (compose-snapshots.test.ts) solo compara strings y NO detecta
+  // que el YAML sea inválido. Estas pruebas PARSEAN la salida con un parser YAML
+  // real para garantizar que `docker compose` pueda cargarla (FRA-73).
+  describe('YAML validity', () => {
+    // Runtime de backend que, como el adapter Laravel real, inyecta secretEnv.
+    // El output siempre incluye líneas con comillas simples (`version: '3.8'`,
+    // los `command: [... 'placeholder' ...]`) que son las que rompían el deploy.
+    const createBackendRuntimeWithSecrets = (): DeployRuntime => ({
+      services: ['app', 'nginx', 'db', 'redis', 'worker', 'scheduler'],
+      build: { context: '.', dockerfile: 'Dockerfile' },
+      secretEnv: {
+        APP_KEY: 'base64:TEST0000000000000000000000000000000000000000=',
+        APP_ENV: 'production',
+        DB_DATABASE: '${DB_DATABASE:-fractale2e}',
+        DB_PASSWORD: '${DB_PASSWORD}',
+      },
+      buildCommand: 'docker build -t test:latest .',
+      migrateCommand: 'docker compose exec app migrate',
+      port: 8000,
+      healthcheck: { path: '/api/health' },
+    });
+
+    it('should generate valid parseable YAML for backend-full', () => {
+      const config: ComposeConfig = {
+        runtime: createBackendRuntimeWithSecrets(),
+        projectName: 'fractale2e',
+        outputPath: '/home/deploy/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      expect(result.success).toBe(true);
+
+      // No debe lanzar: si el YAML estuviera corrupto, parseYaml tira.
+      const parsed = parseYaml(result.content as string) as Record<string, unknown>;
+
+      expect(parsed).toHaveProperty('services');
+      // El volumen app_code conserva su nombre determinista (FRA-73): el flujo
+      // de redeploy lo elimina por nombre para que Docker lo repueble.
+      const volumes = parsed.volumes as Record<string, { name?: string }>;
+      expect(volumes.app_code.name).toBe('fractale2e_app_code');
+      // db_data no lleva nombre explícito (lo nombra docker compose).
+      expect(volumes.db_data).not.toHaveProperty('name');
+    });
+
+    it('should generate valid parseable YAML for frontend-static', () => {
+      const config: ComposeConfig = {
+        runtime: createFrontendStaticRuntime(),
+        projectName: 'fractale2e-web',
+        outputPath: '/home/deploy/docker-compose.yml',
+      };
+
+      const result = generator.generate(config);
+      expect(result.success).toBe(true);
+
+      const parsed = parseYaml(result.content as string) as Record<string, unknown>;
+      expect(parsed).toHaveProperty('services');
+      expect(parsed).toHaveProperty('networks');
     });
   });
 });
