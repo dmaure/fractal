@@ -212,6 +212,18 @@ export class GitHubActionsGenerator {
   private generateWorkflow(config: DeployConfig, commands: DeployCommands): string {
     const timestamp = new Date().toISOString();
     const imageTagExpr = '${{ github.sha }}';
+    // Si hay servicio `app` (y por tanto worker/scheduler que montan el mismo
+    // volumen), el up se parte: primero `app` puebla el volumen vacío; después
+    // el resto. Sin eso, Docker copia la imagen en paralelo y falla con
+    // `mkdir … file exists`. Un runtime sin `app` (p.ej. frontend estático)
+    // sigue con un solo `up`.
+    const hasApp = config.runtime.services.includes('app');
+    const composeUpNoBuild = hasApp
+      ? 'docker compose up -d --no-build app\n            docker compose up -d --no-build'
+      : 'docker compose up -d --no-build';
+    const composeUpRollback = hasApp
+      ? 'docker compose up -d app\n                docker compose up -d'
+      : 'docker compose up -d';
 
     let workflow = `# Workflow de deploy generado por Fractal
 # Generado: ${timestamp}
@@ -306,10 +318,11 @@ jobs:
             # FRA-73: refrescar el volumen app_code para que el código de la
             # imagen nueva llegue a producción. Docker solo puebla el volumen al
             # crearlo, así que sin el drop el redeploy serviría el código viejo.
+            # El up de app primero serializa esa copia si hay worker/scheduler.
             # db_data NO se toca: los datos de la base persisten.
             docker compose down --remove-orphans 2>/dev/null || true
             docker volume rm -f ${config.projectName}_app_code 2>/dev/null || true
-            docker compose up -d --no-build
+            ${composeUpNoBuild}
 
             # Esperar que los contenedores estén listos
             sleep 10
@@ -404,10 +417,11 @@ print(json.dumps(state, indent=2))
 
                 # FRA-73: refrescar el volumen app_code también en el rollback,
                 # para que se sirva el código de la imagen anterior y no el del
-                # volumen viejo. db_data no se toca.
+                # volumen viejo. El up de app primero evita la carrera de
+                # populate. db_data no se toca.
                 docker compose down --remove-orphans 2>/dev/null || true
                 docker volume rm -f ${config.projectName}_app_code 2>/dev/null || true
-                docker compose up -d
+                ${composeUpRollback}
                 echo "✓ Rolled back to \$PREVIOUS_TAG"
                 
                 # Post-rollback healthcheck
