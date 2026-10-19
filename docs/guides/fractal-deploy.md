@@ -128,11 +128,14 @@ Al correr `fractal deploy` dentro del proyecto, el comando ejecuta en orden:
    declara servicio `db`, genera `DB_PASSWORD` en `/home/deploy/.env` la
    primera vez (el compose la interpola; no viaja por el repositorio). Sube el
    proyecto y levanta los contenedores con la secuencia _build → down →
-   recreación del volumen `app_code` → up_. El volumen `app_code` guarda el
-   código de la app y Docker solo lo puebla al crearlo; recrearlo en cada
-   (re)deploy fuerza a que se repueble desde la imagen recién construida, de
-   modo que un cambio pusheado realmente llega a producción. El volumen de la
-   base de datos **no** se toca, así que los datos persisten entre deploys.
+   recreación del volumen `app_code` → up de `app` → up del resto_. El volumen
+   `app_code` guarda el código de la app y Docker solo lo puebla al crearlo;
+   recrearlo en cada (re)deploy fuerza a que se repueble desde la imagen recién
+   construida, de modo que un cambio pusheado realmente llega a producción. El
+   `up` de `app` primero serializa esa copia: si `app`, `worker` y `scheduler`
+   se crean juntos sobre el volumen vacío, el daemon falla con `mkdir … file
+   exists`. El volumen de la base de datos **no** se toca, así que los datos
+   persisten entre deploys.
 9. **Configura el DNS (AC-5 / AC-6).** Crea el registro A del dominio y espera
    la propagación. La variante `www` solo se pide si el dominio es raíz
    (`codigofractal.dev`); un subdominio (p.ej. el e2e) no crea ni espera
@@ -306,11 +309,13 @@ Actions, ejecuta:
    (`ghcr.io`), etiquetada con el SHA corto del commit y `latest`.
 2. **Deploy al servidor** por SSH (con `StrictHostKeyChecking=yes`): `docker
    compose pull`, recreación del volumen `app_code` (el `down` + `docker volume
-   rm` del volumen de código antes del `up`) y `docker compose up -d`. Recrear
-   el volumen en cada redeploy hace que la imagen recién publicada repueble el
-   código, de modo que el merge realmente llega a producción; el volumen de la
-   base de datos no se toca. El rollback aplica el mismo refresco antes de volver
-   a levantar la imagen anterior.
+   rm` del volumen de código) y `docker compose up -d app` seguido de
+   `docker compose up -d`. Recrear el volumen en cada redeploy hace que la
+   imagen recién publicada repueble el código, de modo que el merge realmente
+   llega a producción; el `up` de `app` primero evita que worker y scheduler
+   copien en paralelo sobre el volumen vacío. El volumen de la base de datos no
+   se toca. El rollback aplica el mismo refresco antes de volver a levantar la
+   imagen anterior.
 3. **Migraciones** y **comandos post-deploy** (los declara el contrato del
    adapter; para el backend de referencia son `migrate` y limpieza de caches).
 4. **Healthcheck** contra `https://<dominio><ruta-de-healthcheck>`, reintentando

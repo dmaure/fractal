@@ -1012,13 +1012,20 @@ interface RuntimeDeployClient {
  * imagen en el servidor.
  *
  * FRA-73 (refresco de volumen): en vez de un simple `docker compose up -d
- * --build`, corre build → down → drop del volumen `app_code` → up. El volumen
- * `<projectName>_app_code` guarda el código de la app y Docker solo lo puebla al
- * CREARLO; sin este refresco, un redeploy levantaría los contenedores con el
- * código viejo del volumen y el cambio nunca llegaría a producción. En el primer
- * deploy el `down` y el `volume rm` son no-ops inofensivos; en redeploys sueltan
- * el volumen viejo para que `up` lo repueble desde la imagen recién construida.
- * El volumen `db_data` NO se elimina, así que los datos de la base persisten.
+ * --build`, corre build → down → drop del volumen `app_code` → up de `app` →
+ * up del resto. El volumen `<projectName>_app_code` guarda el código de la app
+ * y Docker solo lo puebla al CREARLO; sin este refresco, un redeploy levantaría
+ * los contenedores con el código viejo del volumen y el cambio nunca llegaría a
+ * producción. En el primer deploy el `down` y el `volume rm` son no-ops
+ * inofensivos; en redeploys sueltan el volumen viejo para que `up` lo repueble
+ * desde la imagen recién construida. El volumen `db_data` NO se elimina, así
+ * que los datos de la base persisten.
+ *
+ * El up se parte en dos porque Docker copia la imagen al volumen vacío cuando
+ * se crea el primer contenedor que lo monta. Si `app`, `worker` y `scheduler`
+ * se crean juntos, los tres copian en paralelo y el daemon falla con
+ * `mkdir .../storage/logs: file exists`. Levantar `app` primero serializa esa
+ * copia; el segundo `up -d` arranca el resto contra un volumen ya poblado.
  *
  * Agnóstico de framework: sube el directorio del proyecto tal cual y delega el
  * build al Dockerfile que el adapter dejó en el árbol generado.
@@ -1064,11 +1071,13 @@ export async function uploadAndStartContainers(
     };
   }
 
-  // FRA-73: build → down → drop del volumen app_code → up. El drop del volumen
-  // fuerza a Docker a repoblar `${projectName}_app_code` desde la imagen recién
-  // construida en cada redeploy (ver JSDoc). db_data NO se elimina: la BD persiste.
+  // FRA-73: build → down → drop del volumen app_code → up de app → up del resto.
+  // El drop fuerza a Docker a repoblar `${projectName}_app_code` desde la imagen
+  // recién construida (ver JSDoc). El up de `app` primero evita la carrera de
+  // populate cuando varios servicios montan el volumen vacío. db_data NO se
+  // elimina: la BD persiste.
   const composeUpResult = await client.executeCommand(
-    `cd ${remoteDir} && docker compose build && (docker compose down --remove-orphans 2>/dev/null || true) && (docker volume rm -f ${projectName}_app_code 2>/dev/null || true) && docker compose up -d`,
+    `cd ${remoteDir} && docker compose build && (docker compose down --remove-orphans 2>/dev/null || true) && (docker volume rm -f ${projectName}_app_code 2>/dev/null || true) && docker compose up -d app && docker compose up -d`,
     { timeoutMs: 900_000 } // 15 minutos: ahora incluye build + reinicio completo
   );
   if (!composeUpResult.success) {
