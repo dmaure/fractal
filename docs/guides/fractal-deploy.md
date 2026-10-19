@@ -133,9 +133,10 @@ Al correr `fractal deploy` dentro del proyecto, el comando ejecuta en orden:
    (re)deploy fuerza a que se repueble desde la imagen recién construida, de
    modo que un cambio pusheado realmente llega a producción. El volumen de la
    base de datos **no** se toca, así que los datos persisten entre deploys.
-9. **Configura el DNS (AC-5 / AC-6).** Con Cloudflare crea los registros A del
-   dominio raíz y `www` y espera la propagación. En manual, te muestra los
-   registros exactos a crear y hace polling. Ver
+9. **Configura el DNS (AC-5 / AC-6).** Crea el registro A del dominio y espera
+   la propagación. La variante `www` solo se pide si el dominio es raíz
+   (`codigofractal.dev`); un subdominio (p.ej. el e2e) no crea ni espera
+   `www.<subdominio>`. En manual te muestra exactamente esos registros. Ver
    [Proveedores de DNS](#proveedores-de-dns).
 10. **Escribe las variables cruzadas al disco (multirepo).** Si recolectaste la
     info del hermano, persiste las variables cruzadas: `.env.production` si el
@@ -239,11 +240,12 @@ variable cruzada.
 En el prompt de proveedor DNS hay tres opciones; la opción por defecto es
 **manual**:
 
-- **Cloudflare** — automatizado. Te pide un API token y crea los registros A
-  del dominio raíz y `www` apuntando a la IP del VPS, y espera a que la
-  propagación se confirme.
+- **Cloudflare** — automatizado. Te pide un API token y crea el registro A
+  del dominio apuntando a la IP del VPS (y `www` solo si el dominio es raíz),
+  y espera a que la propagación se confirme.
 - **Manual** — el CLI te muestra los registros exactos a crear en tu proveedor
-  y hace polling hasta detectar la propagación:
+  (los mismos: `@`, más `www` solo en dominio raíz) y hace polling hasta
+  detectar la propagación. Ejemplo para un dominio raíz:
 
   ```
   → Configuración DNS manual requerida

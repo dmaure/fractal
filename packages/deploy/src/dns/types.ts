@@ -142,6 +142,42 @@ export const isRootDomain = (domain: string): boolean =>
   domain.split('.').length === 2;
 
 /**
+ * Evalúa si la resolución DNS ya coincide con lo que Fractal espera crear.
+ *
+ * Decisión de Diego (FRA-71): `www` solo se exige para el dominio raíz. Un
+ * subdominio (p.ej. `e2e-1.codigofractal.dev`) no crea `www.<subdominio>` y
+ * el poller no debe esperar un registro que nadie va a escribir — el e2e
+ * real de FRA-73 se colgó 302s justo por eso.
+ */
+export const evaluateDnsPropagation = (
+  domain: string,
+  serverIp: string,
+  rootIp: string | null,
+  wwwIp: string | null
+): DnsPropagationResult => {
+  const rootMatches = rootIp === serverIp;
+  const needsWww = isRootDomain(domain);
+  const wwwMatches = !needsWww || wwwIp === serverIp;
+
+  if (rootMatches && wwwMatches) {
+    return {
+      propagated: true,
+      rootIp: rootIp ?? undefined,
+      wwwIp: needsWww ? wwwIp ?? undefined : undefined,
+      message: 'DNS propagado correctamente',
+    };
+  }
+
+  const wwwPart = needsWww ? `, www=${wwwIp || 'sin resolver'}` : '';
+  return {
+    propagated: false,
+    rootIp: rootIp || undefined,
+    wwwIp: needsWww ? wwwIp || undefined : undefined,
+    message: `Esperando propagación: root=${rootIp || 'sin resolver'}${wwwPart}`,
+  };
+};
+
+/**
  * Registros DNS por defecto según SPEC-0003 AC-5 y AC-6.
  *
  * Decisión de Diego (FRA-71): la variante `www.` solo se agrega para el dominio

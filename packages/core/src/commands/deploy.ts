@@ -224,6 +224,7 @@ export async function deployCommand(
     SystemHardening,
     RuntimeManager,
     DnsManager,
+    DEFAULT_DNS_RECORDS,
     StateManager,
     SslManager,
     adaptSshClient,
@@ -721,14 +722,13 @@ export async function deployCommand(
       // manual
       console.log(chalk.yellow('→ Configuración DNS manual requerida\n'));
       console.log(chalk.dim('Crea los siguientes registros DNS en tu proveedor:\n'));
-      console.log(chalk.white(`   Tipo: A`));
-      console.log(chalk.white(`   Nombre: @`));
-      console.log(chalk.white(`   Valor: ${params.serverIp}`));
-      console.log(chalk.white(`   TTL: 300\n`));
-      console.log(chalk.white(`   Tipo: A`));
-      console.log(chalk.white(`   Nombre: www`));
-      console.log(chalk.white(`   Valor: ${params.serverIp}`));
-      console.log(chalk.white(`   TTL: 300\n`));
+      // FRA-71: www solo para dominio raíz; un subdominio no pide www.
+      for (const record of DEFAULT_DNS_RECORDS(params.domain, params.serverIp)) {
+        console.log(chalk.white(`   Tipo: ${record.type}`));
+        console.log(chalk.white(`   Nombre: ${record.name}`));
+        console.log(chalk.white(`   Valor: ${record.value}`));
+        console.log(chalk.white(`   TTL: ${record.ttl ?? 300}\n`));
+      }
       
       dnsResult = await DnsManager.setup({
         provider: 'manual',
