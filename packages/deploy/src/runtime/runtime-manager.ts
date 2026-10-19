@@ -40,7 +40,33 @@ export class RuntimeManager {
       const shouldRerun = await this.stateManager.shouldRerunStep('runtime', configHash);
 
       if (!shouldRerun) {
-        // El runtime ya está instalado y no cambió la configuración
+        // El runtime ya está instalado y no cambió la configuración.
+        // Igual aseguramos grupo docker + .env: un VPS provisionado antes
+        // de estos pasos los necesita en el redeploy (FRA-73).
+        const groupResult = await this.dockerInstaller.ensureCurrentUserInDockerGroup();
+        if (!groupResult.success) {
+          return {
+            success: false,
+            dockerInstall: {
+              success: false,
+              steps: ['Runtime ya instalado (idempotencia)'],
+              error: 'No se pudo agregar el usuario al grupo docker',
+            },
+            error: 'No se pudo agregar el usuario al grupo docker',
+          };
+        }
+        const envResult = await this.ensureDbPasswordEnv(config);
+        if (!envResult.success) {
+          return {
+            success: false,
+            dockerInstall: {
+              success: true,
+              steps: ['Runtime ya instalado (idempotencia)'],
+            },
+            error: envResult.error,
+          };
+        }
+
         const dockerResult: RuntimeSetupResult['dockerInstall'] = {
           success: true,
           steps: ['Runtime ya instalado (idempotencia)'],
@@ -126,6 +152,26 @@ export class RuntimeManager {
         };
       }
 
+      // 5. El compose interpola ${DB_PASSWORD} para el servicio db. Sin un
+      //    /home/deploy/.env (o env del host), docker compose lo deja vacío y
+      //    la imagen de Postgres aborta. Se genera en el servidor, una sola
+      //    vez (SPEC-0003: el .env de producción no viaja por el repo).
+      const envResult = await this.ensureDbPasswordEnv(config);
+      if (!envResult.success) {
+        await this.stateManager.markStep(
+          'runtime',
+          'failed',
+          configHash,
+          envResult.error
+        );
+        return {
+          success: false,
+          dockerInstall: dockerResult,
+          composeGeneration: composeResult,
+          error: envResult.error,
+        };
+      }
+
       // Marcar como completado
       await this.stateManager.markStep('runtime', 'completed', configHash);
 
@@ -193,6 +239,46 @@ export class RuntimeManager {
         error: error instanceof Error ? error.message : 'Error desconocido',
       };
     }
+  }
+
+  /**
+   * Asegura que exista `DB_PASSWORD` en el `.env` junto al compose, para
+   * que docker compose pueda interpolar `${DB_PASSWORD}` del servicio db.
+   * Idempotente: si la clave ya está, no la toca (un redeploy no debe
+   * rotar la contraseña de una base ya inicializada).
+   *
+   * La contraseña se genera EN el servidor (`openssl rand -hex 24`), no
+   * viaja por el CLI. Agnóstico de framework: solo conoce la variable
+   * que el compose interpola, no su semántica en la app.
+   */
+  private async ensureDbPasswordEnv(
+    config: RuntimeConfig
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!config.compose.runtime.services.includes('db')) {
+      return { success: true };
+    }
+
+    const composePath = config.compose.outputPath;
+    const lastSlash = composePath.lastIndexOf('/');
+    const envDir = lastSlash === -1 ? '.' : composePath.slice(0, lastSlash);
+    const envPath = `${envDir}/.env`;
+
+    // Heredoc entrecomillado: el cuerpo es literal (misma lección que
+    // writeComposeFile). openssl corre en el servidor; el password nunca
+    // pasa por el comando SSH como valor interpolado.
+    const result = await this.sshClient.executeCommand(
+      `ENV_FILE='${envPath}' && ` +
+        `touch "$ENV_FILE" && chmod 600 "$ENV_FILE" && ` +
+        `if grep -q '^DB_PASSWORD=' "$ENV_FILE"; then echo already_set; ` +
+        `else printf 'DB_PASSWORD=%s\\n' "$(openssl rand -hex 24)" >> "$ENV_FILE"; fi`
+    );
+
+    return {
+      success: result.success,
+      error: result.success
+        ? undefined
+        : result.stderr || result.error || 'No se pudo escribir DB_PASSWORD en .env',
+    };
   }
 
   /**

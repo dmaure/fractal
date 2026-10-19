@@ -58,8 +58,12 @@ describe('RuntimeManager', () => {
           stderr: '',
           exitCode: 0,
         })
+        // ensureCurrentUserInDockerGroup
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
         // writeComposeFile mock
         .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
+        // ensureDbPasswordEnv
+        .mockResolvedValueOnce({ success: true, stdout: 'already_set', stderr: '', exitCode: 0 })
         // Mock markStep (completed): readState + mkdir + write
         .mockResolvedValueOnce({
           success: true,
@@ -139,6 +143,8 @@ describe('RuntimeManager', () => {
           stderr: '',
           exitCode: 0,
         })
+        // ensureCurrentUserInDockerGroup
+        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
         // Mock markStep (failed): readState + mkdir + write
         .mockResolvedValueOnce({
           success: true,
@@ -332,6 +338,69 @@ describe('RuntimeManager', () => {
       expect(parsed.version).toBe('3.8');
       const volumes = parsed.volumes as Record<string, { name?: string }>;
       expect(volumes.app_code.name).toBe('fractale2e_app_code');
+    });
+  });
+
+  describe('ensureDbPasswordEnv', () => {
+    it('escribe DB_PASSWORD en el .env junto al compose cuando hay servicio db', async () => {
+      const commands: string[] = [];
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          commands.push(cmd);
+          return {
+            success: true,
+            stdout: 'Docker version 24.0.7\nDocker Compose version v2.24.5',
+            stderr: '',
+            exitCode: 0,
+          };
+        }
+      );
+
+      await manager.setup({
+        compose: {
+          runtime: createBackendFullRuntime(),
+          projectName: 'fractale2e',
+          outputPath: '/home/deploy/docker-compose.yml',
+        },
+      });
+
+      const envCmd = commands.find((c) => c.includes('DB_PASSWORD='));
+      expect(envCmd).toBeDefined();
+      expect(envCmd).toContain("ENV_FILE='/home/deploy/.env'");
+      expect(envCmd).toContain("grep -q '^DB_PASSWORD='");
+      expect(envCmd).toContain('openssl rand -hex 24');
+      // El password se genera en el servidor: no viaja interpolado.
+      expect(envCmd).not.toMatch(/DB_PASSWORD=[0-9a-f]{48}/);
+    });
+
+    it('no escribe .env si el runtime no declara servicio db', async () => {
+      const commands: string[] = [];
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          commands.push(cmd);
+          return {
+            success: true,
+            stdout: 'Docker version 24.0.7\nDocker Compose version v2.24.5',
+            stderr: '',
+            exitCode: 0,
+          };
+        }
+      );
+
+      await manager.setup({
+        compose: {
+          runtime: {
+            services: ['nginx'],
+            buildCommand: 'true',
+            port: 80,
+            healthcheck: { path: '/' },
+          },
+          projectName: 'web',
+          outputPath: '/home/deploy/docker-compose.yml',
+        },
+      });
+
+      expect(commands.some((c) => c.includes('DB_PASSWORD='))).toBe(false);
     });
   });
 });

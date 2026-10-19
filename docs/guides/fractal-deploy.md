@@ -123,13 +123,16 @@ Al correr `fractal deploy` dentro del proyecto, el comando ejecuta en orden:
    le pide el contrato para el target (`get-contract`) y lee su `deployRuntime`
    —servicios, comandos de build/migración, puerto y healthcheck— en vez de
    hardcodearlos. Instala Docker CE y el plugin de Compose de forma idempotente,
-   escribe `docker-compose.yml` en `/home/deploy/`, sube el proyecto y levanta
-   los contenedores con la secuencia _build → down → recreación del volumen
-   `app_code` → up_. El volumen `app_code` guarda el código de la app y Docker
-   solo lo puebla al crearlo; recrearlo en cada (re)deploy fuerza a que se
-   repueble desde la imagen recién construida, de modo que un cambio pusheado
-   realmente llega a producción. El volumen de la base de datos **no** se toca,
-   así que los datos persisten entre deploys.
+   agrega al usuario `deploy` al grupo `docker` (para hablar con el socket
+   sin sudo), escribe `docker-compose.yml` en `/home/deploy/` y, si el runtime
+   declara servicio `db`, genera `DB_PASSWORD` en `/home/deploy/.env` la
+   primera vez (el compose la interpola; no viaja por el repositorio). Sube el
+   proyecto y levanta los contenedores con la secuencia _build → down →
+   recreación del volumen `app_code` → up_. El volumen `app_code` guarda el
+   código de la app y Docker solo lo puebla al crearlo; recrearlo en cada
+   (re)deploy fuerza a que se repueble desde la imagen recién construida, de
+   modo que un cambio pusheado realmente llega a producción. El volumen de la
+   base de datos **no** se toca, así que los datos persisten entre deploys.
 9. **Configura el DNS (AC-5 / AC-6).** Con Cloudflare crea los registros A del
    dominio raíz y `www` y espera la propagación. En manual, te muestra los
    registros exactos a crear y hace polling. Ver
