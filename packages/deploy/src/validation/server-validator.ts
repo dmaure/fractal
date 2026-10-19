@@ -198,6 +198,22 @@ export class ServerValidator {
       }
     }
 
+    // AC-14 aborta solo si el ocupante NO es de Fractal. Un redeploy
+    // (`fractal deploy` por segunda vez) encuentra 80/443 en docker-proxy
+    // del propio nginx; /etc/fractal/state.json marca ese runtime como
+    // nuestro y el check no bloquea el refresco del volumen.
+    if (occupiedPorts.length > 0) {
+      const stateResult = await this.sshClient.executeCommand(
+        'test -f /etc/fractal/state.json && echo yes || echo no'
+      );
+      if (stateResult.success && stateResult.stdout.trim() === 'yes') {
+        return {
+          available: true,
+          occupiedPorts,
+        };
+      }
+    }
+
     return {
       available: occupiedPorts.length === 0,
       occupiedPorts,

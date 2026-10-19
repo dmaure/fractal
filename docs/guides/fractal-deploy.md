@@ -111,7 +111,9 @@ Al correr `fractal deploy` dentro del proyecto, el comando ejecuta en orden:
 4. **Valida distribución y recursos (AC-2).** Detecta sistema operativo,
    CPUs, RAM y disco, y aborta si no cumple los mínimos.
 5. **Valida los puertos (AC-14).** Comprueba que 80 y 443 estén libres. Si hay
-   servicios preexistentes, aborta sin modificar nada.
+   servicios preexistentes **no gestionados por Fractal**, aborta sin
+   modificar nada. Si `/etc/fractal/state.json` ya existe (redeploy), 80/443
+   ocupados por el propio nginx se aceptan y el comando sigue.
 6. **Endurece el sistema (AC-3).** Obtiene la clave pública SSH (la deriva de la
    privada, o la pide si usás contraseña) y crea el usuario `deploy` no-root,
    deshabilita el login root y la autenticación por contraseña por SSH, y
@@ -177,7 +179,7 @@ mismas validaciones de IP, dominio y email que en los prompts).
 | Variable | Requerida | Default | Notas |
 |---|---|---|---|
 | `FRACTAL_DEPLOY_SERVER_IP` | sí | — | IPv4 del VPS |
-| `FRACTAL_DEPLOY_SSH_USER` | no | `root` | usuario SSH del primer provisioning |
+| `FRACTAL_DEPLOY_SSH_USER` | no | `root` | usuario SSH del primer provisioning. En un redeploy, después del hardening, tiene que ser `deploy` (`PermitRootLogin no`) |
 | `FRACTAL_DEPLOY_AUTH_METHOD` | no | `key` | `key` o `password` |
 | `FRACTAL_DEPLOY_SSH_KEY_PATH` | si `AUTH_METHOD=key` | — | ruta a la clave privada |
 | `FRACTAL_DEPLOY_SSH_PASSWORD` | si `AUTH_METHOD=password` | — | contraseña SSH |
@@ -465,7 +467,9 @@ Si deseas usar este VPS, detén los servicios que ocupan estos puertos.
 Hay un servicio no gestionado por Fractal escuchando en 80 o 443 (AC-14). El
 comando aborta **sin modificar nada**: sobrescribir un servidor de producción en
 uso es demasiado riesgoso, y no hay flag de override en esta versión. Detené el
-servicio que ocupa esos puertos y volvé a correr.
+servicio que ocupa esos puertos y volvé a correr. Si el ocupante es el runtime
+que Fractal levantó en un deploy anterior (`/etc/fractal/state.json` presente),
+no es este error: el comando continúa y refresca el volumen `app_code`.
 
 ### Recursos insuficientes o distribución no soportada
 

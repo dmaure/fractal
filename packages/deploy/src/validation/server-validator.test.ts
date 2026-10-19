@@ -286,6 +286,12 @@ describe('ServerValidator', () => {
           stdout: '', // Puerto 443 libre
           stderr: '',
           exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'no',
+          stderr: '',
+          exitCode: 0,
         } as SshCommandResult);
 
       const result = await validator.validatePorts();
@@ -319,6 +325,12 @@ describe('ServerValidator', () => {
           stdout: 'nginx',
           stderr: '',
           exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'no',
+          stderr: '',
+          exitCode: 0,
         } as SshCommandResult);
 
       const result = await validator.validatePorts();
@@ -348,12 +360,60 @@ describe('ServerValidator', () => {
           stdout: '',
           stderr: '',
           exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'no',
+          stderr: '',
+          exitCode: 0,
         } as SshCommandResult);
 
       const result = await validator.validatePorts();
 
       expect(result.available).toBe(false);
       expect(result.occupiedPorts).toContain('80 (proceso: unknown)');
+    });
+
+    it('debe aceptar 80/443 ocupados si el runtime de Fractal ya está provisionado', async () => {
+      vi.spyOn(mockClient, 'executeCommand')
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'tcp   LISTEN 0      511                  *:80',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'docker-proxy',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'tcp   LISTEN 0      511                  *:443',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'docker-proxy',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult)
+        .mockResolvedValueOnce({
+          success: true,
+          stdout: 'yes',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult);
+
+      const result = await validator.validatePorts();
+
+      expect(result.available).toBe(true);
+      expect(result.occupiedPorts).toHaveLength(2);
+      expect(mockClient.executeCommand).toHaveBeenCalledWith(
+        'test -f /etc/fractal/state.json && echo yes || echo no'
+      );
     });
   });
 

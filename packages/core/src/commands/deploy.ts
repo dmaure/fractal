@@ -443,8 +443,14 @@ export async function deployCommand(
     
     process.exit(1);
   }
-  
-  console.log(chalk.green('✓ Puertos 80 y 443 disponibles'));
+
+  if (portsResult.occupiedPorts.length > 0) {
+    // AC-14: ocupados por el runtime de Fractal (state.json presente).
+    // Es un redeploy, no un VPS ajeno; se sigue para refrescar app_code.
+    console.log(chalk.green('✓ Puertos 80 y 443 ocupados por el runtime de Fractal (redeploy)'));
+  } else {
+    console.log(chalk.green('✓ Puertos 80 y 443 disponibles'));
+  }
   
   // AC-3: Hardening del sistema
   console.log(chalk.blue('\n🔐 Endureciendo el sistema...\n'));
