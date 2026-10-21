@@ -463,7 +463,7 @@ describe('GitHubActionsGenerator', () => {
       outputPath: '/tmp/test-github-fra76.yml',
     };
 
-    it('injects the registry credentials (DOCKER_REGISTRY_USER/TOKEN, not GITHUB_TOKEN) into the SSH env block', () => {
+    it('sets the registry credentials (DOCKER_REGISTRY_USER/TOKEN, not GITHUB_TOKEN) inside the heredoc body', () => {
       const content = generator.generateWorkflowContent(backendConfig);
       // Reutiliza las credenciales que publican la imagen: tienen pull
       // garantizado del paquete privado, a diferencia de GITHUB_TOKEN.
@@ -471,6 +471,27 @@ describe('GitHubActionsGenerator', () => {
       expect(content).toContain("GHCR_TOKEN='${{ secrets.DOCKER_REGISTRY_TOKEN }}'");
       expect(content).not.toContain("GHCR_USERNAME='${{ github.actor }}'");
       expect(content).not.toContain("GHCR_TOKEN='${{ secrets.GITHUB_TOKEN }}'");
+
+      // Las asignaciones viven DENTRO del cuerpo del heredoc (después de
+      // "bash -s"), no en el argv del comando SSH remoto.
+      const bashS = content.indexOf('bash -s');
+      expect(bashS).toBeGreaterThanOrEqual(0);
+      expect(content.indexOf("GHCR_USERNAME='${{ secrets.DOCKER_REGISTRY_USER }}'")).toBeGreaterThan(
+        bashS
+      );
+      expect(content.indexOf("GHCR_TOKEN='${{ secrets.DOCKER_REGISTRY_TOKEN }}'")).toBeGreaterThan(
+        bashS
+      );
+    });
+
+    it('never puts the registry token in the SSH remote-command argv (not before bash -s)', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      // El argv del comando SSH remoto es todo lo que precede a "bash -s".
+      // El token expandido (y su nombre de variable) no debe aparecer ahí:
+      // quedaría visible en ps/proc y en los logs de sshd del runner y del VPS.
+      const argv = content.slice(0, content.indexOf('bash -s'));
+      expect(argv).not.toContain('GHCR_TOKEN');
+      expect(argv).not.toContain('GHCR_USERNAME');
     });
 
     it('runs docker login ghcr.io BEFORE docker compose pull in the server block', () => {
@@ -502,16 +523,21 @@ describe('GitHubActionsGenerator', () => {
       expect(content).not.toContain('docker login ghcr.io -u "$GHCR_USERNAME" -p');
     });
 
-    it('logs out of ghcr.io after pulling so the token is not left on the server', () => {
+    it('removes the token on every exit path via a trap EXIT set before login', () => {
       const content = generator.generateWorkflowContent(backendConfig);
-      // Un logout tras el deploy normal y otro tras el rollback.
-      const logouts = content.split('docker logout ghcr.io').length - 1;
-      expect(logouts).toBe(2);
+      // El logout ya no es un paso lineal: un trap EXIT garantiza el logout
+      // incluso si el pull/up/healthcheck falla con set -e, para no dejar el
+      // token en ~/.docker/config.json.
+      const trap = "trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT";
+      expect(content).toContain(trap);
 
-      // El logout del deploy normal ocurre después del primer pull.
-      const firstPull = content.indexOf('docker compose pull');
-      const firstLogout = content.indexOf('docker logout ghcr.io');
-      expect(firstLogout).toBeGreaterThan(firstPull);
+      // El trap se setea ANTES del login (de la sesión SSH), para cubrir todo
+      // camino de salida desde el momento en que existe la credencial.
+      const trapIdx = content.indexOf(trap);
+      const firstLogin = content.indexOf('docker login ghcr.io');
+      expect(trapIdx).toBeGreaterThanOrEqual(0);
+      expect(firstLogin).toBeGreaterThanOrEqual(0);
+      expect(trapIdx).toBeLessThan(firstLogin);
     });
   });
 });

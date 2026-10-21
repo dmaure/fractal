@@ -288,20 +288,31 @@ jobs:
           echo "\$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-          # Deploy al servidor. Los valores calculados en el runner (registry,
-          # tag de imagen, rama y credenciales de ghcr.io) se inyectan como
-          # entorno del shell remoto; el heredoc va entre comillas ('ENDSSH')
-          # para que el resto de variables se expandan en el servidor y no en el
-          # runner. GHCR_USERNAME/GHCR_TOKEN reutilizan las mismas credenciales
-          # que publican la imagen (DOCKER_REGISTRY_USER/TOKEN): garantizan pull
-          # del paquete ghcr.io privado del repo sin un secret humano nuevo,
-          # mientras que GITHUB_TOKEN no tiene packages:read asegurado y falla
-          # con "denied" en paquetes privados (FRA-76). El token nunca queda en
-          # el historial del shell: entra por --password-stdin dentro del
-          # heredoc, y se hace docker logout al final del bloque.
+          # Deploy al servidor. Los valores NO sensibles calculados en el runner
+          # (registry, tag de imagen y rama) se inyectan como entorno del shell
+          # remoto en el argv del comando SSH; el heredoc va entre comillas
+          # ('ENDSSH') para que el resto de variables se expandan en el servidor
+          # y no en el runner. Las credenciales de ghcr.io (usuario y token del
+          # registry) reutilizan las mismas que publican la imagen
+          # (DOCKER_REGISTRY_USER/TOKEN): garantizan pull del paquete ghcr.io
+          # privado del repo sin un secret humano nuevo, mientras que
+          # GITHUB_TOKEN no tiene packages:read asegurado y falla con "denied"
+          # en paquetes privados (FRA-76). El token NO viaja por el argv del
+          # comando SSH remoto (sería visible en ps/proc y en los logs de sshd
+          # del runner y del VPS): se asigna dentro del cuerpo del heredoc, que
+          # viaja por el stdin de SSH, y entra a docker por --password-stdin. Un
+          # trap EXIT hace logout en todo camino de salida para no dejar el token
+          # en ~/.docker/config.json.
           ssh -o StrictHostKeyChecking=yes -i deploy_key "\$SSH_USER@\$SSH_HOST" \\
-            "DOCKER_REGISTRY='ghcr.io/\${{ github.repository }}' IMAGE_TAG='${imageTagExpr}' GIT_BRANCH='\${{ github.ref_name }}' GHCR_USERNAME='\${{ secrets.DOCKER_REGISTRY_USER }}' GHCR_TOKEN='\${{ secrets.DOCKER_REGISTRY_TOKEN }}' bash -s" << 'ENDSSH'
+            "DOCKER_REGISTRY='ghcr.io/\${{ github.repository }}' IMAGE_TAG='${imageTagExpr}' GIT_BRANCH='\${{ github.ref_name }}' bash -s" << 'ENDSSH'
             set -e
+
+            # FRA-76: las credenciales del registry se setean acá, dentro del
+            # cuerpo del heredoc (viaja por el stdin de SSH), y nunca en el argv
+            # del comando SSH remoto, para que el token no aparezca en ps/proc
+            # ni en los logs de sshd del runner ni del VPS.
+            GHCR_USERNAME='\${{ secrets.DOCKER_REGISTRY_USER }}'
+            GHCR_TOKEN='\${{ secrets.DOCKER_REGISTRY_TOKEN }}'
 
             cd /home/deploy
 
@@ -324,6 +335,11 @@ jobs:
             # FRA-76: autenticarse en ghcr.io EN EL SERVIDOR antes del pull. La
             # imagen se publica en el registry privado del repo y sin login el
             # pull falla con "denied". El token entra por stdin, no por argv.
+            # El trap EXIT garantiza el logout en todo camino de salida (incluso
+            # si el pull/up/healthcheck falla con set -e), de modo que el token
+            # no queda en /home/deploy/.docker/config.json. Cubre toda la sesión
+            # SSH, también el bloque de rollback.
+            trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
             echo "\$GHCR_TOKEN" | docker login ghcr.io -u "\$GHCR_USERNAME" --password-stdin
             docker compose pull
             # FRA-73: refrescar el volumen app_code para que el código de la
@@ -334,9 +350,6 @@ jobs:
             docker compose down --remove-orphans 2>/dev/null || true
             docker volume rm -f ${config.projectName}_app_code 2>/dev/null || true
             ${composeUpNoBuild}
-            # FRA-76: cerrar la sesión de ghcr.io una vez hecho el pull, para no
-            # dejar el token del registry en /home/deploy/.docker/config.json.
-            docker logout ghcr.io
 
             # Esperar que los contenedores estén listos
             sleep 10
@@ -428,6 +441,7 @@ print(json.dumps(state, indent=2))
 
                 # Asegurar que la imagen anterior esté disponible. Login en
                 # ghcr.io antes del pull (FRA-76), igual que en el deploy normal.
+                # El logout lo cubre el trap EXIT seteado al inicio de la sesión.
                 echo "\$GHCR_TOKEN" | docker login ghcr.io -u "\$GHCR_USERNAME" --password-stdin
                 docker compose pull || echo "⚠ Pull failed, using local image"
 
@@ -438,9 +452,6 @@ print(json.dumps(state, indent=2))
                 docker compose down --remove-orphans 2>/dev/null || true
                 docker volume rm -f ${config.projectName}_app_code 2>/dev/null || true
                 ${composeUpRollback}
-                # FRA-76: cerrar la sesión de ghcr.io también tras el rollback,
-                # para no dejar el token del registry en el .docker/config.json.
-                docker logout ghcr.io
                 echo "✓ Rolled back to \$PREVIOUS_TAG"
                 
                 # Post-rollback healthcheck
