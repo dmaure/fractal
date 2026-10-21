@@ -463,10 +463,14 @@ describe('GitHubActionsGenerator', () => {
       outputPath: '/tmp/test-github-fra76.yml',
     };
 
-    it('injects ghcr.io credentials (github.actor + GITHUB_TOKEN) into the SSH env block', () => {
+    it('injects the registry credentials (DOCKER_REGISTRY_USER/TOKEN, not GITHUB_TOKEN) into the SSH env block', () => {
       const content = generator.generateWorkflowContent(backendConfig);
-      expect(content).toContain("GHCR_USERNAME='${{ github.actor }}'");
-      expect(content).toContain("GHCR_TOKEN='${{ secrets.GITHUB_TOKEN }}'");
+      // Reutiliza las credenciales que publican la imagen: tienen pull
+      // garantizado del paquete privado, a diferencia de GITHUB_TOKEN.
+      expect(content).toContain("GHCR_USERNAME='${{ secrets.DOCKER_REGISTRY_USER }}'");
+      expect(content).toContain("GHCR_TOKEN='${{ secrets.DOCKER_REGISTRY_TOKEN }}'");
+      expect(content).not.toContain("GHCR_USERNAME='${{ github.actor }}'");
+      expect(content).not.toContain("GHCR_TOKEN='${{ secrets.GITHUB_TOKEN }}'");
     });
 
     it('runs docker login ghcr.io BEFORE docker compose pull in the server block', () => {
@@ -496,6 +500,18 @@ describe('GitHubActionsGenerator', () => {
       expect(content).toContain('--password-stdin');
       // El token no se pasa como argumento -p que quedaría en el historial.
       expect(content).not.toContain('docker login ghcr.io -u "$GHCR_USERNAME" -p');
+    });
+
+    it('logs out of ghcr.io after pulling so the token is not left on the server', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      // Un logout tras el deploy normal y otro tras el rollback.
+      const logouts = content.split('docker logout ghcr.io').length - 1;
+      expect(logouts).toBe(2);
+
+      // El logout del deploy normal ocurre después del primer pull.
+      const firstPull = content.indexOf('docker compose pull');
+      const firstLogout = content.indexOf('docker logout ghcr.io');
+      expect(firstLogout).toBeGreaterThan(firstPull);
     });
   });
 });

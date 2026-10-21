@@ -19,8 +19,9 @@ import {
  *
  * `.env` y `.env.*` (p.ej. `.env.production`, `.env.local`) se excluyen SIEMPRE
  * (FRA-76): los archivos de entorno locales del desarrollador no deben
- * empaquetarse ni extraerse sobre el servidor. El `.env` de producción —que
- * contiene `DB_PASSWORD`— vive solo en `/home/deploy/.env`, lo genera
+ * empaquetarse ni extraerse sobre el servidor. Incluye `.env.example`, que a
+ * propósito tampoco se envía: el `.env` de producción —que contiene
+ * `DB_PASSWORD`— vive solo en `/home/deploy/.env`, lo genera
  * `runtime-manager.ts` (`ensureDbPasswordEnv`) DESPUÉS de la subida, y al no
  * viajar en el tar la subida nunca lo pisa.
  */
