@@ -451,4 +451,51 @@ describe('GitHubActionsGenerator', () => {
       expect(content).toContain("bash -s\" << 'ENDSSH'");
     });
   });
+
+  describe('ghcr.io login on the server before pull (FRA-76)', () => {
+    const backendConfig: DeployConfig = {
+      provider: 'github-actions',
+      targetType: 'backend-full',
+      runtime: BACKEND_RUNTIME,
+      projectName: 'myapi',
+      productionBranch: 'production',
+      domain: 'api.example.com',
+      outputPath: '/tmp/test-github-fra76.yml',
+    };
+
+    it('injects ghcr.io credentials (github.actor + GITHUB_TOKEN) into the SSH env block', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      expect(content).toContain("GHCR_USERNAME='${{ github.actor }}'");
+      expect(content).toContain("GHCR_TOKEN='${{ secrets.GITHUB_TOKEN }}'");
+    });
+
+    it('runs docker login ghcr.io BEFORE docker compose pull in the server block', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+
+      const loginCmd =
+        'echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin';
+      expect(content).toContain(loginCmd);
+
+      // El primer login ghcr.io ocurre antes del primer docker compose pull.
+      const firstLogin = content.indexOf('docker login ghcr.io');
+      const firstPull = content.indexOf('docker compose pull');
+      expect(firstLogin).toBeGreaterThanOrEqual(0);
+      expect(firstPull).toBeGreaterThanOrEqual(0);
+      expect(firstLogin).toBeLessThan(firstPull);
+    });
+
+    it('logs in again before the rollback pull', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      // Dos logins: deploy normal + rollback.
+      const logins = content.split('docker login ghcr.io').length - 1;
+      expect(logins).toBe(2);
+    });
+
+    it('passes the token via --password-stdin, not on the command line', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      expect(content).toContain('--password-stdin');
+      // El token no se pasa como argumento -p que quedaría en el historial.
+      expect(content).not.toContain('docker login ghcr.io -u "$GHCR_USERNAME" -p');
+    });
+  });
 });

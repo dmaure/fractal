@@ -336,11 +336,39 @@ de CI/CD. Para todos los targets:
 | `SSH_HOST` | IP del VPS |
 | `SSH_USER` | usuario SSH (generalmente `deploy`) |
 | `SSH_PRIVATE_KEY` | clave privada para autenticarse en el servidor |
-| `SSH_KNOWN_HOSTS` | host key del servidor (del `ssh-keyscan` del provisioning) |
+| `SSH_KNOWN_HOSTS` | host key del servidor, en formato known_hosts (ver abajo) |
 | `DOCKER_REGISTRY_USER` | usuario del registry de Docker |
 | `DOCKER_REGISTRY_TOKEN` | token del registry de Docker |
 
 Para un backend completo se agregan además `DB_PASSWORD` y `APP_KEY`.
+
+### Cómo obtener `SSH_KNOWN_HOSTS`
+
+El secret `SSH_KNOWN_HOSTS` es la **línea known_hosts** del servidor (el mismo
+formato que produce `ssh-keyscan`): el pipeline la escribe en
+`~/.ssh/known_hosts` del runner para verificar la identidad del VPS con
+`StrictHostKeyChecking=yes` antes de conectarse. Su valor se ve así:
+
+```
+203.0.113.10 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...
+```
+
+Hay dos formas de obtenerlo:
+
+- **El CLI lo imprime por vos.** Durante el deploy, `fractal deploy` ya se
+  conecta al servidor y verifica su host key (TOFU). Al listar los secrets
+  requeridos al final, imprime el **valor real** de `SSH_KNOWN_HOSTS` listo para
+  copiar tal cual al secret. Si por algún motivo no pudo capturarlo, imprime en
+  su lugar el comando exacto a correr (el del punto siguiente).
+- **A mano con `ssh-keyscan`.** Ejecutá, reemplazando `<IP_DEL_SERVIDOR>` por la
+  IP de tu VPS:
+
+  ```bash
+  ssh-keyscan -t ed25519,rsa,ecdsa <IP_DEL_SERVIDOR>
+  ```
+
+  Cargá la **salida completa** (todas las líneas que imprima) como valor del
+  secret, no solo una.
 
 En **multirepo**, la lista incluye también el secret cruzado que tenés que
 cargar en el pipeline del repositorio **hermano** (ADR-0012): por ejemplo, al

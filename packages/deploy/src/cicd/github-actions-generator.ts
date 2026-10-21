@@ -283,17 +283,22 @@ jobs:
           # Configurar SSH con host key verification
           echo "\$SSH_PRIVATE_KEY" > deploy_key
           chmod 600 deploy_key
-          
+
           mkdir -p ~/.ssh
           echo "\$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
-          
+
           # Deploy al servidor. Los valores calculados en el runner (registry,
-          # tag de imagen y rama) se inyectan como entorno del shell remoto; el
-          # heredoc va entre comillas ('ENDSSH') para que el resto de variables
-          # se expandan en el servidor y no en el runner.
+          # tag de imagen, rama y credenciales de ghcr.io) se inyectan como
+          # entorno del shell remoto; el heredoc va entre comillas ('ENDSSH')
+          # para que el resto de variables se expandan en el servidor y no en el
+          # runner. GHCR_USERNAME/GHCR_TOKEN usan las mismas credenciales del
+          # login del runner (github.actor + GITHUB_TOKEN): GITHUB_TOKEN puede
+          # hacer pull del paquete ghcr.io del propio repo, sin un secret humano
+          # nuevo. El token nunca queda en el historial del shell: entra por
+          # --password-stdin dentro del heredoc.
           ssh -o StrictHostKeyChecking=yes -i deploy_key "\$SSH_USER@\$SSH_HOST" \\
-            "DOCKER_REGISTRY='ghcr.io/\${{ github.repository }}' IMAGE_TAG='${imageTagExpr}' GIT_BRANCH='\${{ github.ref_name }}' bash -s" << 'ENDSSH'
+            "DOCKER_REGISTRY='ghcr.io/\${{ github.repository }}' IMAGE_TAG='${imageTagExpr}' GIT_BRANCH='\${{ github.ref_name }}' GHCR_USERNAME='\${{ github.actor }}' GHCR_TOKEN='\${{ secrets.GITHUB_TOKEN }}' bash -s" << 'ENDSSH'
             set -e
 
             cd /home/deploy
@@ -314,6 +319,10 @@ jobs:
             # Actualizar compose con la nueva imagen: DOCKER_REGISTRY e IMAGE_TAG
             # vienen inyectados y docker compose los sustituye en el image: del
             # servicio de aplicación.
+            # FRA-76: autenticarse en ghcr.io EN EL SERVIDOR antes del pull. La
+            # imagen se publica en el registry privado del repo y sin login el
+            # pull falla con "denied". El token entra por stdin, no por argv.
+            echo "\$GHCR_TOKEN" | docker login ghcr.io -u "\$GHCR_USERNAME" --password-stdin
             docker compose pull
             # FRA-73: refrescar el volumen app_code para que el código de la
             # imagen nueva llegue a producción. Docker solo puebla el volumen al
@@ -411,8 +420,10 @@ print(json.dumps(state, indent=2))
               if [ -n "\$PREVIOUS_TAG" ]; then
                 echo "Rolling back to previous successful tag: \$PREVIOUS_TAG"
                 export IMAGE_TAG=\$PREVIOUS_TAG
-                
-                # Asegurar que la imagen anterior esté disponible
+
+                # Asegurar que la imagen anterior esté disponible. Login en
+                # ghcr.io antes del pull (FRA-76), igual que en el deploy normal.
+                echo "\$GHCR_TOKEN" | docker login ghcr.io -u "\$GHCR_USERNAME" --password-stdin
                 docker compose pull || echo "⚠ Pull failed, using local image"
 
                 # FRA-73: refrescar el volumen app_code también en el rollback,
