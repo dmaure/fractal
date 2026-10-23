@@ -45,55 +45,38 @@ describe('DockerInstaller', () => {
 
   describe('install - Fresh installation', () => {
     it('should install Docker and Compose from scratch', async () => {
-      // Mock: Docker no instalado
-      vi.mocked(mockSshClient.executeCommand)
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'not_installed',
-          stderr: '',
-        })
-        // addDockerRepository steps
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // mkdir
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // gpg key
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // chmod
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // add repo
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // apt update
-        // installDockerEngine
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        // checkComposeInstalled
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'not_installed',
-          stderr: '',
-        })
-        // installComposePlugin
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        // ensureDockerServiceActive
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // enable
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 }) // start
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'active',
-          stderr: '',
-        }) // is-active
-        // ensureCurrentUserInDockerGroup
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        // Final version checks
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'Docker version 24.0.7, build...',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'Docker Compose version v2.24.5',
-          stderr: '',
-        });
+      // Mock por implementación (más robusto ante cambios de orden que una
+      // cadena de mockResolvedValueOnce): captura los comandos y simula un
+      // host donde Docker/Compose empiezan sin instalar.
+      const commands: string[] = [];
+      let dockerInstalled = false;
+      let composeInstalled = false;
+
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          commands.push(cmd);
+          if (cmd.includes('docker --version')) {
+            return dockerInstalled
+              ? { success: true, exitCode: 0, stdout: 'Docker version 24.0.7, build...', stderr: '' }
+              : { success: true, exitCode: 0, stdout: 'not_installed', stderr: '' };
+          }
+          if (cmd.includes('docker compose version')) {
+            return composeInstalled
+              ? { success: true, exitCode: 0, stdout: 'Docker Compose version v2.24.5', stderr: '' }
+              : { success: true, exitCode: 0, stdout: 'not_installed', stderr: '' };
+          }
+          if (cmd.includes('docker-ce docker-ce-cli')) {
+            dockerInstalled = true;
+          }
+          if (cmd.includes('docker-compose-plugin')) {
+            composeInstalled = true;
+          }
+          if (cmd.includes('is-active')) {
+            return { success: true, exitCode: 0, stdout: 'active', stderr: '' };
+          }
+          return { success: true, exitCode: 0, stdout: '', stderr: '' };
+        }
+      );
 
       const result = await installer.install();
 
@@ -105,73 +88,120 @@ describe('DockerInstaller', () => {
       expect(result.steps).toContain('Usuario agregado al grupo docker');
       expect(result.dockerVersion).toBe('24.0.7');
       expect(result.composeVersion).toBe('2.24.5');
+
+      // FRA-76: el comando de install de Docker lleva el nuevo shape con el
+      // lock timeout inmediatamente después de apt-get, y corre no interactivo.
+      const aptInstallDocker = commands.find((c) =>
+        c.includes('docker-ce docker-ce-cli')
+      );
+      expect(aptInstallDocker).toContain(
+        'apt-get -o DPkg::Lock::Timeout=300 install -y -qq docker-ce docker-ce-cli containerd.io'
+      );
+      expect(aptInstallDocker).toContain('DEBIAN_FRONTEND=noninteractive');
+
+      // Toda invocación a apt-get espera el lock de dpkg (DPkg::Lock::Timeout).
+      const aptCommands = commands.filter((c) => c.includes('apt-get'));
+      expect(aptCommands.length).toBeGreaterThan(0);
+      aptCommands.forEach((c) => {
+        expect(c).toContain('DPkg::Lock::Timeout');
+      });
+
+      // FRA-76: antes de la primera operación apt corre un guard que espera a
+      // que se libere el lock de dpkg/cloud-init.
+      const guardIdx = commands.findIndex((c) => c.includes('lock-frontend'));
+      const firstAptIdx = commands.findIndex((c) => c.includes('apt-get'));
+      expect(guardIdx).toBeGreaterThanOrEqual(0);
+      expect(firstAptIdx).toBeGreaterThanOrEqual(0);
+      expect(guardIdx).toBeLessThan(firstAptIdx);
     });
   });
 
   describe('install - Prerequisites', () => {
     it('should install prerequisites when checkPrerequisites is true', async () => {
-      vi.mocked(mockSshClient.executeCommand)
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'not_installed',
-          stderr: '',
-        })
-        // installPrerequisites
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        // Rest of installation...
-        .mockResolvedValue({ success: true, stdout: '', stderr: '', exitCode: 0 });
+      const commands: string[] = [];
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          commands.push(cmd);
+          if (cmd.includes('docker --version')) {
+            return { success: true, exitCode: 0, stdout: 'not_installed', stderr: '' };
+          }
+          if (cmd.includes('docker compose version')) {
+            return { success: true, exitCode: 0, stdout: 'not_installed', stderr: '' };
+          }
+          if (cmd.includes('is-active')) {
+            return { success: true, exitCode: 0, stdout: 'active', stderr: '' };
+          }
+          return { success: true, exitCode: 0, stdout: '', stderr: '' };
+        }
+      );
 
       const result = await installer.install({ checkPrerequisites: true });
 
       expect(result.steps).toContain('Prerequisites instalados');
+
+      // FRA-76: el apt-get de prerequisites también lleva el lock timeout y
+      // corre no interactivo.
+      const prereq = commands.find((c) => c.includes('ca-certificates curl gnupg'));
+      expect(prereq).toContain(
+        'apt-get -o DPkg::Lock::Timeout=300 install -y -qq ca-certificates curl gnupg'
+      );
+      expect(prereq).toContain('DEBIAN_FRONTEND=noninteractive');
     });
 
-    it('should fail if prerequisites installation fails', async () => {
-      vi.mocked(mockSshClient.executeCommand)
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'not_installed',
-          stderr: '',
-        })
-        // installPrerequisites fails
-        .mockResolvedValueOnce({ success: false, stdout: '', stderr: 'Error', exitCode: 1 });
+    it('should fail if prerequisites installation fails and surface the real error', async () => {
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          if (cmd.includes('docker --version')) {
+            return { success: true, exitCode: 0, stdout: 'not_installed', stderr: '' };
+          }
+          if (cmd.includes('ca-certificates curl gnupg')) {
+            return {
+              success: false,
+              exitCode: 100,
+              stdout: '',
+              stderr: 'E: Could not get lock /var/lib/dpkg/lock-frontend',
+            };
+          }
+          return { success: true, exitCode: 0, stdout: '', stderr: '' };
+        }
+      );
 
       const result = await installer.install({ checkPrerequisites: true });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('prerequisites');
+      // El stderr real del apt remoto sube al error, no se traga (FRA-76).
+      expect(result.error).toContain('Could not get lock');
+      expect(result.error).toContain('comando:');
     });
   });
 
   describe('install - Error handling', () => {
-    it('should fail gracefully if Docker Engine installation fails', async () => {
-      vi.mocked(mockSshClient.executeCommand)
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: 'not_installed',
-          stderr: '',
-        })
-        // addDockerRepository succeeds
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        .mockResolvedValueOnce({ success: true, stdout: '', stderr: '', exitCode: 0 })
-        // installDockerEngine fails
-        .mockResolvedValueOnce({
-          success: false,
-          exitCode: 1,
-          stdout: '',
-          stderr: 'Installation failed',
-        });
+    it('should fail gracefully if Docker Engine installation fails and surface the real error', async () => {
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          if (cmd.includes('docker --version')) {
+            return { success: true, exitCode: 0, stdout: 'not_installed', stderr: '' };
+          }
+          if (cmd.includes('docker-ce docker-ce-cli')) {
+            return {
+              success: false,
+              exitCode: 100,
+              stdout: '',
+              stderr: 'E: Unable to acquire the dpkg frontend lock',
+            };
+          }
+          return { success: true, exitCode: 0, stdout: '', stderr: '' };
+        }
+      );
 
       const result = await installer.install();
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Docker Engine');
+      // FRA-76: el error remoto real (comando + stderr de apt) sube al mensaje.
+      expect(result.error).toContain('Unable to acquire the dpkg frontend lock');
+      expect(result.error).toContain('comando:');
     });
 
     it('should fail if Docker service cannot be started', async () => {

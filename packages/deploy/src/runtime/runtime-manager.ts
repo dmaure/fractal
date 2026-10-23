@@ -87,16 +87,21 @@ export class RuntimeManager {
       );
 
       if (!dockerResult.success) {
+        // FRA-76: incluir el error REAL del instalador (comando + stderr) en el
+        // mensaje y en el estado, en vez del genérico que ocultaba la causa.
+        const dockerError = dockerResult.error
+          ? `Falló la instalación de Docker: ${dockerResult.error}`
+          : 'Falló la instalación de Docker';
         await this.stateManager.markStep(
           'runtime',
           'failed',
           configHash,
-          'Falló la instalación de Docker'
+          dockerError
         );
         return {
           success: false,
           dockerInstall: dockerResult,
-          error: 'Falló la instalación de Docker',
+          error: dockerError,
         };
       }
 

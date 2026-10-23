@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SshConfig } from './types.js';
+import { SshClient } from './client.js';
 
 describe('SshClient', () => {
   describe('types', () => {
@@ -71,6 +72,19 @@ describe('SshClient', () => {
       // También debe aceptar undefined (timeout opcional)
       const noOptions: ExecuteCommandOptions = undefined;
       expect(noOptions).toBeUndefined();
+    });
+  });
+
+  describe('getKnownHostsLine (FRA-76)', () => {
+    it('devuelve undefined antes de verificar la clave de un host', () => {
+      const client = new SshClient({
+        host: '203.0.113.10',
+        username: 'deploy',
+        password: 'secret',
+      });
+
+      // Todavía no se conectó ni verificó ninguna clave: no hay línea capturada.
+      expect(client.getKnownHostsLine()).toBeUndefined();
     });
   });
 

@@ -7,13 +7,32 @@ import { spawn } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { SshConfig, SshCommandResult } from './types.js';
-import { verifyHostKeyAgainstKnownHosts } from './host-key.js';
+import {
+  verifyHostKeyAgainstKnownHosts,
+  parsePresentedKey,
+  formatKnownHostsLine,
+} from './host-key.js';
 
 /**
  * Directorios/archivos excluidos por defecto al subir un proyecto: se
  * regeneran dentro de la imagen o no deben viajar al servidor.
+ *
+ * `.env` y `.env.*` (p.ej. `.env.production`, `.env.local`) se excluyen SIEMPRE
+ * (FRA-76): los archivos de entorno locales del desarrollador no deben
+ * empaquetarse ni extraerse sobre el servidor. Incluye `.env.example`, que a
+ * propósito tampoco se envía: el `.env` de producción —que contiene
+ * `DB_PASSWORD`— vive solo en `/home/deploy/.env`, lo genera
+ * `runtime-manager.ts` (`ensureDbPasswordEnv`) DESPUÉS de la subida, y al no
+ * viajar en el tar la subida nunca lo pisa.
  */
-const DEFAULT_UPLOAD_EXCLUDES = ['.git', 'node_modules', 'vendor', 'dist'];
+const DEFAULT_UPLOAD_EXCLUDES = [
+  '.git',
+  'node_modules',
+  'vendor',
+  'dist',
+  '.env',
+  '.env.*',
+];
 
 /**
  * Cliente SSH para conexión y ejecución de comandos remotos.
@@ -22,7 +41,13 @@ const DEFAULT_UPLOAD_EXCLUDES = ['.git', 'node_modules', 'vendor', 'dist'];
 export class SshClient {
   private config: SshConfig;
   private hostKeyError?: string;
-  
+  /**
+   * Línea estilo known_hosts (equivalente a la salida de ssh-keyscan) de la
+   * clave del host verificada en la última conexión aceptada. La consume el
+   * CLI para imprimir el valor real del secret SSH_KNOWN_HOSTS (FRA-76).
+   */
+  private knownHostsLine?: string;
+
   constructor(config: SshConfig) {
     this.config = {
       ...config,
@@ -37,6 +62,16 @@ export class SshClient {
     const error = this.hostKeyError;
     this.hostKeyError = undefined;
     return error;
+  }
+
+  /**
+   * Devuelve la línea known_hosts (formato ssh-keyscan: `host tipo base64`) de
+   * la clave del host verificada en la última conexión aceptada, o `undefined`
+   * si todavía no se verificó ninguna. El CLI la usa para imprimir el valor
+   * real del secret SSH_KNOWN_HOSTS en vez de solo describirlo (FRA-76).
+   */
+  getKnownHostsLine(): string | undefined {
+    return this.knownHostsLine;
   }
 
   /**
@@ -468,7 +503,21 @@ export class SshClient {
         onUnknownHost: this.config.onUnknownHost,
       });
 
-      if (!result.accepted) {
+      if (result.accepted) {
+        // Capturar la línea known_hosts de la clave aceptada (TOFU o match), el
+        // mismo valor que ssh-keyscan produciría, para surtir el secret
+        // SSH_KNOWN_HOSTS (FRA-76). Si no se puede formatear, no es fatal.
+        try {
+          const presented = parsePresentedKey(key);
+          this.knownHostsLine = formatKnownHostsLine(
+            this.config.host,
+            this.config.port ?? 22,
+            presented
+          );
+        } catch {
+          // Ignorar: la línea es best-effort; la conexión ya fue aceptada.
+        }
+      } else {
         this.hostKeyError = result.error;
       }
 

@@ -203,8 +203,38 @@ async function writeCrossVarsToDisk(
 }
 
 /**
+ * Construye las líneas a imprimir para el secret `SSH_KNOWN_HOSTS` en el
+ * resumen de secrets (FRA-76).
+ *
+ * Si durante el deploy se capturó la línea known_hosts real del servidor (el
+ * mismo valor que produce `ssh-keyscan`, vía la verificación TOFU del host),
+ * se imprime como VALOR listo para copiar tal cual al secret. Si no se pudo
+ * capturar, se cae a imprimir el comando exacto para obtenerla y la aclaración
+ * de que hay que cargar la salida COMPLETA.
+ *
+ * @param serverIp IP del servidor (para el comando ssh-keyscan de fallback)
+ * @param knownHostsLine Línea known_hosts capturada, si está disponible
+ */
+export function formatKnownHostsSecretHelp(
+  serverIp: string,
+  knownHostsLine?: string
+): string[] {
+  if (knownHostsLine) {
+    return [
+      'Valor (copiá esta línea tal cual como valor del secret):',
+      knownHostsLine,
+    ];
+  }
+
+  return [
+    `Obtené el valor ejecutando: ssh-keyscan -t ed25519,rsa,ecdsa ${serverIp}`,
+    'Cargá la salida COMPLETA (todas las líneas) como valor del secret.',
+  ];
+}
+
+/**
  * Comando `fractal deploy`.
- * 
+ *
  * Recolecta datos del servidor, valida conectividad SSH,
  * distribución compatible y recursos mínimos.
  * Ejecuta hardening, runtime setup y DNS.
@@ -965,10 +995,21 @@ export async function deployCommand(
       
       // Imprimir secrets requeridos
       if (generationResult.secrets.length > 0) {
+        // FRA-76: para SSH_KNOWN_HOSTS imprimimos su VALOR real (la línea
+        // known_hosts capturada al verificar la clave del host durante el
+        // deploy), o el comando ssh-keyscan exacto si no se pudo capturar.
+        const knownHostsLine =
+          deployClient.getKnownHostsLine() ?? sshClient.getKnownHostsLine();
+
         console.log(chalk.blue('\n🔐 Secrets requeridos para este repositorio:'));
         for (const secret of generationResult.secrets) {
           console.log(chalk.white(`   ${secret.name}`));
           console.log(chalk.dim(`      ${secret.description}`));
+          if (secret.name === 'SSH_KNOWN_HOSTS') {
+            for (const line of formatKnownHostsSecretHelp(params.serverIp, knownHostsLine)) {
+              console.log(chalk.dim(`      ${line}`));
+            }
+          }
         }
       }
       

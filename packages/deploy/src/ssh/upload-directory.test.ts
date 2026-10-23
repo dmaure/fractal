@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mkdtemp, writeFile, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { SshClient } from './client.js';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Tests de SshClient.uploadDirectory (FRA-70 / FRA-73). ssh2 se mockea por
@@ -22,6 +26,9 @@ const state = vi.hoisted(() => ({
   // Si es true, el stream nunca emite 'close': simula una transferencia colgada
   // para ejercitar el presupuesto total de la subida.
   hangExec: false,
+  // Chunks que el código vuelca por stdin (el tarball gzip). Se capturan para
+  // poder inspeccionar qué quedó empaquetado (p.ej. excluir .env).
+  writtenChunks: [] as Buffer[],
 }));
 
 vi.mock('ssh2', async () => {
@@ -29,12 +36,22 @@ vi.mock('ssh2', async () => {
 
   // Stream dúplex falso: `on`/`emit` vienen de EventEmitter y agregamos
   // `write`/`end` para que `readStream.pipe(stream)` lo acepte como destino.
+  // `write` acumula el tarball que el código vuelca por stdin, y `end` emite
+  // 'close' recién cuando el pipe terminó de escribir (comportamiento más
+  // realista: el canal cierra tras recibir todo el stream).
   class FakeStream extends EventEmitter {
     stderr = new EventEmitter();
-    write(): boolean {
+    write(chunk: Buffer | string): boolean {
+      state.writtenChunks.push(Buffer.from(chunk as Buffer));
       return true;
     }
-    end(): void {}
+    end(chunk?: Buffer | string): void {
+      if (chunk) {
+        state.writtenChunks.push(Buffer.from(chunk as Buffer));
+      }
+      if (state.hangExec) return; // nunca emite 'close': fuerza el timeout total
+      setImmediate(() => this.emit('close', state.execCloseCode));
+    }
   }
 
   class Client extends EventEmitter {
@@ -55,8 +72,7 @@ vi.mock('ssh2', async () => {
 
       const stream = new FakeStream();
       cb(null, stream);
-      if (state.hangExec) return; // nunca emite 'close': fuerza el timeout total
-      setImmediate(() => stream.emit('close', state.execCloseCode));
+      // El 'close' lo dispara FakeStream.end() cuando el pipe termina.
     }
 
     end(): void {}
@@ -84,6 +100,7 @@ describe('SshClient.uploadDirectory', () => {
     state.execCloseCode = 0;
     state.transportFailures = 0;
     state.hangExec = false;
+    state.writtenChunks = [];
 
     localDir = await mkdtemp(join(tmpdir(), 'fractal-upload-src-'));
     await writeFile(join(localDir, 'app.txt'), 'contenido');
@@ -161,6 +178,32 @@ describe('SshClient.uploadDirectory', () => {
 
     await rm(localDir, { recursive: true, force: true });
   }, 15_000);
+
+  it('excluye .env y .env.* del tarball para no pisar el .env del servidor (FRA-76)', async () => {
+    // El dev tiene archivos de entorno locales: no deben viajar al servidor.
+    await writeFile(join(localDir, '.env'), 'DB_PASSWORD=local-secret');
+    await writeFile(join(localDir, '.env.production'), 'DB_PASSWORD=prod-local');
+    await writeFile(join(localDir, '.env.local'), 'FOO=bar');
+
+    const client = makeClient();
+    const result = await client.uploadDirectory(localDir, '/home/deploy');
+
+    expect(result.success).toBe(true);
+
+    // Reconstruir el tarball que el código volcó por stdin y listar sus miembros.
+    const tarball = join(await mkdtemp(join(tmpdir(), 'fractal-upload-out-')), 'upload.tar.gz');
+    await writeFile(tarball, Buffer.concat(state.writtenChunks));
+    const { stdout } = await execFileAsync('tar', ['-tzf', tarball]);
+    const members = stdout.split('\n').map((m) => m.trim()).filter(Boolean);
+
+    // app.txt sí viaja; ningún .env lo hace.
+    expect(members).toContain('./app.txt');
+    const envMembers = members.filter((m) => /(^|\/)\.env(\.|$)/.test(m));
+    expect(envMembers).toEqual([]);
+
+    await rm(join(tarball, '..'), { recursive: true, force: true });
+    await rm(localDir, { recursive: true, force: true });
+  });
 
   it('respeta el timeoutMs propio de la subida (independiente del readyTimeout)', async () => {
     // La transferencia se cuelga; el presupuesto de la subida (10ms) debe
