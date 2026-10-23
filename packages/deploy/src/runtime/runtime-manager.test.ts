@@ -373,6 +373,37 @@ describe('RuntimeManager', () => {
       expect(envCmd).not.toMatch(/DB_PASSWORD=[0-9a-f]{48}/);
     });
 
+    it('escribe la DB_PASSWORD provista por el wizard en base64, sin openssl ni .env local', async () => {
+      const commands: string[] = [];
+      vi.mocked(mockSshClient.executeCommand).mockImplementation(
+        async (cmd: string) => {
+          commands.push(cmd);
+          return {
+            success: true,
+            stdout: 'Docker version 24.0.7\nDocker Compose version v2.24.5',
+            stderr: '',
+            exitCode: 0,
+          };
+        }
+      );
+
+      const provided = 'wizard-db-pass-123';
+      await manager.setup({
+        compose: {
+          runtime: createBackendFullRuntime(),
+          projectName: 'fractale2e',
+          outputPath: '/home/deploy/docker-compose.yml',
+        },
+        dbPassword: provided,
+      });
+
+      const envCmd = commands.find((c) => c.includes('ENV_FILE='));
+      expect(envCmd).toBeDefined();
+      expect(envCmd).toContain('base64 -d');
+      expect(envCmd).not.toContain('openssl rand');
+      expect(envCmd).not.toContain(`DB_PASSWORD=${provided}`);
+    });
+
     it('no escribe .env si el runtime no declara servicio db', async () => {
       const commands: string[] = [];
       vi.mocked(mockSshClient.executeCommand).mockImplementation(
