@@ -1,14 +1,24 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { confirm, input, password, select } from '@inquirer/prompts';
 import {
   generateDbPassword,
   loadNewWizardFromEnvAndFlags,
   NonInteractiveConfigError,
   NEW_ENV_MAPPING,
+  promptNewWizard,
   resolveWizardMode,
+  resolveWizardRemoteUrl,
   SSH_AUTH_GAPS,
   formatDeployEnvExports,
 } from './new-wizard.js';
 import type { NewCommandOptions } from '../types/new-command.js';
+
+vi.mock('@inquirer/prompts', () => ({
+  input: vi.fn(),
+  select: vi.fn(),
+  password: vi.fn(),
+  confirm: vi.fn(),
+}));
 
 const ENV_KEYS = [
   'FRACTAL_NEW_PROJECT_NAME',
@@ -234,7 +244,209 @@ describe('formatDeployEnvExports', () => {
     expect(blob).not.toContain('SECRET');
     expect(blob).not.toContain('db-secret');
   });
+
+  it('sin remote no inventa github.com/OWNER', () => {
+    const lines = formatDeployEnvExports({
+      projectName: 'demo',
+      topology: 'monolith',
+      serverIp: '192.0.2.10',
+      sshUser: 'root',
+      authMethod: 'key',
+      sshKeyPath: '/tmp/id',
+      domain: 'example.com',
+      email: 'a@example.com',
+      dnsProvider: 'manual',
+      productionBranch: 'main',
+      githubRepo: 'demo',
+      githubVisibility: 'private',
+      dbPassword: 'db-secret',
+      dbPasswordGenerated: true,
+      chainDeploy: false,
+    });
+    expect(lines.join('\n')).not.toContain('OWNER');
+    expect(lines.join('\n')).not.toContain('GIT_REPOSITORY');
+  });
 });
 
-// silenciar unused vi en este archivo si el runner no lo usa
-void vi;
+describe('resolveWizardRemoteUrl', () => {
+  it('usa gitRepository cuando existe', () => {
+    expect(
+      resolveWizardRemoteUrl({
+        gitRepository: 'https://github.com/acme/demo.git',
+        githubRepo: 'demo',
+      })
+    ).toBe('https://github.com/acme/demo.git');
+  });
+
+  it('arma la URL solo si hay owner y repo', () => {
+    expect(
+      resolveWizardRemoteUrl({ githubOwner: 'acme', githubRepo: 'demo' })
+    ).toBe('https://github.com/acme/demo.git');
+  });
+
+  it('no inventa github.com/OWNER/<repo> si falta owner', () => {
+    expect(resolveWizardRemoteUrl({ githubRepo: 'demo' })).toBeUndefined();
+    expect(resolveWizardRemoteUrl({ githubOwner: '', githubRepo: 'demo' })).toBeUndefined();
+  });
+});
+
+interface PromptConfig {
+  message: string;
+  description?: string;
+  choices?: Array<{ value: string; name: string; description?: string }>;
+}
+
+interface InteractiveAnswers {
+  serverIp: string;
+  sshUser: string;
+  authMethod: 'key' | 'password';
+  sshKeyPath: string;
+  domain: string;
+  email: string;
+  dnsProvider: 'cloudflare' | 'route53' | 'manual';
+  githubToken: string;
+  githubOwner: string;
+  dbPasswordMode: 'generate' | 'ask';
+  dbPassword: string;
+  chainDeploy: boolean;
+  projectName?: string;
+  topology?: 'monolith' | 'monorepo' | 'multirepo';
+}
+
+const INTERACTIVE_DEFAULTS: InteractiveAnswers = {
+  serverIp: '192.0.2.10',
+  sshUser: 'root',
+  authMethod: 'key',
+  sshKeyPath: '~/.ssh/id_ed25519',
+  domain: 'app.example.com',
+  email: 'ops@example.com',
+  dnsProvider: 'manual',
+  githubToken: '',
+  githubOwner: '',
+  dbPasswordMode: 'generate',
+  dbPassword: 'typed-db-password',
+  chainDeploy: false,
+};
+
+function setupInteractivePrompts(overrides: Partial<InteractiveAnswers> = {}): {
+  answers: InteractiveAnswers;
+  order: string[];
+} {
+  const answers = { ...INTERACTIVE_DEFAULTS, ...overrides };
+  const order: string[] = [];
+
+  vi.mocked(input).mockImplementation(((config: PromptConfig) => {
+    order.push(`input:${config.message}`);
+    if (config.message.includes('Nombre del proyecto')) {
+      return Promise.resolve(answers.projectName ?? 'demo');
+    }
+    if (config.message.includes('IP')) return Promise.resolve(answers.serverIp);
+    if (config.message.includes('Usuario SSH')) return Promise.resolve(answers.sshUser);
+    if (config.message.includes('clave privada')) return Promise.resolve(answers.sshKeyPath);
+    if (config.message.includes('Dominio')) return Promise.resolve(answers.domain);
+    if (config.message.includes('Email')) return Promise.resolve(answers.email);
+    if (config.message.includes('Owner de GitHub')) return Promise.resolve(answers.githubOwner);
+    throw new Error(`input() inesperado: ${config.message}`);
+  }) as unknown as typeof input);
+
+  vi.mocked(select).mockImplementation(((config: PromptConfig) => {
+    order.push(`select:${config.message}`);
+    if (config.message.includes('topología')) return Promise.resolve(answers.topology ?? 'monolith');
+    if (config.message.includes('autenticación')) return Promise.resolve(answers.authMethod);
+    if (config.message.includes('Proveedor DNS')) return Promise.resolve(answers.dnsProvider);
+    if (config.message.includes('Contraseña de la base de datos de producción')) {
+      return Promise.resolve(answers.dbPasswordMode);
+    }
+    throw new Error(`select() inesperado: ${config.message}`);
+  }) as unknown as typeof select);
+
+  vi.mocked(password).mockImplementation(((config: PromptConfig) => {
+    order.push(`password:${config.message}`);
+    if (config.message.includes('Token de GitHub')) return Promise.resolve(answers.githubToken);
+    if (config.message.includes('Contraseña de la base de datos')) {
+      return Promise.resolve(answers.dbPassword);
+    }
+    throw new Error(`password() inesperado: ${config.message}`);
+  }) as unknown as typeof password);
+
+  vi.mocked(confirm).mockImplementation(((config: PromptConfig) => {
+    order.push(`confirm:${config.message}`);
+    if (config.message.includes('fractal deploy')) return Promise.resolve(answers.chainDeploy);
+    throw new Error(`confirm() inesperado: ${config.message}`);
+  }) as unknown as typeof confirm);
+
+  return { answers, order };
+}
+
+describe('promptNewWizard (rama interactiva, AC-12)', () => {
+  beforeEach(() => {
+    clearEnv();
+    vi.clearAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(clearEnv);
+
+  it('pregunta el set no-defaultable en orden, token opcional y repo = nombre', async () => {
+    const { order } = setupInteractivePrompts({ githubToken: '' });
+
+    const params = await promptNewWizard('demo-app', { topology: 'monolith' });
+
+    expect(order).toEqual([
+      'input:Dirección IP del VPS:',
+      'input:Usuario SSH:',
+      'select:Método de autenticación SSH:',
+      'input:Ruta a la clave privada SSH:',
+      'input:Dominio de la aplicación:',
+      'input:Email para notificaciones SSL (Let\'s Encrypt):',
+      'select:Proveedor DNS:',
+      'password:Token de GitHub para crear el repo (Enter para omitir):',
+      'select:Contraseña de la base de datos de producción:',
+      'confirm:¿Ejecutar fractal deploy ahora con estos valores?',
+    ]);
+    expect(params.projectName).toBe('demo-app');
+    expect(params.topology).toBe('monolith');
+    expect(params.githubToken).toBeUndefined();
+    expect(params.githubRepo).toBe('demo-app');
+    expect(params.githubOwner).toBeUndefined();
+    expect(params.serverIp).toBe('192.0.2.10');
+    expect(params.domain).toBe('app.example.com');
+    expect(order.some((step) => step.includes('Owner de GitHub'))).toBe(false);
+  });
+
+  it('generate-or-ask: generate produce 48 hex y marca dbPasswordGenerated', async () => {
+    setupInteractivePrompts({ dbPasswordMode: 'generate' });
+
+    const params = await promptNewWizard('demo', { topology: 'monolith' });
+
+    const dbSelect = vi.mocked(select).mock.calls.find(([config]) =>
+      (config as PromptConfig).message.includes('Contraseña de la base de datos de producción')
+    );
+    expect(dbSelect).toBeDefined();
+    const generate = (dbSelect![0] as PromptConfig).choices?.find((choice) => choice.value === 'generate');
+    expect(generate?.description).toMatch(/48 caracteres hex/);
+    expect(params.dbPassword).toMatch(/^[0-9a-f]{48}$/);
+    expect(params.dbPasswordGenerated).toBe(true);
+    expect(vi.mocked(password).mock.calls.some(([config]) =>
+      (config as PromptConfig).message === 'Contraseña de la base de datos:'
+    )).toBe(false);
+  });
+
+  it('generate-or-ask: ask usa la contraseña ingresada y no genera', async () => {
+    setupInteractivePrompts({ dbPasswordMode: 'ask', dbPassword: 'manual-secret' });
+
+    const params = await promptNewWizard('demo', { topology: 'monolith' });
+
+    expect(params.dbPassword).toBe('manual-secret');
+    expect(params.dbPasswordGenerated).toBe(false);
+  });
+
+  it('con token pregunta owner y no defaulta el token', async () => {
+    setupInteractivePrompts({ githubToken: 'ghp_from_prompt', githubOwner: 'acme' });
+
+    const params = await promptNewWizard('demo', { topology: 'monolith' });
+
+    expect(params.githubToken).toBe('ghp_from_prompt');
+    expect(params.githubOwner).toBe('acme');
+  });
+});

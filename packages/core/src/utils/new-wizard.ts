@@ -12,6 +12,7 @@ import {
   validateEmail,
   validateIpv4,
 } from './param-validators.js';
+import { githubHttpsUrl } from './github-repo.js';
 import { promptTopology } from './prompts.js';
 
 /**
@@ -131,7 +132,7 @@ async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGener
       {
         value: 'generate',
         name: 'Generar una contraseña segura ahora',
-        description: '32 caracteres hex (equivalente a openssl rand -hex 24)',
+        description: '48 caracteres hex (equivalente a openssl rand -hex 24)',
       },
       {
         value: 'ask',
@@ -462,6 +463,22 @@ export async function collectNewWizardParams(
     return loadNewWizardFromEnvAndFlags(projectName, options);
   }
   return promptNewWizard(projectName, options);
+}
+
+/**
+ * URL del remoto para encadenar deploy o para los exports.
+ * No inventa `github.com/OWNER/<repo>`: sin owner ni URL conocida, undefined.
+ */
+export function resolveWizardRemoteUrl(
+  params: Pick<NewWizardParams, 'gitRepository' | 'githubOwner' | 'githubRepo'>
+): string | undefined {
+  if (params.gitRepository) {
+    return params.gitRepository;
+  }
+  if (params.githubOwner && params.githubRepo) {
+    return githubHttpsUrl(params.githubOwner, params.githubRepo);
+  }
+  return undefined;
 }
 
 export function formatDeployEnvExports(params: NewWizardParams, gitRepository?: string): string[] {
