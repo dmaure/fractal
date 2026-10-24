@@ -18,11 +18,11 @@ import {
   promptProjectName,
   resolveProjectName,
   resolveWizardMode,
+  resolveWizardRemoteUrl,
   SSH_AUTH_GAPS,
 } from '../utils/new-wizard.js';
 import {
   createGitHubRepository,
-  githubHttpsUrl,
   GitHubApiError,
   pushRepositoryToGitHub,
   readPrivateKeyForSecret,
@@ -340,6 +340,14 @@ async function provisionGitHub(
               }`
             )
           );
+          console.error(
+            chalk.yellow(
+              `   ⚠️  El remoto ${created.owner}/${created.name} quedó vacío (sin código).`
+            )
+          );
+          console.log(chalk.dim('      Recuperá el push con:'));
+          console.log(chalk.dim(`        cd ${spec.dir}`));
+          console.log(chalk.dim(`        git push -u origin ${wizard.productionBranch}`));
         }
       }
     }
@@ -499,7 +507,7 @@ function printHandoff(
       console.log(chalk.dim('\n  Para reusar estos valores en fractal deploy --non-interactive:'));
       for (const line of formatDeployEnvExports(
         wizard,
-        createdRepos[0]?.cloneUrl ?? githubHttpsUrl(wizard.githubOwner || 'OWNER', wizard.githubRepo)
+        createdRepos[0]?.cloneUrl ?? resolveWizardRemoteUrl(wizard)
       )) {
         console.log(chalk.dim(`    export ${line}`));
       }
@@ -508,7 +516,11 @@ function printHandoff(
   }
 }
 
-function wizardToDeployParams(wizard: NewWizardParams): DeployParams {
+function wizardToDeployParams(wizard: NewWizardParams): DeployParams | undefined {
+  const gitRepository = resolveWizardRemoteUrl(wizard);
+  if (!gitRepository) {
+    return undefined;
+  }
   return {
     serverIp: wizard.serverIp,
     sshUser: wizard.sshUser,
@@ -519,7 +531,7 @@ function wizardToDeployParams(wizard: NewWizardParams): DeployParams {
     email: wizard.email,
     dnsProvider: wizard.dnsProvider,
     dnsApiToken: wizard.dnsApiToken,
-    gitRepository: wizard.gitRepository || githubHttpsUrl(wizard.githubOwner || 'OWNER', wizard.githubRepo),
+    gitRepository,
     productionBranch: wizard.productionBranch,
     dbPassword: wizard.dbPassword,
   };
@@ -538,6 +550,17 @@ async function chainToDeploy(
     return;
   }
 
+  const deployParams = wizardToDeployParams(wizard);
+  if (!deployParams) {
+    console.log(
+      chalk.yellow(
+        '\n⚠️  No se encadena fractal deploy: falta owner o URL del repositorio Git.'
+      )
+    );
+    console.log(chalk.dim('   Pasá --github-owner o conectá origin a mano y corré fractal deploy.'));
+    return;
+  }
+
   const projectDir = params.targetDir;
   const previousCwd = process.cwd();
   process.chdir(projectDir);
@@ -547,7 +570,7 @@ async function chainToDeploy(
     const { deployCommand } = await import('./deploy.js');
     await deployCommand({
       nonInteractive: true,
-      prefilledParams: wizardToDeployParams(wizard),
+      prefilledParams: deployParams,
       dbPassword: wizard.dbPassword,
     });
   } finally {
