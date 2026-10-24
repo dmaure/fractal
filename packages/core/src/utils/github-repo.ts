@@ -1,8 +1,9 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { execSync } from 'node:child_process';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const execFileAsync = promisify(execFile);
 
@@ -263,28 +264,113 @@ export async function readPrivateKeyForSecret(
   }
 }
 
+const SAFE_GIT_BRANCH = /^[A-Za-z0-9._/-]+$/;
+
+export type ExecFileSyncFn = typeof execFileSync;
+
 /**
- * Agrega origin sin embeber el token y pushea con header de autorización.
- * El remote queda como HTTPS limpia (el token no se persiste).
+ * Redacta el token si apareciera en un error de git (stderr, spawnargs).
+ * El push no lo pone en argv; esto es red de seguridad para logs.
+ */
+export function redactGitHubToken(text: string, token: string): string {
+  if (!token) {
+    return text;
+  }
+  return text.split(token).join('***');
+}
+
+function writeGitAskpassScript(dir: string): string {
+  const askpassPath = join(dir, 'askpass.cjs');
+  writeFileSync(
+    askpassPath,
+    [
+      `#!${process.execPath}`,
+      `'use strict';`,
+      `const fs = require('fs');`,
+      `const prompt = process.argv.slice(2).join(' ');`,
+      `if (/username/i.test(prompt)) {`,
+      `  process.stdout.write('x-access-token');`,
+      `} else {`,
+      `  const encoded = fs.readFileSync(process.env.FRACTAL_GIT_ASKPASS_TOKEN_FILE, 'utf8');`,
+      `  process.stdout.write(Buffer.from(encoded.trim(), 'base64').toString('utf8'));`,
+      `}`,
+      ``,
+    ].join('\n'),
+    { mode: 0o700 }
+  );
+  return askpassPath;
+}
+
+/**
+ * Pasa el token por archivo base64 + GIT_ASKPASS (mismo criterio que la
+ * DB password en runtime-manager: el secreto no viaja en argv).
+ */
+function withGitAskpass<T>(token: string, fn: (env: NodeJS.ProcessEnv) => T): T {
+  const dir = mkdtempSync(join(tmpdir(), 'fractal-git-askpass-'));
+  const tokenFile = join(dir, 'token.b64');
+  writeFileSync(tokenFile, Buffer.from(token, 'utf8').toString('base64'), { mode: 0o600 });
+  const askpassPath = writeGitAskpassScript(dir);
+  try {
+    return fn({
+      ...process.env,
+      GIT_ASKPASS: askpassPath,
+      GIT_TERMINAL_PROMPT: '0',
+      FRACTAL_GIT_ASKPASS_TOKEN_FILE: tokenFile,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function runGit(
+  args: string[],
+  options: { cwd: string; env?: NodeJS.ProcessEnv },
+  token: string,
+  execFile: ExecFileSyncFn
+): void {
+  try {
+    execFile('git', args, {
+      cwd: options.cwd,
+      stdio: 'pipe',
+      env: options.env,
+    });
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+    throw new Error(redactGitHubToken(raw, token));
+  }
+}
+
+/**
+ * Agrega origin sin embeber el token y pushea con GIT_ASKPASS.
+ * El remote queda como HTTPS limpia (el token no se persiste ni va en argv).
  */
 export function pushRepositoryToGitHub(
   repoDir: string,
   cloneUrl: string,
   token: string,
-  branch = 'main'
+  branch = 'main',
+  execFile: ExecFileSyncFn = execFileSync
 ): void {
-  execSync(`git branch -M ${branch}`, { cwd: repoDir, stdio: 'pipe' });
+  if (!SAFE_GIT_BRANCH.test(branch)) {
+    throw new Error(`Rama inválida: ${branch}`);
+  }
+
+  runGit(['branch', '-M', branch], { cwd: repoDir }, token, execFile);
 
   try {
-    execSync('git remote remove origin', { cwd: repoDir, stdio: 'pipe' });
+    runGit(['remote', 'remove', 'origin'], { cwd: repoDir }, token, execFile);
   } catch {
     // no había origin
   }
-  execSync(`git remote add origin ${cloneUrl}`, { cwd: repoDir, stdio: 'pipe' });
+  runGit(['remote', 'add', 'origin', cloneUrl], { cwd: repoDir }, token, execFile);
 
-  execSync(`git -c http.extraHeader="AUTHORIZATION: bearer ${token}" push -u origin HEAD:${branch}`, {
-    cwd: repoDir,
-    stdio: 'pipe',
+  withGitAskpass(token, (env) => {
+    runGit(
+      ['-c', 'credential.helper=', 'push', '-u', 'origin', `HEAD:${branch}`],
+      { cwd: repoDir, env },
+      token,
+      execFile
+    );
   });
 }
 
