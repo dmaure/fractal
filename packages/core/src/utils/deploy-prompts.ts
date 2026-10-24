@@ -1,5 +1,23 @@
 import { input, select, password, confirm } from '@inquirer/prompts';
 import type { DeployParams, DnsProvider, SshAuthMethod } from '../types/deploy-command.js';
+import {
+  validateDomain,
+  validateEmail,
+  validateGitUrl,
+  validateIpv4,
+} from './param-validators.js';
+
+export interface PromptDeployOptions {
+  /** Si debe preguntar por el repositorio hermano (multirepo). */
+  askSiblingInfo?: boolean;
+  /** Rol del repositorio actual (api o web), si existe. */
+  currentRole?: 'api' | 'web';
+  /**
+   * Omite URL git y rama de producción. Lo usa `fractal new` cuando el
+   * remoto se crea con el token de GitHub (FRA-77).
+   */
+  skipGitRepository?: boolean;
+}
 
 const DNS_PROVIDER_OPTIONS = [
   {
@@ -41,28 +59,22 @@ interface UnknownHostPromptInfo {
 
 /**
  * Recolecta todos los datos necesarios para el deploy vía prompts interactivos.
- * 
- * @param askSiblingInfo Si debe preguntar por el repositorio hermano (multirepo con orchestration_state: pending o --reconfigure)
- * @param currentRole Rol del repositorio actual (api o web), si existe
+ *
+ * La firma posicional (`askSiblingInfo`, `currentRole`) se mantiene para no
+ * romper callers existentes; el tercer argumento opcional lo usa `fractal new`.
  */
 export async function promptDeployParams(
   askSiblingInfo = false,
-  currentRole?: 'api' | 'web'
+  currentRole?: 'api' | 'web',
+  options: PromptDeployOptions = {}
 ): Promise<DeployParams> {
+  const skipGitRepository = options.skipGitRepository === true;
+
   console.log('Configuración del servidor VPS\n');
   
   const serverIp = await input({
     message: 'Dirección IP del VPS:',
-    validate: (value) => {
-      if (!value.trim()) return 'La dirección IP es requerida';
-      // Validación de formato IPv4 con octetos acotados a 0-255
-      const ipRegex =
-        /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-      if (!ipRegex.test(value.trim())) {
-        return 'Formato de IP inválido (ej: 192.168.1.1)';
-      }
-      return true;
-    },
+    validate: validateIpv4,
   });
 
   const sshUser = await input({
@@ -107,28 +119,12 @@ export async function promptDeployParams(
 
   const domain = await input({
     message: 'Dominio de la aplicación:',
-    validate: (value) => {
-      if (!value.trim()) return 'El dominio es requerido';
-      // Validación básica de formato de dominio
-      const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i;
-      if (!domainRegex.test(value.trim())) {
-        return 'Formato de dominio inválido (ej: example.com)';
-      }
-      return true;
-    },
+    validate: validateDomain,
   });
   
   const email = await input({
     message: 'Email para notificaciones SSL (Let\'s Encrypt):',
-    validate: (value) => {
-      if (!value.trim()) return 'El email es requerido para Let\'s Encrypt';
-      // Validación básica de formato de email
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(value.trim())) {
-        return 'Formato de email inválido (ej: admin@example.com)';
-      }
-      return true;
-    },
+    validate: validateEmail,
   });
 
   const dnsProvider = await select<DnsProvider>({
@@ -162,28 +158,26 @@ export async function promptDeployParams(
     });
   }
 
-  console.log('\nConfiguración del repositorio Git\n');
+  let gitRepository = '';
+  let productionBranch = 'main';
 
-  const gitRepository = await input({
-    message: 'URL del repositorio Git:',
-    validate: (value) => {
-      if (!value.trim()) return 'La URL del repositorio es requerida';
-      // Validación básica de URL git
-      if (!value.includes('github.com') && !value.includes('gitlab.com') && !value.includes('.git')) {
-        return 'La URL debe ser una URL de repositorio Git válida';
-      }
-      return true;
-    },
-  });
+  if (!skipGitRepository) {
+    console.log('\nConfiguración del repositorio Git\n');
 
-  const productionBranch = await input({
-    message: 'Rama de producción:',
-    default: 'main',
-    validate: (value) => {
-      if (!value.trim()) return 'La rama de producción es requerida';
-      return true;
-    },
-  });
+    gitRepository = await input({
+      message: 'URL del repositorio Git:',
+      validate: validateGitUrl,
+    });
+
+    productionBranch = await input({
+      message: 'Rama de producción:',
+      default: 'main',
+      validate: (value) => {
+        if (!value.trim()) return 'La rama de producción es requerida';
+        return true;
+      },
+    });
+  }
 
   let siblingInfo: { gitUrl: string; domain: string } | undefined;
 
@@ -196,25 +190,12 @@ export async function promptDeployParams(
 
     const siblingGitUrl = await input({
       message: `URL del repositorio git del ${siblingRole}:`,
-      validate: (value) => {
-        if (!value.trim()) return 'La URL del repositorio hermano es requerida';
-        if (!value.includes('.git') && !value.includes('github.com') && !value.includes('gitlab.com')) {
-          return 'La URL debe ser una URL de repositorio Git válida';
-        }
-        return true;
-      },
+      validate: validateGitUrl,
     });
 
     const siblingDomain = await input({
       message: `Dominio donde vivirá el ${siblingRole}:`,
-      validate: (value) => {
-        if (!value.trim()) return 'El dominio del hermano es requerido';
-        const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i;
-        if (!domainRegex.test(value.trim())) {
-          return 'Formato de dominio inválido (ej: api.example.com)';
-        }
-        return true;
-      },
+      validate: validateDomain,
     });
 
     siblingInfo = {
@@ -251,14 +232,10 @@ export async function promptDeployParams(
  */
 export function loadDeployParamsFromEnv(
   askSiblingInfo = false,
-  currentRole?: 'api' | 'web'
+  currentRole?: 'api' | 'web',
+  options: PromptDeployOptions = {}
 ): DeployParams {
-  // Mismas reglas de validación que promptDeployParams.
-  const ipRegex =
-    /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-  const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i;
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
+  const skipGitRepository = options.skipGitRepository === true;
   const errors: string[] = [];
   const env = process.env;
 
@@ -272,7 +249,7 @@ export function loadDeployParamsFromEnv(
   const serverIp = get('FRACTAL_DEPLOY_SERVER_IP');
   if (!serverIp) {
     errors.push('FRACTAL_DEPLOY_SERVER_IP es requerida');
-  } else if (!ipRegex.test(serverIp)) {
+  } else if (validateIpv4(serverIp) !== true) {
     errors.push(
       `FRACTAL_DEPLOY_SERVER_IP inválida: "${serverIp}" (formato IPv4 esperado, ej: 192.168.1.1)`
     );
@@ -308,14 +285,14 @@ export function loadDeployParamsFromEnv(
   const domainRaw = get('FRACTAL_DEPLOY_DOMAIN');
   if (!domainRaw) {
     errors.push('FRACTAL_DEPLOY_DOMAIN es requerida');
-  } else if (!domainRegex.test(domainRaw)) {
+  } else if (validateDomain(domainRaw) !== true) {
     errors.push(`FRACTAL_DEPLOY_DOMAIN inválido: "${domainRaw}" (ej: example.com)`);
   }
 
   const emailRaw = get('FRACTAL_DEPLOY_EMAIL');
   if (!emailRaw) {
     errors.push('FRACTAL_DEPLOY_EMAIL es requerida');
-  } else if (!emailRegex.test(emailRaw)) {
+  } else if (validateEmail(emailRaw) !== true) {
     errors.push(`FRACTAL_DEPLOY_EMAIL inválido: "${emailRaw}" (ej: admin@example.com)`);
   }
 
@@ -341,13 +318,16 @@ export function loadDeployParamsFromEnv(
     }
   }
 
-  // Repositorio Git
-  const gitRepository = get('FRACTAL_DEPLOY_GIT_REPOSITORY');
-  if (!gitRepository) {
+  // Repositorio Git (omitido cuando fractal new crea el remoto)
+  const gitRepository = skipGitRepository
+    ? (get('FRACTAL_DEPLOY_GIT_REPOSITORY') ?? '')
+    : get('FRACTAL_DEPLOY_GIT_REPOSITORY');
+  if (!skipGitRepository && !gitRepository) {
     errors.push('FRACTAL_DEPLOY_GIT_REPOSITORY es requerida');
   }
 
   const productionBranch = get('FRACTAL_DEPLOY_PRODUCTION_BRANCH') ?? 'main';
+  const dbPassword = get('FRACTAL_DEPLOY_DB_PASSWORD');
 
   // Hermano (multirepo con coordinación pendiente o --reconfigure)
   let siblingInfo: { gitUrl: string; domain: string } | undefined;
@@ -359,7 +339,7 @@ export function loadDeployParamsFromEnv(
     }
     if (!siblingDomain) {
       errors.push('FRACTAL_DEPLOY_SIBLING_DOMAIN es requerida en multirepo con coordinación pendiente');
-    } else if (!domainRegex.test(siblingDomain)) {
+    } else if (validateDomain(siblingDomain) !== true) {
       errors.push(`FRACTAL_DEPLOY_SIBLING_DOMAIN inválido: "${siblingDomain}" (ej: api.example.com)`);
     }
     if (siblingGitUrl && siblingDomain) {
@@ -387,6 +367,7 @@ export function loadDeployParamsFromEnv(
     dnsApiToken,
     gitRepository: gitRepository!,
     productionBranch,
+    dbPassword,
     siblingInfo,
   };
 }

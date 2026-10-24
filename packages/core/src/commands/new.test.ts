@@ -6,6 +6,7 @@ import { newCommand } from './new.js';
 import type { NewCommandOptions } from '../types/new-command.js';
 import * as adapterResolver from '../adapter-resolver.js';
 import * as adapterBridge from '../adapter-bridge.js';
+import * as githubRepo from '../utils/github-repo.js';
 
 const TEST_DIR = join(process.cwd(), 'test-integration');
 
@@ -18,6 +19,7 @@ function cleanTestDir() {
 beforeEach(() => {
   cleanTestDir();
   mkdirSync(TEST_DIR, { recursive: true });
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
   
   // Configurar identidad de git para los tests
   process.env.GIT_AUTHOR_NAME = 'Fractal Test';
@@ -333,6 +335,75 @@ describe('newCommand', () => {
       
       const webFiles = execSync('git ls-tree -r --name-only HEAD', { cwd: webPath }).toString();
       expect(webFiles).not.toContain('fractal.project.yml');
+    });
+  });
+
+  describe('wizard no interactivo (FRA-77)', () => {
+    it('falla con lista de variables si --non-interactive no tiene el set completo', async () => {
+      const originalCwd = process.cwd();
+      process.chdir(TEST_DIR);
+
+      await expect(async () => {
+        await newCommand('missing-env', { topology: 'monolith', nonInteractive: true });
+      }).rejects.toThrow('process.exit called');
+
+      process.chdir(originalCwd);
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('FRACTAL_NEW_SERVER_IP')
+      );
+    });
+
+    it('con el set completo crea el repo y setea SSH_KNOWN_HOSTS', async () => {
+      vi.spyOn(githubRepo, 'createGitHubRepository').mockResolvedValue({
+        owner: 'acme',
+        name: 'full-new',
+        htmlUrl: 'https://github.com/acme/full-new',
+        cloneUrl: 'https://github.com/acme/full-new.git',
+      });
+      vi.spyOn(githubRepo, 'pushRepositoryToGitHub').mockImplementation(() => {});
+      vi.spyOn(githubRepo, 'scanKnownHosts').mockResolvedValue(
+        '192.0.2.10 ssh-ed25519 AAAATEST'
+      );
+      vi.spyOn(githubRepo, 'setGitHubActionsSecrets').mockResolvedValue({
+        set: ['SSH_HOST', 'SSH_USER', 'SSH_KNOWN_HOSTS', 'DB_PASSWORD'],
+        failed: [],
+      });
+      vi.spyOn(githubRepo, 'readPrivateKeyForSecret').mockResolvedValue({
+        warning: 'no se lee la clave en el test',
+      });
+      vi.spyOn(githubRepo, 'getAuthenticatedUser').mockResolvedValue({ login: 'acme' });
+
+      const originalCwd = process.cwd();
+      process.chdir(TEST_DIR);
+
+      await newCommand('full-new', {
+        topology: 'monolith',
+        nonInteractive: true,
+        serverIp: '192.0.2.10',
+        sshKeyPath: '/tmp/id_test',
+        domain: 'full.example.com',
+        email: 'ops@example.com',
+        githubToken: 'ghp_test',
+      });
+
+      process.chdir(originalCwd);
+
+      expect(githubRepo.createGitHubRepository).toHaveBeenCalled();
+      expect(githubRepo.setGitHubActionsSecrets).toHaveBeenCalledWith(
+        'ghp_test',
+        expect.objectContaining({ name: 'full-new' }),
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'SSH_KNOWN_HOSTS', value: '192.0.2.10 ssh-ed25519 AAAATEST' }),
+          expect.objectContaining({ name: 'DB_PASSWORD' }),
+        ])
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('Proyecto creado exitosamente')
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('fractal deploy')
+      );
     });
   });
 });

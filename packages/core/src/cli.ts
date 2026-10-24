@@ -18,7 +18,7 @@ program
   .version('0.0.0');
 
 program
-  .command('new <project-name>')
+  .command('new [project-name]')
   .description('Genera un nuevo proyecto Fractal')
   .option(
     '-t, --topology <topology>',
@@ -28,7 +28,29 @@ program
     '-f, --force',
     'Fuerza la generación sobre un directorio no vacío'
   )
-  .action(async (projectName: string, options: NewCommandOptions) => {
+  .option(
+    '--non-interactive',
+    'Sin prompts: lee flags y FRACTAL_NEW_* / FRACTAL_DEPLOY_*'
+  )
+  .option('--name <name>', 'Nombre del proyecto (alternativa al argumento posicional)')
+  .option('--server-ip <ip>', 'IPv4 del VPS')
+  .option('--ssh-user <user>', 'Usuario SSH de provisioning (default: root)')
+  .option('--auth-method <method>', 'Autenticación SSH: key | password')
+  .option('--ssh-key-path <path>', 'Ruta a la clave privada SSH')
+  .option('--ssh-password <password>', 'Contraseña SSH (si --auth-method password)')
+  .option('--domain <domain>', 'Dominio de la aplicación')
+  .option('--email <email>', 'Email para Let\'s Encrypt')
+  .option('--dns-provider <provider>', 'Proveedor DNS: cloudflare | route53 | manual')
+  .option('--dns-api-token <token>', 'Token/credenciales del proveedor DNS')
+  .option('--production-branch <branch>', 'Rama de producción (default: main)')
+  .option('--github-token <token>', 'Token de GitHub para crear el repo y setear secrets')
+  .option('--github-owner <owner>', 'Usuario u organización de GitHub')
+  .option('--github-repo <repo>', 'Nombre del repo remoto (default: nombre del proyecto)')
+  .option('--github-visibility <visibility>', 'Visibilidad del repo: private | public')
+  .option('--db-password <password>', 'Contraseña de la base de datos de producción')
+  .option('--generate-db-password', 'Genera la contraseña de la base (default en --non-interactive)')
+  .option('--deploy', 'Encadena a fractal deploy al terminar')
+  .action(async (projectName: string | undefined, options: NewCommandOptions) => {
     try {
       await newCommand(projectName, options);
     } catch (error) {

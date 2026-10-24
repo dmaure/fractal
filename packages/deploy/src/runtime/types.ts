@@ -86,6 +86,13 @@ export interface RuntimeConfig {
   
   /** Configuración de docker-compose */
   compose: ComposeConfig;
+
+  /**
+   * Contraseña de la base, si el wizard de `fractal new` la recolectó.
+   * Se escribe en `/home/deploy/.env` (nunca en un `.env` local del repo).
+   * Si falta, se genera en el servidor con openssl.
+   */
+  dbPassword?: string;
 }
 
 /**

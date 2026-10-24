@@ -3,7 +3,9 @@
 **Estado:** Aprobado
 **Autor:** Diego
 **Fecha:** 2026-08-09
-**Última revisión:** 2026-09-27 — sigue en **Aprobado**. El M1 mergeado
+**Última revisión:** 2026-10-23 — sigue en **Aprobado**. FRA-77 agrega el
+wizard de valores no-defaultables (AC-12) y la creación opcional del remoto
+GitHub; no se marca Implementado. Revisión previa 2026-09-27 — el M1 mergeado
 (PRs #41/#42/#44, tickets FRA-37/FRA-38/FRA-36) completa el lado de deploy
 (SPEC-0003), no `fractal new`; la implementación de `fractal new` y sus tests
 viven en `packages/core` (`commands/new.test.ts`, `utils/directory-validator`,
@@ -150,6 +152,26 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
     primera ejecución para coordinar las variables cruzadas entre ambos
     repos (ADR-0012)
 
+### AC-12: Wizard de valores no-defaultables (FRA-77)
+- **Dado** que ejecuto `fractal new` en una terminal interactiva (TTY)
+- **Cuando** el CLI recolecta datos
+- **Entonces** pregunta los valores user-specific que no pueden tener
+  default: nombre, topología, IP del servidor, usuario y clave SSH,
+  dominio, email SSL, proveedor DNS y su token, token de GitHub para
+  crear el remoto, y contraseña de la base (preguntar o generar)
+- **Y** el mismo set es pasable por flag y/o variables `FRACTAL_NEW_*`
+  (con fallback a `FRACTAL_DEPLOY_*` cuando el valor es el mismo) vía
+  `--non-interactive`
+- **Y** con token de GitHub crea el repo remoto, pushea el commit
+  inicial y setea o imprime los secrets del workflow, incluyendo
+  `SSH_KNOWN_HOSTS`
+- **Y** no escribe un `.env` local que pueda pisar `/home/deploy/.env`
+  en el VPS
+- **Y** en no-TTY sin `--non-interactive` conserva la generación
+  mínima (nombre + topología) para no romper CI
+- **Nota:** no se finge soporte de passphrase SSH ni de ssh-agent; esos
+  gaps quedan documentados. Route53 sigue sin implementar.
+
 ---
 
 ## 5. Fuera de alcance
@@ -160,9 +182,10 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
 - Deploy a VPS (SPEC-0003) — incluye coordinar el deploy de dos repos en
   multirepo, todavía sin resolver ahí tampoco
 - Instalación de módulos opcionales (M5)
-- Creación de los repositorios remotos en GitHub/GitLab para la topología
-  multirepo — el CLI inicializa git localmente (AC-6) pero no crea el
-  remoto ni lo conecta; eso queda para el usuario o para SPEC-0003
+- Creación de remotos GitLab (el wizard de FRA-77 cubre GitHub cuando
+  hay token; GitLab sigue a mano)
+- Encadenar `fractal deploy` en topología multirepo (hay que correrlo
+  una vez en cada repo)
 
 ---
 
@@ -215,17 +238,17 @@ SPEC-0006, directorio destino existente → AC-8 y AC-9).
 Reabierto el 2026-08-16 por ADR-0010 con tres preguntas nuevas, resueltas
 el 2026-08-26:
 
-- Creación de remotos en multirepo → confirmado fuera de alcance v1
-  (sección 5): solo `git init` local, sin crear remoto en GitHub/GitLab.
+- Creación de remotos en GitHub → FRA-77 (AC-12): con token se crea el
+  remoto, se pushea y se setean secrets. GitLab sigue fuera de alcance.
 - Turborepo → se instala como devDependency real del proyecto generado,
   no solo el archivo `turbo.json` (ver AC-11).
 - AC-7 por topología → diferenciado: 5 min monolito, 7 min
   monorepo/multirepo (ver AC-7).
 
-La coordinación entre repos en multirepo (ADR-0012) tampoco requiere que
-`fractal new` cree remotos ni conozca URLs de git de antemano — el
-manifiesto `fractal.project.yml` se genera con placeholders y se completa
-recién en el primer `fractal deploy`.
+La coordinación entre repos en multirepo (ADR-0012) sigue completando
+dominio del hermano en el primer `fractal deploy`. FRA-77 puede crear los
+remotos GitHub si hay token; el manifiesto se sigue generando con
+`orchestration_state: pending` hasta ese deploy.
 
 ---
 
