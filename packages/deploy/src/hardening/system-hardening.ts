@@ -5,6 +5,7 @@ import type {
   PortCheckResult,
 } from './types.js';
 import { StateManager } from '../state/state-manager.js';
+import { buildDeploySudoers } from './sudoers.js';
 
 /**
  * Manejador de hardening del sistema.
@@ -96,29 +97,31 @@ export class SystemHardening {
       }
       steps.push(`Usuario ${config.deployUser} creado con privilegios sudo`);
 
-      // 1b. Conceder sudo sin contraseña (NOPASSWD) al usuario deploy (FRA-73).
+      // 1b. Conceder sudo acotado (NOPASSWD, lista explícita) al usuario
+      // deploy (FRA-73 + FRA-75).
       //
       // POR QUÉ: los módulos de provisioning (runtime, SSL) y el workflow de
       // redeploy generado ejecutan `sudo` NO interactivo como este usuario sobre
       // una sesión SSH por clave (sin TTY). La sola pertenencia al grupo sudo
       // exige contraseña y no alcanza para un `sudo` sin TTY; hace falta un
-      // drop-in NOPASSWD. Corre como root y ANTES de que hardenSshd deshabilite
-      // el login de root (ver orden de los pasos más abajo).
+      // drop-in NOPASSWD. FRA-75 acota el drop-in a los binarios y rutas que
+      // el camino de deploy realmente invoca (no NOPASSWD:ALL). Corre como
+      // root y ANTES de que hardenSshd deshabilite el login de root.
       const sudoGranted = await this.grantPasswordlessSudo(config.deployUser);
       if (!sudoGranted) {
         await this.stateManager.markStep(
           'hardening',
           'failed',
           configHash,
-          `No se pudo conceder sudo sin contraseña a ${config.deployUser}`
+          `No se pudo conceder sudo acotado a ${config.deployUser}`
         );
         return {
           success: false,
           steps,
-          error: `No se pudo conceder sudo sin contraseña a ${config.deployUser}`,
+          error: `No se pudo conceder sudo acotado a ${config.deployUser}`,
         };
       }
-      steps.push(`Sudo sin contraseña (NOPASSWD) habilitado para ${config.deployUser}`);
+      steps.push(`Sudo acotado (NOPASSWD) habilitado para ${config.deployUser}`);
 
       // 2. Configurar SSH para el usuario deploy
       const sshConfigured = await this.setupSshForUser(
@@ -244,22 +247,35 @@ export class SystemHardening {
   }
 
   /**
-   * Concede sudo sin contraseña (NOPASSWD) al usuario, de forma idempotente y
+   * Concede sudo sin contraseña y acotado al usuario, de forma idempotente y
    * validada con visudo.
    *
    * POR QUÉ (FRA-73): los módulos de provisioning y el workflow de redeploy
    * generado corren `sudo` NO interactivo como este usuario sobre una sesión SSH
    * por clave (sin TTY). La pertenencia al grupo sudo exige contraseña, así que
-   * no alcanza. El drop-in se valida con `visudo -cf` para no dejar nunca un
-   * sudoers roto, y `tee` lo reescribe en cada corrida (idempotente). Agnóstico
-   * de framework: solo usa utilidades estándar de Linux.
+   * no alcanza. FRA-75 limita el drop-in a la lista de `buildDeploySudoers`
+   * (docker, certbot, systemctl, apt-get, tee/mkdir/cat sobre `/etc/fractal/`,
+   * etc.) en vez de `NOPASSWD:ALL`. El drop-in se valida con `visudo -cf`
+   * para no dejar nunca un sudoers roto, y `tee` lo reescribe en cada corrida
+   * (idempotente). Agnóstico de framework: solo usa utilidades estándar de Linux.
    */
   private async grantPasswordlessSudo(username: string): Promise<boolean> {
     const sudoersPath = `/etc/sudoers.d/90-fractal-${username}`;
+    let content: string;
+    try {
+      content = buildDeploySudoers(username);
+    } catch {
+      return false;
+    }
+
+    // Heredoc entrecomillado: el cuerpo no se expande (mismo patrón que
+    // writeState, FRA-78). El contenido ya trae el username interpolado.
     const result = await this.sshClient.executeCommand(
-      `printf '%s ALL=(ALL) NOPASSWD:ALL\\n' ${username} | sudo tee ${sudoersPath} > /dev/null && ` +
-      `sudo chmod 440 ${sudoersPath} && ` +
-      `sudo visudo -cf ${sudoersPath}`
+      `sudo tee ${sudoersPath} > /dev/null << 'FRACTAL_SUDOERS_EOF'\n` +
+        `${content}` +
+        `FRACTAL_SUDOERS_EOF\n` +
+        `sudo chmod 440 ${sudoersPath} && ` +
+        `sudo visudo -cf ${sudoersPath}`
     );
     return result.success;
   }

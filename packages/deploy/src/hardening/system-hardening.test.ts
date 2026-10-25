@@ -223,8 +223,8 @@ describe('SystemHardening', () => {
       expect(result.success).toBe(true);
       expect(result.steps).toHaveLength(5);
       expect(result.steps[0]).toContain('Usuario deploy creado');
-      // FRA-73: el grant NOPASSWD es un paso propio justo después de crear el usuario.
-      expect(result.steps[1]).toContain('Sudo sin contraseña (NOPASSWD) habilitado');
+      // FRA-73/FRA-75: el grant NOPASSWD acotado es un paso propio justo después de crear el usuario.
+      expect(result.steps[1]).toContain('Sudo acotado (NOPASSWD) habilitado');
       expect(result.steps[2]).toContain('Clave SSH agregada');
       // El firewall se configura ANTES de endurecer sshd; deshabilitar root
       // debe ser la última acción privilegiada (ver harden()).
@@ -240,12 +240,17 @@ describe('SystemHardening', () => {
         cmd.includes('KbdInteractiveAuthentication no')
       )).toBe(true);
       expect(sshCommands.some((cmd: string) => cmd.includes('sshd -T'))).toBe(true);
-      // FRA-73: se escribe y valida el drop-in NOPASSWD para el usuario deploy.
-      expect(sshCommands.some((cmd: string) =>
+      // FRA-75: se escribe y valida el drop-in NOPASSWD acotado (no ALL).
+      const sudoersCmd = sshCommands.find((cmd: string) =>
         cmd.includes('/etc/sudoers.d/90-fractal-deploy') &&
-        cmd.includes('NOPASSWD:ALL') &&
         cmd.includes('visudo -cf')
-      )).toBe(true);
+      );
+      expect(sudoersCmd).toBeDefined();
+      expect(sudoersCmd).toContain('/usr/bin/tee /etc/fractal/state.json');
+      expect(sudoersCmd).toContain('/usr/bin/docker');
+      expect(sudoersCmd).toContain('/usr/bin/certbot');
+      expect(sudoersCmd).toContain('/usr/bin/apt-get');
+      expect(sudoersCmd).not.toMatch(/NOPASSWD:\s*ALL\b/);
     });
 
     it('debe fallar si no se puede crear el usuario deploy', async () => {

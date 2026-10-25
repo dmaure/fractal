@@ -16,7 +16,10 @@ const APT_LOCK_TIMEOUT_OPT = '-o DPkg::Lock::Timeout=300';
  * Prefijo común de toda invocación a apt-get: corre con sudo, en modo no
  * interactivo (sin prompts de debconf) y esperando el lock de dpkg/apt.
  */
-const APT_GET = `sudo DEBIAN_FRONTEND=noninteractive apt-get ${APT_LOCK_TIMEOUT_OPT}`;
+// DEBIAN_FRONTEND va ANTES de sudo (env del usuario). El drop-in sudoers
+// de FRA-75 hace `env_keep += DEBIAN_FRONTEND` para preservarlo; no usa
+// SETENV (evita LD_PRELOAD en apt-get).
+const APT_GET = `DEBIAN_FRONTEND=noninteractive sudo apt-get ${APT_LOCK_TIMEOUT_OPT}`;
 
 /**
  * Instalador de Docker CE y plugin Compose.
