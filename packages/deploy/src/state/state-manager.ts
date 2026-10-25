@@ -55,8 +55,11 @@ export class StateManager {
   async writeState(state: ServerState): Promise<StateOperationResult> {
     state.updatedAt = new Date().toISOString();
 
+    // Cuerpo literal: no escapar comillas. El delimitador entrecomillado
+    // (`<< 'FRACTAL_STATE_EOF'`) hace que el shell no expanda ni procese el
+    // JSON. Escapar `'` como `'\''` (el enfoque anterior) insertaría esas
+    // secuencias en el archivo y lo volvería JSON inválido.
     const stateJson = JSON.stringify(state, null, 2);
-    const escapedContent = stateJson.replace(/'/g, "'\\''");
 
     // Crear directorio si no existe
     const dirResult = await this.sshClient.executeCommand(
@@ -70,9 +73,17 @@ export class StateManager {
       };
     }
 
-    // Escribir archivo
+    // Escribir como root. `sudo cat > file` redirige como el usuario no
+    // privilegiado; `sudo tee` escribe el archivo con privilegios.
+    //
+    // No envolver el heredoc en `bash -c "…"`: OpenSSH ejecuta el comando
+    // vía `$SHELL -c`, y las comillas dobles del JSON se pierden al
+    // expandirse (FRA-78). Quedaba `{ version: 1.0.0, … }`; `readState`
+    // fallaba el parseo, volvía al estado inicial y cada write pisaba los
+    // pasos anteriores. El delimitador entrecomillado trata el cuerpo como
+    // literal — el mismo patrón que writeComposeFile.
     const writeResult = await this.sshClient.executeCommand(
-      `sudo bash -c "cat > ${this.statePath} << 'FRACTAL_STATE_EOF'\n${escapedContent}\nFRACTAL_STATE_EOF"`
+      `sudo tee ${this.statePath} > /dev/null << 'FRACTAL_STATE_EOF'\n${stateJson}\nFRACTAL_STATE_EOF`
     );
 
     if (!writeResult.success) {
