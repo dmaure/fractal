@@ -32,6 +32,11 @@ export interface SshConfig {
    * Un cambio de clave nunca llama este callback: se rechaza siempre.
    */
   onUnknownHost?: (info: UnknownHostInfo) => boolean | Promise<boolean>;
+
+  /**
+   * Mensaje de error cuando onUnknownHost rechaza (FRA-75).
+   */
+  unknownHostRejectError?: string;
 }
 
 /**

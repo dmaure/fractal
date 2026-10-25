@@ -501,6 +501,7 @@ export class SshClient {
         port: this.config.port ?? 22,
         knownHostsPath: this.config.knownHostsPath ?? join(homedir(), '.ssh', 'known_hosts'),
         onUnknownHost: this.config.onUnknownHost,
+        unknownHostRejectError: this.config.unknownHostRejectError,
       });
 
       if (result.accepted) {

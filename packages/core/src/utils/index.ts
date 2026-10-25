@@ -5,3 +5,4 @@ export * from './manifest-generator.js';
 export * from './param-validators.js';
 export * from './new-wizard.js';
 export * from './github-repo.js';
+export * from './deploy-host-key.js';

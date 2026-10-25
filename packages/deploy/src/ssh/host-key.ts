@@ -38,6 +38,11 @@ export interface VerifyHostKeyParams {
   port: number;
   knownHostsPath: string;
   onUnknownHost?: (info: UnknownHostInfo) => boolean | Promise<boolean>;
+  /**
+   * Mensaje a usar cuando onUnknownHost rechaza (p. ej. password + host
+   * desconocido sin pin). Si se omite, se usa el mensaje genérico.
+   */
+  unknownHostRejectError?: string;
 }
 
 export interface HostKeyVerificationResult {
@@ -307,7 +312,8 @@ function formatMismatchError(
 export async function verifyHostKeyAgainstKnownHosts(
   params: VerifyHostKeyParams
 ): Promise<HostKeyVerificationResult> {
-  const { key, host, port, knownHostsPath, onUnknownHost } = params;
+  const { key, host, port, knownHostsPath, onUnknownHost, unknownHostRejectError } =
+    params;
 
   try {
     const presented = parsePresentedKey(key);
@@ -355,8 +361,9 @@ export async function verifyHostKeyAgainstKnownHosts(
           return {
             accepted: false,
             error:
+              unknownHostRejectError ??
               `Conexión rechazada: la clave del host ${host} no fue aceptada ` +
-              `(${presented.type} ${decision.fingerprint}).`,
+                `(${presented.type} ${decision.fingerprint}).`,
           };
         }
 

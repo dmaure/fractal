@@ -8,6 +8,11 @@ import type { AdapterContract } from '../types/adapter-contract.js';
 import { resolveSingleAdapter } from '../adapter-resolver.js';
 import { invokeAdapter } from '../adapter-bridge.js';
 import { promptDeployParams, loadDeployParamsFromEnv, loadUploadTimeoutMsFromEnv, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
+import {
+  DeployHostKeyPinError,
+  resolveNonInteractiveHostKeyPolicy,
+  SSH_KNOWN_HOSTS_ENV,
+} from '../utils/deploy-host-key.js';
 // NOTA (FRA-46): `@fractal/deploy` arrastra `ssh2` (módulo nativo) de forma
 // transitiva. Importarlo estáticamente aquí hacía que cargar el CLI —y por lo
 // tanto cualquier comando, incluido `fractal status`— fallara si `ssh2` no está
@@ -270,13 +275,6 @@ export async function deployCommand(
   // Es el modo que usa el e2e real en CI.
   const nonInteractive = options.nonInteractive === true;
 
-  // Verificación TOFU del host: interactiva por defecto; en modo no interactivo
-  // se acepta automáticamente (no hay humano que confirme la huella). Se usa en
-  // AMBOS clientes SSH (el inicial como root y el de reconexión como deploy).
-  const onUnknownHost = nonInteractive
-    ? async () => true
-    : (info: Parameters<typeof confirmUnknownHost>[0]) => confirmUnknownHost(info);
-
   // AC-13: Verificar si hay manifiesto de multirepo
   const manifestManager = new ManifestManager(projectDir);
   const manifestResult = manifestManager.read();
@@ -383,6 +381,48 @@ export async function deployCommand(
   }
   
   console.log(chalk.blue('\n🔍 Validando servidor...\n'));
+
+  // FRA-75: pin de host key (flag / FRACTAL_DEPLOY_SSH_KNOWN_HOSTS) y política
+  // de --non-interactive. Se aplica al cliente inicial Y a la reconexión como
+  // deploy. Con password + host desconocido + sin pin se rechaza antes de
+  // autenticar (hostVerifier corre en el handshake, antes de enviar la clave).
+  let knownHostsPath: string | undefined;
+  let unknownHostRejectError: string | undefined;
+  let onUnknownHost: (info: Parameters<typeof confirmUnknownHost>[0]) => Promise<boolean>;
+
+  if (nonInteractive) {
+    try {
+      const hostKeyPolicy = resolveNonInteractiveHostKeyPolicy({
+        authMethod: params.authMethod,
+        pinFromFlag: options.sshKnownHosts,
+        pinFromEnv: process.env[SSH_KNOWN_HOSTS_ENV],
+      });
+      knownHostsPath = hostKeyPolicy.knownHostsPath;
+      unknownHostRejectError = hostKeyPolicy.unknownHostRejectError;
+      onUnknownHost = hostKeyPolicy.onUnknownHost;
+      if (hostKeyPolicy.pinConfigured) {
+        console.log(chalk.dim('→ Verificando host key contra el pin configurado'));
+      } else if (hostKeyPolicy.explicitTofu) {
+        console.log(
+          chalk.yellow(
+            '⚠️  Sin pin de host key: se aceptará un host desconocido (TOFU explícito). ' +
+              `Definí ${SSH_KNOWN_HOSTS_ENV} o --ssh-known-hosts para pinear.`
+          )
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof DeployHostKeyPinError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      console.error(chalk.red(`\n❌ Error de host key:\n   ${message}`));
+      process.exit(1);
+    }
+  } else {
+    onUnknownHost = (info) => confirmUnknownHost(info);
+  }
   
   // AC-2: Validación previa — conectividad SSH (con verificación de host)
   const sshClient = new SshClient({
@@ -392,7 +432,9 @@ export async function deployCommand(
     privateKeyPath: params.authMethod === 'key' ? params.sshKeyPath : undefined,
     // El handshake espera la confirmación TOFU interactiva si el host es nuevo.
     timeout: 120_000,
+    knownHostsPath,
     onUnknownHost,
+    unknownHostRejectError,
   });
   
   console.log(chalk.dim('→ Probando conectividad SSH...'));
@@ -599,7 +641,9 @@ export async function deployCommand(
     username: 'deploy',
     privateKeyPath: deployPrivateKeyPath,
     timeout: 120_000,
+    knownHostsPath,
     onUnknownHost,
+    unknownHostRejectError,
   });
   
   const deployConnectionResult = await deployClient.testConnection();

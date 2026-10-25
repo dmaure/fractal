@@ -226,6 +226,42 @@ describe('verifyHostKeyAgainstKnownHosts', () => {
     expect(existsSync(knownHostsPath)).toBe(false);
   });
 
+  it('usa unknownHostRejectError cuando el host es desconocido y se rechaza (FRA-75)', async () => {
+    const knownHostsPath = join(testDir, 'known_hosts');
+    const custom =
+      'La contraseña no se envió. Pineá la host key esperada.';
+
+    const result = await verifyHostKeyAgainstKnownHosts({
+      key: Buffer.from(KEY_A),
+      host: '192.0.2.10',
+      port: 22,
+      knownHostsPath,
+      onUnknownHost: async () => false,
+      unknownHostRejectError: custom,
+    });
+
+    expect(result.accepted).toBe(false);
+    expect(result.error).toBe(custom);
+    expect(existsSync(knownHostsPath)).toBe(false);
+  });
+
+  it('con pin no acepta un host cuya clave no está en el archivo', async () => {
+    const knownHostsPath = join(testDir, 'known_hosts');
+    writeFileSync(knownHostsPath, `198.51.100.1 ${KEY_A}\n`);
+
+    const result = await verifyHostKeyAgainstKnownHosts({
+      key: Buffer.from(KEY_B),
+      host: '192.0.2.10',
+      port: 22,
+      knownHostsPath,
+      onUnknownHost: async () => false,
+      unknownHostRejectError: 'pin no coincide',
+    });
+
+    expect(result.accepted).toBe(false);
+    expect(result.error).toBe('pin no coincide');
+  });
+
   it('debe rechazar mismatch sin llamar a onUnknownHost', async () => {
     const knownHostsPath = join(testDir, 'known_hosts');
     writeFileSync(knownHostsPath, `192.0.2.10 ${KEY_A}\n`);
