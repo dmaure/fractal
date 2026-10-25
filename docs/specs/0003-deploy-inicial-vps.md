@@ -3,7 +3,9 @@
 **Estado:** En curso
 **Autor:** Diego
 **Fecha:** 2026-08-01
-**Última revisión:** 2026-10-14 — **Revertido a En curso.** Una auditoría de
+**Última revisión:** 2026-10-25 — FRA-75 documenta sudo acotado de `deploy` y
+el pin de host key en `--non-interactive`. El spec **sigue En curso** (no
+Implementado). Revisión previa 2026-10-14 — **Revertido a En curso.** Una auditoría de
 código mostró que el MVP (`fractal new` → Laravel en local → `fractal deploy` →
 HTTPS → redeploy por merge) **no funciona de punta a punta**, y el e2e de FRA-64
 **no ejecuta `fractal new` ni `fractal deploy`** (sirve un `index.html` estático
@@ -256,6 +258,13 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
   Un host desconocido pide confirmación de fingerprint (TOFU) antes de
   enviar credenciales; un cambio de clave aborta (protección MITM).
   ssh2 no se usa con su default de auto-aceptar la clave del servidor.
+  En `--non-interactive` (FRA-75) se pinea con `FRACTAL_DEPLOY_SSH_KNOWN_HOSTS`
+  o `--ssh-known-hosts` (el pin aplica al cliente inicial y a la reconexión
+  como `deploy`). Sin pin, `AUTH_METHOD=password` contra un host desconocido
+  falla y no envía la contraseña; `AUTH_METHOD=key` hace TOFU explícito.
+- El sudo de `deploy` es NOPASSWD acotado a los comandos del camino de
+  deploy (docker, certbot, systemctl, apt-get, tee/mkdir/cat sobre
+  `/etc/fractal/`, etc.), no `NOPASSWD:ALL` (FRA-75).
 - El `.env` de producción se genera en el servidor, nunca viaja por el repositorio
 - `APP_KEY` se genera en el servidor en el primer provisioning
 - El hardening de SSH (AC-3) debe quedar **efectivo**: se verifica con

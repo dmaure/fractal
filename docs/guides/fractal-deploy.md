@@ -120,9 +120,12 @@ Al correr `fractal deploy` dentro del proyecto, el comando ejecuta en orden:
    modificar nada. Si `/etc/fractal/state.json` ya existe (redeploy), 80/443
    ocupados por el propio nginx se aceptan y el comando sigue.
 6. **Endurece el sistema (AC-3).** Obtiene la clave pública SSH (la deriva de la
-   privada, o la pide si usás contraseña) y crea el usuario `deploy` no-root,
-   deshabilita el login root y la autenticación por contraseña por SSH, y
-   configura el firewall dejando abiertos solo los puertos 22, 80 y 443.
+   privada, o la pide si usás contraseña) y crea el usuario `deploy` no-root
+   con sudo acotado (NOPASSWD solo para docker, certbot, systemctl, apt-get y
+   la escritura de `/etc/fractal/state.json`; no `NOPASSWD:ALL`), deshabilita
+   el login root y la autenticación por contraseña por SSH, y configura el
+   firewall dejando abiertos solo los puertos 22, 80 y 443. Ver
+   [modelo de confianza](#modelo-de-confianza).
 7. **Se reconecta como `deploy`.** Cierra la conexión inicial (como `root`) y
    abre una nueva como el usuario `deploy` no-root con la clave privada
    correspondiente. Todos los pasos siguientes corren sin privilegios de root.
@@ -171,11 +174,14 @@ parámetros, los pasos ya aplicados no se repiten.
 ## Modo no interactivo (CI/CD)
 
 Con `fractal deploy --non-interactive` el comando no abre ningún prompt: toma
-todos los parámetros de variables de entorno `FRACTAL_DEPLOY_*`, da por
-confirmado el resumen y acepta automáticamente la huella de un host SSH nuevo
-(no hay humano que la verifique). Es el modo que usa el **e2e real** del
-repositorio (`.github/workflows/deploy-e2e.yml`), que provisiona un VPS efímero
-y corre `fractal new` + `fractal deploy --non-interactive` de punta a punta.
+todos los parámetros de variables de entorno `FRACTAL_DEPLOY_*` y da por
+confirmado el resumen. La host key **no** se acepta a ciegas si hay un pin
+(`FRACTAL_DEPLOY_SSH_KNOWN_HOSTS` o `--ssh-known-hosts`); sin pin, autenticación
+por clave hace TOFU explícito y autenticación por contraseña contra un host
+desconocido **falla** (la contraseña no se envía). Es el modo que usa el
+**e2e real** del repositorio (`.github/workflows/deploy-e2e.yml`), que
+provisiona un VPS efímero, pinea la host key con `ssh-keyscan` y corre
+`fractal new` + `fractal deploy --non-interactive` de punta a punta.
 
 Si falta una variable requerida o alguna tiene formato inválido, el comando
 aborta con un error que lista exactamente qué variable arreglar (se aplican las
@@ -188,6 +194,7 @@ mismas validaciones de IP, dominio y email que en los prompts).
 | `FRACTAL_DEPLOY_AUTH_METHOD` | no | `key` | `key` o `password` |
 | `FRACTAL_DEPLOY_SSH_KEY_PATH` | si `AUTH_METHOD=key` | — | ruta a la clave privada |
 | `FRACTAL_DEPLOY_SSH_PASSWORD` | si `AUTH_METHOD=password` | — | contraseña SSH |
+| `FRACTAL_DEPLOY_SSH_KNOWN_HOSTS` | no | — | pin de host key: ruta a un `known_hosts` **o** el contenido (líneas `ssh-keyscan`). Equivale a `--ssh-known-hosts <path>`. Si está seteado, un host desconocido se rechaza (no se acepta a ciegas). Aplica al SSH inicial y a la reconexión como `deploy` |
 | `FRACTAL_DEPLOY_DOMAIN` | sí | — | dominio de la app (se normaliza a minúsculas) |
 | `FRACTAL_DEPLOY_EMAIL` | sí | — | email para Let's Encrypt |
 | `FRACTAL_DEPLOY_DNS_PROVIDER` | no | `manual` | `cloudflare`, `route53` o `manual` |
@@ -219,7 +226,42 @@ Con **autenticación por contraseña** (`FRACTAL_DEPLOY_AUTH_METHOD=password`), 
 no se pueden pedir las claves del usuario `deploy` por prompt, hay que proveerlas
 por entorno: `FRACTAL_DEPLOY_DEPLOY_PUBLIC_KEY` (la clave pública que se instala
 para el usuario `deploy`) y `FRACTAL_DEPLOY_DEPLOY_KEY_PATH` (ruta a la clave
-privada correspondiente para reconectarse como `deploy`).
+privada correspondiente para reconectarse como `deploy`). Además, si el host no
+está en `known_hosts` y no hay pin, el comando aborta: nunca manda la
+contraseña a un host sin verificar.
+
+---
+
+## Modelo de confianza
+
+### Host key SSH
+
+| Modo | Host desconocido | Host con clave distinta |
+|---|---|---|
+| Interactivo | pide confirmación (TOFU; default **no**) | aborta (MITM) |
+| `--non-interactive` **con** pin (`FRACTAL_DEPLOY_SSH_KNOWN_HOSTS` / `--ssh-known-hosts`) | rechaza; no acepta a ciegas | aborta (MITM) |
+| `--non-interactive` **sin** pin, `AUTH_METHOD=key` | TOFU explícito: acepta y persiste. Documentado; preferí pinear | aborta (MITM) |
+| `--non-interactive` **sin** pin, `AUTH_METHOD=password` | **falla** con error claro; la contraseña no se envía | aborta (MITM) |
+
+El pin se aplica a **las dos** conexiones SSH del comando: la inicial (como
+`root` o el usuario que indiques) y la reconexión como `deploy`.
+
+El e2e de CI pinea la host key del VPS efímero con `ssh-keyscan` después de que
+SSH responde. Vultr no expone la host key por API; no hay TOFU ciego en ese job.
+
+### Riesgo de la clave `deploy`
+
+Después del hardening, el login root y la autenticación por contraseña quedan
+deshabilitados. Quien tenga la clave privada de `deploy` (en tu laptop o en el
+secret `SSH_PRIVATE_KEY` de CI) puede entrar al VPS y correr, sin contraseña,
+los comandos de la allowlist: Docker, certbot, systemctl (docker / certbot.timer),
+apt-get, snap, y leer/escribir `/etc/fractal/state.json`.
+
+Eso **no** es `sudo -i` ni un shell root: el drop-in
+`/etc/sudoers.d/90-fractal-deploy` lista binarios y rutas, no `NOPASSWD:ALL`.
+Igual, `sudo docker` equivale a root de facto (podés montar el disco). Tratala
+como secreto: no la commitees, rotá si se filtra, y restringí quién lee
+`SSH_PRIVATE_KEY` en el proveedor de CI.
 
 ---
 
@@ -497,6 +539,12 @@ que aceptar explícitamente. Antes de confiar, verificá la huella con la consol
 del proveedor del VPS. Si en cambio la clave del host **cambió** respecto de la
 que ya tenías guardada, la conexión aborta sin preguntar (protección contra
 ataques MITM).
+
+En `--non-interactive` no hay prompt. Pineá la host key con
+`FRACTAL_DEPLOY_SSH_KNOWN_HOSTS` o `--ssh-known-hosts` (el e2e lo hace con
+`ssh-keyscan`). Sin pin, una autenticación por contraseña contra un host
+desconocido falla y **no** manda la contraseña; con clave, el TOFU queda
+explícito y documentado. Ver [modelo de confianza](#modelo-de-confianza).
 
 ### Puertos 80 / 443 ocupados
 
