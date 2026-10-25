@@ -35,6 +35,11 @@ Se ejecuta **dentro del directorio del proyecto generado** (el que creó
 configuración se recolecta de forma interactiva, pero con `--non-interactive`
 se lee de variables de entorno (ver [Modo no interactivo](#modo-no-interactivo-cicd)).
 
+Si corriste el wizard de `fractal new` (FRA-77), los mismos valores ya están
+mapeados a `FRACTAL_DEPLOY_*` — ver
+[Mapping con fractal new](#mapping-con-fractal-new-fra-77). `fractal new --deploy`
+encadena este comando sin volver a preguntar.
+
 | Opción | Descripción |
 |---|---|
 | `--reconfigure` | Reconfigura las variables cruzadas en multirepo: fuerza volver a preguntar la URL y el dominio del repositorio hermano y reescribe las variables cruzadas, incluso si el manifiesto ya estaba `resolved`. Útil si cambiás de dominio después del primer deploy. |
@@ -191,6 +196,20 @@ mismas validaciones de IP, dominio y email que en los prompts).
 | `FRACTAL_DEPLOY_PRODUCTION_BRANCH` | no | `main` | rama de producción |
 | `FRACTAL_DEPLOY_SSL_ENV` | no | `production` | `production` o `staging` (staging evita los rate limits de Let's Encrypt; útil en CI) |
 | `FRACTAL_DEPLOY_UPLOAD_TIMEOUT` | no | `600` | timeout **en segundos** para la subida del proyecto al servidor (pack + transfer + extract). Independiente del timeout de conexión SSH (120s); subílo para proyectos grandes o enlaces lentos |
+| `FRACTAL_DEPLOY_DB_PASSWORD` | no | se genera en el VPS | si el wizard de `fractal new` la recolectó, se escribe en `/home/deploy/.env`. No viaja en un `.env` local (FRA-76) |
+
+### Mapping con fractal new (FRA-77)
+
+`fractal new` reutiliza estas mismas variables para el subset compartido
+(IP, SSH, dominio, email, DNS, rama, DB password). Los valores **solo de
+`new`** (nombre, topología, token de GitHub para crear el repo) viven en
+`FRACTAL_NEW_*` y no tienen equivalente `FRACTAL_DEPLOY_*`. Precedencia en
+`new`: flag > `FRACTAL_NEW_*` > `FRACTAL_DEPLOY_*`. Tabla completa en
+[`fractal-new.md`](./fractal-new.md#modo-no-interactivo).
+
+El token `FRACTAL_NEW_GITHUB_TOKEN` crea el remoto y setea secrets
+(`SSH_KNOWN_HOSTS` entre ellos). `fractal deploy` sigue generando el
+workflow; no vuelve a crear el repo.
 
 En **multirepo** con coordinación pendiente (o con `--reconfigure`) se requieren
 además `FRACTAL_DEPLOY_SIBLING_GIT_URL` y `FRACTAL_DEPLOY_SIBLING_DOMAIN` (URL y

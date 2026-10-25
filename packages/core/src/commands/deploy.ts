@@ -301,13 +301,22 @@ export async function deployCommand(
     }
   }
   
-  // AC-1: Recolección de datos (interactiva o desde el entorno en modo CI)
-  const params = nonInteractive
-    ? loadDeployParamsFromEnv(askSiblingInfo, currentRole)
-    : await promptDeployParams(askSiblingInfo, currentRole);
+  // AC-1: Recolección de datos (interactiva, desde el entorno, o ya
+  // recolectada por el wizard de `fractal new` — FRA-77).
+  const params = options.prefilledParams
+    ? options.prefilledParams
+    : nonInteractive
+      ? loadDeployParamsFromEnv(askSiblingInfo, currentRole)
+      : await promptDeployParams(askSiblingInfo, currentRole);
 
-  // Confirmación antes de proceder (automática en modo no interactivo)
-  const confirmed = nonInteractive ? true : await confirmDeploy(params);
+  if (options.dbPassword && !params.dbPassword) {
+    params.dbPassword = options.dbPassword;
+  }
+
+  // Confirmación antes de proceder (automática en modo no interactivo
+  // o cuando el wizard ya confirmó).
+  const confirmed =
+    nonInteractive || options.prefilledParams ? true : await confirmDeploy(params);
 
   if (!confirmed) {
     console.log(chalk.yellow('\n⚠️  Deploy cancelado por el usuario'));
@@ -664,6 +673,7 @@ export async function deployCommand(
       projectName,
       outputPath: '/home/deploy/docker-compose.yml',
     },
+    dbPassword: params.dbPassword,
   });
   
   if (!runtimeResult.success) {

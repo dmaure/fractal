@@ -21,6 +21,18 @@ export interface DeployCommandOptions {
    * real de FRA-73). Ver `loadDeployParamsFromEnv`.
    */
   nonInteractive?: boolean;
+
+  /**
+   * Parámetros ya recolectados (p. ej. por el wizard de `fractal new`).
+   * Si están presentes, no se vuelven a pedir ni a leer del entorno.
+   */
+  prefilledParams?: DeployParams;
+
+  /**
+   * Contraseña de la base, si el wizard la recolectó. Se escribe en
+   * `/home/deploy/.env` en el servidor; no viaja en un `.env` local (FRA-76).
+   */
+  dbPassword?: string;
 }
 
 /**
@@ -59,6 +71,12 @@ export interface DeployParams {
   
   /** Rama de producción */
   productionBranch: string;
+
+  /**
+   * Contraseña de la base de datos de producción, si el wizard la recolectó.
+   * Opcional: si falta, el runtime la genera en el servidor.
+   */
+  dbPassword?: string;
   
   /** Información del hermano (solo en multirepo con orchestration_state: pending o --reconfigure) */
   siblingInfo?: {

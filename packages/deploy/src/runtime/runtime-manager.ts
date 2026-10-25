@@ -268,14 +268,27 @@ export class RuntimeManager {
     const envDir = lastSlash === -1 ? '.' : composePath.slice(0, lastSlash);
     const envPath = `${envDir}/.env`;
 
-    // Heredoc entrecomillado: el cuerpo es literal (misma lección que
-    // writeComposeFile). openssl corre en el servidor; el password nunca
-    // pasa por el comando SSH como valor interpolado.
+    // Si el wizard entregó una contraseña, viaja en base64 (charset seguro
+    // en comillas simples) y se decodifica en el servidor. El valor en claro
+    // no aparece en el argv de SSH. Si no hay valor, openssl la genera ahí
+    // (comportamiento histórico: el password no pasa por el CLI).
+    const provided = config.dbPassword;
+    if (provided && /[\r\n]/.test(provided)) {
+      return {
+        success: false,
+        error: 'DB_PASSWORD no puede contener saltos de línea',
+      };
+    }
+
+    const writeClause = provided
+      ? `echo '${Buffer.from(`DB_PASSWORD=${provided}\n`, 'utf-8').toString('base64')}' | base64 -d >> "$ENV_FILE"`
+      : `printf 'DB_PASSWORD=%s\\n' "$(openssl rand -hex 24)" >> "$ENV_FILE"`;
+
     const result = await this.sshClient.executeCommand(
       `ENV_FILE='${envPath}' && ` +
         `touch "$ENV_FILE" && chmod 600 "$ENV_FILE" && ` +
         `if grep -q '^DB_PASSWORD=' "$ENV_FILE"; then echo already_set; ` +
-        `else printf 'DB_PASSWORD=%s\\n' "$(openssl rand -hex 24)" >> "$ENV_FILE"; fi`
+        `else ${writeClause}; fi`
     );
 
     return {

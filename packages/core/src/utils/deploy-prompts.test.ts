@@ -316,6 +316,21 @@ describe('promptDeployParams (AC-1 · recolección de datos)', () => {
     );
   });
 
+  it('omite URL git y rama cuando skipGitRepository (FRA-77)', async () => {
+    setupPrompts({ dnsProvider: 'manual' });
+
+    const result = await promptDeployParams(false, undefined, { skipGitRepository: true });
+
+    expect(result.gitRepository).toBe('');
+    expect(result.productionBranch).toBe('main');
+    expect(input).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('URL del repositorio Git') })
+    );
+    expect(input).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('Rama') })
+    );
+  });
+
   it('debe instalar validadores de AC-1 que rechazan datos inválidos y aceptan válidos', async () => {
     setupPrompts();
     await promptDeployParams();
