@@ -206,7 +206,7 @@ Este comando es el primer paso concreto hacia el objetivo de TTP < 30 min
 | ADR-0005 (frontend Laravel: React + Vite + Sanctum Bearer) | Bloqueante | Aceptado |
 | ADR-0010 (topología del proyecto generado) | Bloqueante | Aceptado |
 | ADR-0012 (deploy multirepo: coordinación en el primer deploy) | Blanda | Aceptado |
-| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Aprobado |
+| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Implementado |
 | SPEC-0006 (contrato del adapter v0) | Blanda | Implementado |
 
 ---
