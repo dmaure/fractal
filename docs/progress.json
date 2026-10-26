@@ -61,7 +61,8 @@
       "estado": "en_curso",
       "tareas": [
         { "id": "T1", "ticket": "FRA-29", "label": "Inicializar git segun topologia (SPEC-0001 AC-6)", "estado": "completado" },
-        { "id": "T2", "ticket": "FRA-54", "label": "Conectar `fractal new` al adapter-laravel via bridge (comparte ticket con SPEC-0006 T6)", "estado": "completado" }
+        { "id": "T2", "ticket": "FRA-54", "label": "Conectar `fractal new` al adapter-laravel via bridge (comparte ticket con SPEC-0006 T6)", "estado": "completado" },
+        { "id": "T3", "ticket": "FRA-77", "label": "Wizard interactivo en `fractal new` (params no defaultables + modo no interactivo)", "estado": "completado" }
       ]
     },
     {
@@ -95,7 +96,8 @@
         { "id": "T11", "ticket": "FRA-71", "label": "SSL/nginx dentro de Docker y Cloudflare con subdominio (MVP 3/5)", "estado": "completado" },
         { "id": "T12", "ticket": "FRA-72", "label": "Workflow de redeploy por merge y env vars de produccion del monolito (MVP 4/5)", "estado": "completado" },
         { "id": "T13", "ticket": "FRA-73", "label": "e2e real con fractal new + fractal deploy (MVP 5/5)", "estado": "completado" },
-        { "id": "T14", "ticket": "FRA-75", "label": "Hardening post-MVP: sudo acotado para deploy y verificación de host key en --non-interactive", "estado": "en_curso" }
+        { "id": "T14", "ticket": "FRA-75", "label": "Hardening post-MVP: sudo acotado para deploy y verificación de host key en --non-interactive", "estado": "completado" },
+        { "id": "T15", "ticket": "FRA-78", "label": "Escribir `/etc/fractal/state.json` como JSON válido (heredoc en bash -c)", "estado": "completado" }
       ]
     },
     {
