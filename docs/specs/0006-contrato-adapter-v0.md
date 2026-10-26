@@ -111,7 +111,7 @@ abstraer sin evidencia.
 | ADR-0001 (CLI híbrido Node) | Bloqueante | Aceptado |
 | ADR-0002 (arquitectura multi-target) | Bloqueante | Aceptado |
 | ADR-0003 (FDL en JSON) | Blanda | Aceptado |
-| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Aprobado |
+| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Implementado |
 
 ---
 

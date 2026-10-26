@@ -2,9 +2,10 @@
 
 **Versión:** 1.0.0
 **Estado:** Draft
-**Última revisión:** 2026-09-28 — el Diagrama 1 (milestones) y el Diagrama 2
-(capacidades y módulos) son ahora auto-generados desde
-[`progress.json`](progress.json) (SPEC-0031).
+**Última revisión:** 2026-10-26 — M1 cerrado (SPEC-0001/0002/0003
+**Implementado**, FRA-81). El Diagrama 1 (milestones) y el Diagrama 2
+(capacidades y módulos) se regeneran desde [`progress.json`](progress.json)
+(SPEC-0031).
 
 ---
 
@@ -74,7 +75,8 @@ flowchart LR
     classDef curso fill:#f9a825,color:#000,stroke:#f57f17;
     classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
 
-    class M0,M1,M2 curso;
+    class M1 done;
+    class M0,M2 curso;
     class M3,M4,M5,M6 pend;
 ```
 <!-- progress-map:auto:end -->
@@ -84,9 +86,11 @@ flowchart LR
 
 - **M0 🟡** — Fundaciones casi completas (ADRs, docs, lint de acoplamiento,
   monorepo ✅); falta el ítem **CI base** (lint, tests, matriz de versiones).
-- **M1 🟡** — El deploy está mergeado (FRA-36 / FRA-37 / FRA-38), pero su DoD y
-  el e2e en CI siguen pendientes; los specs continúan **Aprobados**, no
-  Implementados.
+- **M1 ✅** — Esqueleto vertical cerrado el 2026-10-26 (FRA-81, decisión de
+  Diego): SPEC-0001, SPEC-0002 y SPEC-0003 **Implementado**. El e2e real
+  `fractal new` + `fractal deploy` (FRA-73/76) y el QA PASS post-merge #93
+  en master `2df1d60` cubren el DoD que la auditoría del 2026-10-14 había
+  reabierto.
 - **M2 🟡** — SPEC-0006 (contrato del adapter) quedó **Implementado**
   (2026-10-11, FRA-55): `fractal new` ya genera las tres topologías contra el
   contrato. El resto de M2 (FDL, generación de entidades) sigue pendiente.
@@ -134,15 +138,16 @@ flowchart TD
     classDef curso fill:#f9a825,color:#000,stroke:#f57f17;
     classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
 
-    class FDL done;
-    class NEW,ENT,DEP,CORE,ALAR,DEPLOY curso;
+    class NEW,DEP,FDL done;
+    class ENT,CORE,ALAR,DEPLOY curso;
     class MOD,ARAI,MODULOS pend;
 ```
 <!-- progress-map:diagrama2:end -->
 
 Cómo leerlo:
 
-- **`fractal new` y `fractal deploy` 🟡** — trabajo de M1 mergeado, DoD pendiente.
+- **`fractal new` y `fractal deploy` ✅** — M1 cerrado (FRA-81): specs
+  **Implementado**, e2e real + QA PASS en master `2df1d60`.
 - **`fractal entity` 🟡** — el contrato del adapter (SPEC-0006) está
   **Implementado**, así que la capability cuenta como arrancada; la generación
   de entidades en sí sigue pendiente.
@@ -165,7 +170,7 @@ tabla solo lo espeja.
 | Milestone | Specs / ítems | Estado (ROADMAP) | Milestone en Linear |
 |---|---|---|---|
 | M0 — Fundaciones | ADR-0002/0003/0004/0006/0007 ✅, lint de acoplamiento ✅, monorepo ✅, **CI base** ⬜ | 🟡 (falta CI base) | M0 — Fundaciones |
-| M1 — Esqueleto vertical | SPEC-0001, SPEC-0002, SPEC-0003 | ⬜ (deploy mergeado; DoD/CI e2e pendiente) | M1 — Esqueleto vertical |
+| M1 — Esqueleto vertical | SPEC-0001, SPEC-0002, SPEC-0003 **Implementado** ✅ | ✅ (FRA-81, Diego 2026-10-26; QA PASS #93) | M1 — Esqueleto vertical |
 | M2 — FDL y generación de entidades | SPEC-0004 … SPEC-0013 (SPEC-0006 **Implementado** ✅) | 🟡 (SPEC-0006 cerrado; resto pendiente) | M2 — FDL y generación de entidades |
 | M3 — Autenticación y autorización | SPEC-0014, SPEC-0015, SPEC-0016 | ⬜ | M3 — Autenticación y autorización |
 | M4 — Adapter Rails | SPEC-0017 … SPEC-0021 | ⬜ | M4 — Adapter Rails |

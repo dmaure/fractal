@@ -8,7 +8,7 @@
   },
   "milestones": [
     { "id": "M0", "nombre": "Fundaciones", "entregable": "reglas, docs y CI base", "estado": "en_curso" },
-    { "id": "M1", "nombre": "Esqueleto vertical", "entregable": "new + deploy = app online", "estado": "en_curso" },
+    { "id": "M1", "nombre": "Esqueleto vertical", "entregable": "new + deploy = app online", "estado": "completado" },
     { "id": "M2", "nombre": "FDL y entidades", "entregable": "CRUD generado y desplegable", "estado": "en_curso" },
     { "id": "M3", "nombre": "Autenticación y autorización", "entregable": "roles, OAuth, 2FA", "estado": "pendiente" },
     { "id": "M4", "nombre": "Adapter Rails", "entregable": "multi-target verificado", "estado": "pendiente" },
@@ -21,9 +21,9 @@
         "id": "CAP",
         "titulo": "Capabilities (CLI · core)",
         "nodos": [
-          { "id": "NEW", "label": "fractal new", "estado": "en_curso" },
+          { "id": "NEW", "label": "fractal new", "estado": "completado" },
           { "id": "ENT", "label": "fractal entity", "estado": "en_curso" },
-          { "id": "DEP", "label": "fractal deploy", "estado": "en_curso" },
+          { "id": "DEP", "label": "fractal deploy", "estado": "completado" },
           { "id": "MOD", "label": "fractal module", "estado": "pendiente" }
         ]
       },
@@ -58,7 +58,7 @@
       "id": "SPEC-0001",
       "label": "fractal new genera proyecto Laravel base",
       "milestone": "M1",
-      "estado": "en_curso",
+      "estado": "completado",
       "tareas": [
         { "id": "T1", "ticket": "FRA-29", "label": "Inicializar git segun topologia (SPEC-0001 AC-6)", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-54", "label": "Conectar `fractal new` al adapter-laravel via bridge (comparte ticket con SPEC-0006 T6)", "estado": "completado" },
@@ -69,7 +69,7 @@
       "id": "SPEC-0002",
       "label": "Bridge Node hacia el toolchain del target",
       "milestone": "M1",
-      "estado": "en_curso",
+      "estado": "completado",
       "tareas": [
         { "id": "T1", "ticket": "FRA-24", "label": "Timeout y lock de concurrencia del bridge (.fractal.lock con PID)", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-25", "label": "Deteccion de binario externo ausente en el bridge", "estado": "completado" },
@@ -81,7 +81,7 @@
       "id": "SPEC-0003",
       "label": "fractal deploy publica en internet con HTTPS",
       "milestone": "M1",
-      "estado": "en_curso",
+      "estado": "completado",
       "tareas": [
         { "id": "T1", "ticket": "FRA-31", "label": "Deploy: DNS automatizado y manual (AC-5, AC-6)", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-37", "label": "Orquestar hardening -> runtime -> DNS en fractal deploy", "estado": "completado" },

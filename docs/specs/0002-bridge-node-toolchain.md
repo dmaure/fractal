@@ -1,12 +1,19 @@
 # SPEC-0002: Bridge Node → toolchain del target
 
-**Estado:** Aprobado
+**Estado:** Implementado
 **Autor:** Diego
 **Fecha:** 2026-08-09
-**Última revisión:** 2026-10-06 — el mecanismo del bridge está implementado
-en `packages/core/src/bridge` (detección de binario ausente y chequeo de
-versión mínima, timeout, lock `.fractal.lock` con PID) y tiene tests
-(`bridge/timeout.spec.ts`, `lock/lock-manager.spec.ts`,
+**Última revisión:** 2026-10-26 (FRA-81) — **cierre documental**: decisión de
+Diego (PO, 2026-10-26 ART). Todas las tareas de SPEC-0002 en
+`docs/progress.json` están `completado` (FRA-24 timeout/lock, FRA-25 binario
+ausente, FRA-41 versión mínima, FRA-66 contrato documentado). El bridge se
+ejercita en el e2e real `fractal new` + `fractal deploy` (FRA-73 #87,
+FRA-76 #88) y Fractal QA post-merge #93 dio **PASS** en master `2df1d60`.
+La Definition of Done del §9 se cumple (evidencia en §9.1). Pasa de Aprobado
+a **Implementado**. Revisión previa 2026-10-06 — el mecanismo del bridge está
+implementado en `packages/core/src/bridge` (detección de binario ausente y
+chequeo de versión mínima, timeout, lock `.fractal.lock` con PID) y tiene
+tests (`bridge/timeout.spec.ts`, `lock/lock-manager.spec.ts`,
 `test/adapter-bridge.test.ts`, `test/binary-check.test.ts`). AC-4 completo
 (FRA-41, T3 de SPEC-0006). Pendiente: documentación de usuario del contrato
 (AC-6). El M1 mergeado (FRA-37/FRA-38/FRA-36) es del lado deploy, no toca
@@ -201,9 +208,40 @@ Ninguna pendiente. Las tres preguntas originales se resolvieron el
 
 ## 9. Definition of Done
 
-- [ ] Todos los criterios de aceptación tienen test automatizado
-- [ ] Tests de snapshot de los stubs actualizados (si aplica)
-- [ ] Test end-to-end pasa
-- [ ] Documentación de usuario escrita
-- [ ] ADRs asociados creados si hubo decisiones técnicas
-- [ ] Este spec marcado como Implementado
+- [x] Todos los criterios de aceptación tienen test automatizado
+  — AC-1..AC-8, ver mapeo de evidencia en §9.1.
+- [x] Tests de snapshot de los stubs actualizados (si aplica)
+  — no aplica: el bridge no genera stubs; los snapshots de proyecto viven
+  en SPEC-0001 / SPEC-0006 (`create-project.tree.test.ts.snap`).
+- [x] Test end-to-end pasa
+  — el bridge se ejercita en `packages/core/src/commands/e2e-new.test.ts`
+  (FRA-54) y en `.github/workflows/deploy-e2e.yml` (`fractal new` invoca al
+  adapter vía stdin/stdout, FRA-73 #87 / FRA-76 #88). QA PASS post-merge #93
+  en master `2df1d60`.
+- [x] Documentación de usuario escrita
+  — contrato para autores de adapters en
+  `packages/core/docs/bridge-contract-v0.md` (AC-6, FRA-66 #76). El usuario
+  final del CLI no invoca el bridge directo; la guía de `fractal new`
+  (`docs/guides/fractal-new.md`) apunta a este contrato.
+- [x] ADRs asociados creados si hubo decisiones técnicas
+  — ADR-0001 (CLI híbrido Node; stdin/stdout) y ADR-0003 (payload JSON).
+- [x] Este spec marcado como Implementado — ver cabecera (2026-10-26, FRA-81,
+  decisión de Diego).
+
+---
+
+## 9.1 Cierre — mapeo de evidencia (FRA-81)
+
+Cada criterio de aceptación del §4 queda cubierto por código y tests mergeados
+en `master`.
+
+| AC | Qué exige | Evidencia (código + tests) | Tickets / PRs |
+|---|---|---|---|
+| **AC-1** — invocación uniforme | Misma interfaz de entrada/salida para cualquier target | `packages/core/src/adapter-bridge.ts` (`invokeAdapter`); tests `test/adapter-bridge.test.ts` | FRA-24, FRA-54 |
+| **AC-2** — payload JSON por stdin/stdout | Sin archivo temporal ni argv ad-hoc | `invokeAdapter` serializa JSON por stdin y lee stdout; documentado en `bridge-contract-v0.md` | FRA-24, FRA-66 (#76) |
+| **AC-3** — errores legibles | Fallo de toolchain sin stacktrace crudo del hijo | Envelope de error con `step` en el bridge; tests de `adapter-bridge` | FRA-24, FRA-66 |
+| **AC-4** — binario ausente o insuficiente | Detecta antes de ejecutar; usa `RuntimeRequirements` del adapter | `packages/core/src/bridge/binary-check.ts`; tests `test/binary-check.test.ts` | FRA-25, FRA-41 (#57) |
+| **AC-5** — timeout | Corta el hijo, reporta, sin huérfanos; default fijo | `packages/core/src/bridge/timeout.ts`; tests `src/bridge/timeout.spec.ts` (default 5 min) | FRA-24 |
+| **AC-6** — contrato documentado | Payload, respuesta y códigos de error suficientes para un adapter nuevo | `packages/core/docs/bridge-contract-v0.md` | FRA-66 (#76) |
+| **AC-7** — lock de concurrencia | Segundo comando falla rápido con `.fractal.lock` + PID | `packages/core/src/lock/lock-manager.ts`; tests `src/lock/lock-manager.spec.ts` | FRA-24 |
+| **AC-8** — lock huérfano | PID muerto → lock stale, se libera y continúa | Misma suite `lock-manager.spec.ts` | FRA-24 |
