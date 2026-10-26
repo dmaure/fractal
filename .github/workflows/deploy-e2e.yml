@@ -16,13 +16,6 @@ name: Deploy E2E (VPS efímero)
 # CLOUDFLARE_ZONE_ID.
 
 on:
-  pull_request:
-    paths:
-      - 'packages/deploy/**'
-      - 'packages/core/**'
-      - 'packages/adapter-laravel/**'
-      - '.github/workflows/deploy-e2e.yml'
-      - 'docs/specs/0003-*'
   push:
     branches: [master]
     paths:
