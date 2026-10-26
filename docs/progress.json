@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-10-25",
+  "actualizado": "2026-10-26",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -95,7 +95,7 @@
         { "id": "T11", "ticket": "FRA-71", "label": "SSL/nginx dentro de Docker y Cloudflare con subdominio (MVP 3/5)", "estado": "completado" },
         { "id": "T12", "ticket": "FRA-72", "label": "Workflow de redeploy por merge y env vars de produccion del monolito (MVP 4/5)", "estado": "completado" },
         { "id": "T13", "ticket": "FRA-73", "label": "e2e real con fractal new + fractal deploy (MVP 5/5)", "estado": "completado" },
-        { "id": "T14", "ticket": "FRA-75", "label": "Hardening post-MVP: sudo acotado para deploy y verificación de host key en --non-interactive", "estado": "completado" }
+        { "id": "T14", "ticket": "FRA-75", "label": "Hardening post-MVP: sudo acotado para deploy y verificación de host key en --non-interactive", "estado": "en_curso" }
       ]
     },
     {
