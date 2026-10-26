@@ -137,6 +137,12 @@ export function resolveNonInteractiveHostKeyPolicy(input: {
   }
 
   if (input.authMethod === 'password') {
+    // `onUnknownHost => false` garantiza que la contraseña NO se transmite a un
+    // host sin verificar: ssh2 invoca el host-verifier durante el handshake del
+    // transporte, ANTES de la fase de autenticación (ver el `hostVerifier` en
+    // packages/deploy/src/ssh/client.ts). Devolver `false` aborta la conexión
+    // en ese punto, de modo que la credencial nunca llega a enviarse. Por eso
+    // PASSWORD_UNVERIFIED_HOST_ERROR puede afirmar "La contraseña no se envió".
     return {
       pinConfigured: false,
       explicitTofu: false,

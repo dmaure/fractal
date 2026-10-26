@@ -468,6 +468,14 @@ export class SshClient {
       readyTimeout: this.config.timeout,
       keepaliveInterval: 15_000,
       keepaliveCountMax: 8,
+      // ssh2 ejecuta `hostVerifier` durante el handshake del transporte, ANTES
+      // de la fase de autenticación: la verificación de la host key ocurre al
+      // recibir el SSH_MSG_KEXINIT/host key del servidor, y recién cuando
+      // `verify(true)` confirma la clave ssh2 pasa a autenticar. Por eso
+      // resolver con `false` aborta la conexión antes de que se transmita
+      // cualquier credencial (contraseña o clave). Es la garantía que sostiene
+      // la política `onUnknownHost => false` de deploy-host-key.ts: la
+      // contraseña nunca viaja a un host sin verificar (FRA-75).
       hostVerifier: (key: Buffer, verify: (valid: boolean) => void) => {
         void this.verifyHostKey(key).then(verify, () => verify(false));
       },
