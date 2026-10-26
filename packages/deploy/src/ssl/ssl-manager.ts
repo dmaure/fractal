@@ -4,6 +4,25 @@ import { CertbotInstaller } from './certbot-installer.js';
 import { ContainerCertInstaller } from './container-cert-installer.js';
 import { RenewalManager } from './renewal-manager.js';
 
+/** Días mínimos de vigencia para reutilizar el cert en un redeploy (no reemitir). */
+export const SSL_REUSE_MIN_DAYS = 30;
+
+/**
+ * Decisión de idempotencia SSL del redeploy: un cert válido con más de
+ * `SSL_REUSE_MIN_DAYS` no se reemite.
+ */
+export function shouldReuseExistingCertificate(check: {
+  exists: boolean;
+  daysRemaining?: number;
+}): boolean {
+  return (
+    check.exists === true &&
+    typeof check.daysRemaining === 'number' &&
+    Number.isFinite(check.daysRemaining) &&
+    check.daysRemaining > SSL_REUSE_MIN_DAYS
+  );
+}
+
 /**
  * Manejador principal de SSL/TLS.
  * Implementa AC-7 del SPEC-0003.
@@ -139,6 +158,10 @@ export class SslManager {
 
   /**
    * Verifica el estado del certificado actual.
+   *
+   * `/etc/letsencrypt/live` es 700 root: hay que leerlo con sudo. `test -f`
+   * sin privilegios da un falso negativo y el redeploy cree que el cert no
+   * existe. `sudo test` no está en el sudoers acotado (FRA-75); `openssl` sí.
    */
   async checkCertificate(domain: string): Promise<{
     exists: boolean;
@@ -147,32 +170,26 @@ export class SslManager {
   }> {
     try {
       const certPath = `/etc/letsencrypt/live/${domain}/cert.pem`;
-      
-      // Verificar si existe
-      const existsResult = await this.exec(`test -f ${certPath}`);
-      if (existsResult.exitCode !== 0) {
+      const dateCmd = `sudo openssl x509 -enddate -noout -in ${certPath}`;
+      const dateResult = await this.exec(dateCmd);
+
+      if (dateResult.exitCode !== 0) {
         return { exists: false };
       }
 
-      // Obtener fecha de expiración
-      const dateCmd = `sudo openssl x509 -enddate -noout -in ${certPath}`;
-      const dateResult = await this.exec(dateCmd);
-      
-      if (dateResult.exitCode === 0) {
-        const match = dateResult.stdout.match(/notAfter=(.+)/);
-        if (match) {
-          const expiresAt = new Date(match[1]);
-          const now = new Date();
-          const daysRemaining = Math.floor(
-            (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-          );
-          
-          return {
-            exists: true,
-            expiresAt,
-            daysRemaining,
-          };
-        }
+      const match = dateResult.stdout.match(/notAfter=(.+)/);
+      if (match) {
+        const expiresAt = new Date(match[1]);
+        const now = new Date();
+        const daysRemaining = Math.floor(
+          (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        return {
+          exists: true,
+          expiresAt,
+          daysRemaining,
+        };
       }
 
       return { exists: true };
