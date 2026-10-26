@@ -940,5 +940,76 @@ describe('SystemHardening', () => {
         cmd.includes('Include /etc/ssh/sshd_config.d/*.conf')
       )).toBe(true);
     });
+
+    // FRA-75: regresión de idempotencia. `StateManager.writeState` abre una
+    // conexión SSH root nueva por comando, así que la escritura que persiste
+    // el hardening como 'completed' (un `tee /etc/fractal/state.json` cuyo
+    // cuerpo JSON trae hardening en estado "completed") debe emitirse ANTES
+    // del comando que deshabilita el login de root (el que contiene
+    // `PermitRootLogin`). Con el orden anterior (marcar 'completed' tras
+    // `hardenSshd`) este test queda en rojo.
+    it('debe persistir el estado completed ANTES de deshabilitar root en sshd', async () => {
+      executeCommandMock.mockImplementation(async (cmd: string) => {
+        if (cmd.includes('id deploy') && cmd.includes('not_found')) {
+          return {
+            success: true,
+            stdout: 'not_found',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('test -f')) {
+          return {
+            success: true,
+            stdout: 'exists',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('grep -q')) {
+          return {
+            success: true,
+            stdout: '',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('command -v ufw')) {
+          return {
+            success: true,
+            stdout: 'installed',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        return {
+          success: true,
+          stdout: 'success',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult;
+      });
+
+      const result = await systemHardening.harden(validConfig);
+      expect(result.success).toBe(true);
+
+      const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
+
+      const completedStateIndex = sshCommands.findIndex((cmd: string) =>
+        cmd.includes('tee /etc/fractal/state.json') &&
+        cmd.includes('"state": "completed"')
+      );
+      const permitRootLoginIndex = sshCommands.findIndex((cmd: string) =>
+        cmd.includes('PermitRootLogin')
+      );
+
+      expect(completedStateIndex).toBeGreaterThanOrEqual(0);
+      expect(permitRootLoginIndex).toBeGreaterThanOrEqual(0);
+      expect(completedStateIndex).toBeLessThan(permitRootLoginIndex);
+    });
   });
 });

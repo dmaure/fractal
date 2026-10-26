@@ -167,32 +167,36 @@ export class SystemHardening {
       }
       steps.push(`Firewall UFW configurado (puertos: ${allowedPorts.join(', ')})`);
 
+      // Persistir el estado 'completed' ANTES de endurecer SSH. `hardenSshd`
+      // deshabilita `PermitRootLogin`, y `StateManager` abre una conexión SSH
+      // root nueva por cada comando, así que cualquier escritura de estado
+      // posterior al hardening de SSH sería rechazada (root bloqueado) y la
+      // idempotencia nunca quedaría registrada -> el redeploy como `deploy`
+      // re-entraría al hardening y fallaría en `grantPasswordlessSudo`.
+      // `hardenSshd` es el paso final e idempotente; registramos la
+      // finalización mientras la sesión root sigue viva.
+      const completedMark = await this.stateManager.markStep('hardening', 'completed', configHash);
+      if (!completedMark.success) {
+        return {
+          success: false,
+          steps,
+          error: `No se pudo persistir el estado 'completed' del hardening: ${completedMark.error ?? 'error desconocido'}`,
+        };
+      }
+
       // 4. Hardening de SSH: deshabilitar root login y password auth.
       // Debe ser lo ÚLTIMO: una vez deshabilitado el login de root, ningún
       // comando posterior que dependa de reconectar como root funcionaría.
       const sshHardened = await this.hardenSshd();
       if (!sshHardened) {
-        await this.stateManager.markStep(
-          'hardening',
-          'failed',
-          configHash,
-          'No se pudo endurecer la configuración de SSH'
-        );
-        return {
-          success: false,
-          steps,
-          error: 'No se pudo endurecer la configuración de SSH',
-        };
+        // Si la validación de sshd falla antes del reload, root sigue accesible:
+        // revertimos el marcador para que el próximo deploy re-endurezca.
+        await this.stateManager.markStep('hardening', 'failed', configHash, 'No se pudo endurecer la configuración de SSH');
+        return { success: false, steps, error: 'No se pudo endurecer la configuración de SSH' };
       }
       steps.push('SSH endurecido: root, password y keyboard-interactive deshabilitados');
 
-      // Marcar como completado
-      await this.stateManager.markStep('hardening', 'completed', configHash);
-
-      return {
-        success: true,
-        steps,
-      };
+      return { success: true, steps };
     } catch (error) {
       const configHash = StateManager.generateConfigHash(config);
       await this.stateManager.markStep(
