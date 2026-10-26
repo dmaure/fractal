@@ -1,4 +1,5 @@
 import type { SshClient } from '../ssh/client.js';
+import type { SshCommandResult } from '../ssh/types.js';
 import type {
   HardeningConfig,
   HardeningResult,
@@ -107,19 +108,11 @@ export class SystemHardening {
       // drop-in NOPASSWD. FRA-75 acota el drop-in a los binarios y rutas que
       // el camino de deploy realmente invoca (no NOPASSWD:ALL). Corre como
       // root y ANTES de que hardenSshd deshabilite el login de root.
-      const sudoGranted = await this.grantPasswordlessSudo(config.deployUser);
-      if (!sudoGranted) {
-        await this.stateManager.markStep(
-          'hardening',
-          'failed',
-          configHash,
-          `No se pudo conceder sudo acotado a ${config.deployUser}`
-        );
-        return {
-          success: false,
-          steps,
-          error: `No se pudo conceder sudo acotado a ${config.deployUser}`,
-        };
+      const sudoResult = await this.grantPasswordlessSudo(config.deployUser);
+      if (!sudoResult.success) {
+        const detalle = `No se pudo conceder sudo acotado a ${config.deployUser} (exitCode=${sudoResult.exitCode ?? 'null'}): ${sudoResult.stderr.trim() || 'sin stderr'}`;
+        await this.stateManager.markStep('hardening', 'failed', configHash, detalle);
+        return { success: false, steps, error: detalle };
       }
       steps.push(`Sudo acotado (NOPASSWD) habilitado para ${config.deployUser}`);
 
@@ -263,25 +256,29 @@ export class SystemHardening {
    * para no dejar nunca un sudoers roto, y `tee` lo reescribe en cada corrida
    * (idempotente). Agnóstico de framework: solo usa utilidades estándar de Linux.
    */
-  private async grantPasswordlessSudo(username: string): Promise<boolean> {
+  private async grantPasswordlessSudo(username: string): Promise<SshCommandResult> {
     const sudoersPath = `/etc/sudoers.d/90-fractal-${username}`;
     let content: string;
     try {
       content = buildDeploySudoers(username);
-    } catch {
-      return false;
+    } catch (error) {
+      return {
+        success: false,
+        stdout: '',
+        stderr: error instanceof Error ? error.message : 'allowlist de sudoers inválida',
+        exitCode: null,
+      };
     }
 
     // Heredoc entrecomillado: el cuerpo no se expande (mismo patrón que
     // writeState, FRA-78). El contenido ya trae el username interpolado.
-    const result = await this.sshClient.executeCommand(
+    return this.sshClient.executeCommand(
       `sudo tee ${sudoersPath} > /dev/null << 'FRACTAL_SUDOERS_EOF'\n` +
         `${content}` +
         `FRACTAL_SUDOERS_EOF\n` +
         `sudo chmod 440 ${sudoersPath} && ` +
         `sudo visudo -cf ${sudoersPath}`
     );
-    return result.success;
   }
 
   /**
