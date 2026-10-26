@@ -1,17 +1,17 @@
 # Roadmap
 
-**Última revisión:** 2026-10-14
+**Última revisión:** 2026-10-26
 
 > Mapa visual del avance: ver [`MAPA_DE_PROGRESO.md`](./MAPA_DE_PROGRESO.md).
 
 > Base de esta actualización: ADRs M0 aceptados (0002/0003/0004/0006/0007),
 > estructura de `docs/` y monorepo pnpm ya presentes, y lint de acoplamiento
-> con script propio. M1 (SPEC-0001/0002/0003) cargado en `docs/progress.json`
-> como `en_curso` (FRA-67): implementación mergeada, pero ningún spec marcado
-> Implementado todavía — Diego decide SPEC-0001/0002 aparte, y SPEC-0003 tiene
-> el e2e en CI (FRA-64) y la doc de usuario (FRA-65) pero le falta el test
-> automatizado de AC-1. SPEC-0006 (contrato del adapter) quedó **Implementado**
-> el 2026-10-11 (FRA-55).
+> con script propio. M1 (SPEC-0001/0002/0003) quedó **Implementado** el
+> 2026-10-26 (FRA-81, decisión de Diego): todas las tareas en
+> `docs/progress.json` están `completado`, el e2e real `fractal new` +
+> `fractal deploy` está mergeado (FRA-73/76) y Fractal QA post-merge #93 dio
+> PASS en master `2df1d60`. SPEC-0006 (contrato del adapter) quedó
+> **Implementado** el 2026-10-11 (FRA-55).
 
 Cada milestone entrega valor verificable por sí solo.
 
@@ -52,35 +52,30 @@ Cada milestone entrega valor verificable por sí solo.
 
 | Spec | Capability | Estado |
 |---|---|---|
-| SPEC-0001 | `fractal new` genera proyecto Laravel base | 🟡[^spec0001] |
-| SPEC-0002 | Bridge Node → toolchain del target | 🟡[^spec0002] |
-| SPEC-0003 | `fractal deploy` publica en internet con HTTPS | 🟡[^spec0003] |
+| SPEC-0001 | `fractal new` genera proyecto Laravel base | ✅[^spec0001] |
+| SPEC-0002 | Bridge Node → toolchain del target | ✅[^spec0002] |
+| SPEC-0003 | `fractal deploy` publica en internet con HTTPS | ✅[^spec0003] |
 
 **Salida:** `fractal new` + `fractal deploy` = app vacía online, con SSL y deploy por merge.
 
 Es el milestone más importante. Valida el diferenciador del producto antes de
 invertir en generación de código.
 
-[^spec0001]: `en_curso` en `docs/progress.json` (SPEC-0001, M1; cargado en FRA-67).
-    Implementación de `fractal new` mergeada en `packages/core` (validación de
-    directorio, init de git por topología — FRA-29, manifiesto y wiring al
-    adapter — FRA-54). El spec sigue **Aprobado** (no Implementado): la DoD §9
-    todavía no se verifica entera. Diego decide el marcado aparte.
-[^spec0002]: `en_curso` en `docs/progress.json` (SPEC-0002, M1; cargado en FRA-67).
-    Bridge Node implementado con tests (timeout y lock de concurrencia — FRA-24,
-    detección de binario ausente — FRA-25, chequeo de versión mínima — AC-4,
-    FRA-41) y contrato documentado (AC-6, FRA-66). El spec sigue **Aprobado**.
-    Diego decide el marcado aparte.
-[^spec0003]: `en_curso` en `docs/progress.json` (SPEC-0003, M1). Revertido a **En
-    curso** el 2026-10-14 (antes marcado Implementado): una auditoría de código
-    mostró que el MVP (`fractal new` → Laravel en local → `fractal deploy` →
-    HTTPS → redeploy por merge) **no corre de punta a punta**, y el e2e de FRA-64
-    **no ejercita `fractal new` ni `fractal deploy`** — sirve un `index.html`
-    estático con `nginx:alpine`, así que no valida deploy real, SSL en Docker ni
-    redeploy. Por eso los AC de deploy/SSL/redeploy/e2e no están verdaderamente
-    cubiertos. Se crearon tickets nuevos en Linear para completarlos. El test
-    automatizado de AC-1 (recolección interactiva de datos) sí quedó cubierto
-    (FRA-68), pero no alcanza para el DoD §9.
+[^spec0001]: `completado` en `docs/progress.json` (SPEC-0001, M1). Spec
+    **Implementado** el 2026-10-26 por decisión de Diego (FRA-81): FRA-29,
+    FRA-54 y FRA-77 mergeados; guía `docs/guides/fractal-new.md`; e2e real
+    FRA-73/76 y QA PASS post-merge #93 en master `2df1d60`.
+[^spec0002]: `completado` en `docs/progress.json` (SPEC-0002, M1). Spec
+    **Implementado** el 2026-10-26 por decisión de Diego (FRA-81): FRA-24,
+    FRA-25, FRA-41 (AC-4) y FRA-66 (AC-6, `packages/core/docs/bridge-contract-v0.md`)
+    mergeados; el bridge se ejercita en el e2e real de M1.
+[^spec0003]: `completado` en `docs/progress.json` (SPEC-0003, M1). Spec
+    **Implementado** el 2026-10-26 por decisión de Diego (FRA-81). La reversión
+    a En curso del 2026-10-14 (e2e de FRA-64 servía un `index.html` estático
+    con `nginx:alpine`) queda cerrada: FRA-73 (#87) y FRA-76 (#88) corren
+    `fractal new` + `fractal deploy` contra un VPS Vultr efímero, y Fractal QA
+    post-merge #93 dio **PASS** en master `2df1d60`. FRA-80 es un bug Low
+    aparte y no forma parte de este cierre.
 
 ---
 
