@@ -286,7 +286,18 @@ jobs:
           sed -i "s#está corriendo#está corriendo ${MARKER}#" resources/views/app.blade.php
 
           echo "→ Redeploy (debe refrescar el volumen app_code y servir el código nuevo)..."
-          node "$FRACTAL_CLI" deploy --non-interactive
+          node "$FRACTAL_CLI" deploy --non-interactive 2>&1 | tee "$RUNNER_TEMP/fractal-e2e-redeploy.log"
+
+          echo "→ FRA-80: el cert LE del primer deploy debe reutilizarse, no reemitirse..."
+          if grep -q 'Certificado expira pronto o no válido, renovando' "$RUNNER_TEMP/fractal-e2e-redeploy.log"; then
+            echo "✗ Redeploy intentó reemitir el certificado SSL (checkCertificate falso negativo)"
+            exit 1
+          fi
+          if ! grep -q 'SSL ya configurado (certificado válido)' "$RUNNER_TEMP/fractal-e2e-redeploy.log"; then
+            echo "✗ Redeploy no reutilizó el certificado SSL existente"
+            exit 1
+          fi
+          echo "✓ SSL idempotente: certificado existente reutilizado"
 
           URL="https://$FRACTAL_E2E_DOMAIN/"
           echo "→ Esperando a que el marcador aparezca en $URL ..."
