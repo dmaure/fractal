@@ -262,6 +262,7 @@ export async function deployCommand(
     DEFAULT_DNS_RECORDS,
     StateManager,
     SslManager,
+    shouldReuseExistingCertificate,
     adaptSshClient,
     CicdManager,
   } = await import('@fractal/deploy');
@@ -914,7 +915,7 @@ export async function deployCommand(
     const sslManager = new SslManager(adaptSshClient(deployClient));
     const certCheck = await sslManager.checkCertificate(params.domain);
     
-    if (certCheck.exists && certCheck.daysRemaining && certCheck.daysRemaining > 30) {
+    if (shouldReuseExistingCertificate(certCheck)) {
       console.log(chalk.green('✓ SSL ya configurado (certificado válido)'));
       console.log(chalk.dim(`   Certificado expira en ${certCheck.daysRemaining} días`));
       sslResult = {
