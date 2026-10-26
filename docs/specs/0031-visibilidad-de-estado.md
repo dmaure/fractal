@@ -120,7 +120,7 @@ generalizan.
 |---|---|---|
 | ADR-0001 (CLI híbrido Node) | Bloqueante | Aceptado |
 | ADR-0003 (JSON como representación intermedia) | Blanda | Aceptado |
-| SPEC-0002 (bridge Node → toolchain) | Blanda | Aprobado |
+| SPEC-0002 (bridge Node → toolchain) | Blanda | Implementado |
 
 > Nota: el MVP `scripts/progress-map.js` no depende de ninguno de estos —
 > es Node stdlib puro. Las dependencias aplican a la migración a la capability
