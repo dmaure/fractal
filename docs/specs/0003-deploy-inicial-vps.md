@@ -1,38 +1,47 @@
 # SPEC-0003: Deploy inicial a VPS
 
-**Estado:** En curso
+**Estado:** Implementado
 **Autor:** Diego
 **Fecha:** 2026-08-01
-**Última revisión:** 2026-10-25 — FRA-75 documenta sudo acotado de `deploy` y
-el pin de host key en `--non-interactive`. El spec **sigue En curso** (no
-Implementado). Revisión previa 2026-10-14 — **Revertido a En curso.** Una auditoría de
-código mostró que el MVP (`fractal new` → Laravel en local → `fractal deploy` →
-HTTPS → redeploy por merge) **no funciona de punta a punta**, y el e2e de FRA-64
-**no ejecuta `fractal new` ni `fractal deploy`** (sirve un `index.html` estático
-con `nginx:alpine`), por lo que los AC de deploy real, SSL en Docker, redeploy y
-e2e real **no están verdaderamente cubiertos**. Se crearon tickets en Linear
-para completarlos. Queda sin efecto el marcado como Implementado del 2026-10-14
-previo — FRA-68 agregó el test automatizado de AC-1 (recolección interactiva de
-datos) en `packages/core/src/utils/deploy-prompts.test.ts`, pero eso no basta
-para el DoD §9. Revisión previa 2026-09-27 — seguía en **Aprobado** (no Implementado). M1
-de deploy mergeado y verificado: FRA-37 (PR #41, orquestación
-hardening→runtime→DNS en `packages/core/src/commands/deploy.ts`), FRA-38
-(PR #42, SSL Let's Encrypt + reload de Docker) y FRA-36 (PR #44, generación de
-CI/CD) — sumados a FRA-34/33/32/29 ya mergeados, cubren con tests AC-3, AC-4,
-AC-5, AC-6, AC-8, AC-10, AC-11 y AC-13 en `packages/deploy` y `packages/core`.
-Falta antes de marcar Implementado (DoD §9): el e2e contra un VPS efímero real
-"pasa en CI" — hoy no existe `.github/workflows/`, así que no hay CI que lo
-corra — y la documentación de usuario. Revisión previa 2026-09-06 —
-hardening SSH efectivo: drop-in
-`sshd_config.d` + verificación con `sshd -T` (password, root y
-keyboard-interactive). Revisión previa el mismo día: AC-2 y
-consideraciones de seguridad: las conexiones SSH verifican la clave
-del host contra `known_hosts` (TOFU interactivo; mismatch aborta).
-Revisión previa 2026-08-26:
-resueltas las 7 preguntas abiertas acumuladas (4 originales + 3 de
-ADR-0012/0013): AC-10 y AC-11 ampliados, AC-13 ampliado con
-`.gitignore` y `--reconfigure`, AC-14 nuevo (VPS con servicios
-preexistentes). Pasa de Draft a Aprobado.
+**Última revisión:** 2026-10-26 (FRA-81) — **cierre documental**: decisión de
+Diego (PO, 2026-10-26 ART). Todas las tareas de SPEC-0003 en
+`docs/progress.json` están `completado` (FRA-64/65/68, FRA-69..73, FRA-75,
+FRA-78). El e2e real `fractal new` + `fractal deploy` (FRA-73 #87, FRA-76 #88)
+reemplaza el e2e estático de FRA-64; Fractal QA post-merge #93 dio **PASS**
+en master `2df1d60` (VPS Vultr efímero + `codigofractal.dev`; caveats: §5 DNS
+box retry, §7 SKIPPED sin `gh`). FRA-80 (checkCertificate sin sudo) es un
+bug Low aparte y **no** bloquea este cierre. La Definition of Done del §9 se
+cumple (evidencia en §9.1). Pasa de En curso a **Implementado**. Revisión
+previa 2026-10-25 — FRA-75 documenta sudo acotado de `deploy` y el pin de
+host key en `--non-interactive`. El spec **sigue En curso** (no Implementado).
+Revisión previa 2026-10-14 — **Revertido a En curso.** Una auditoría de código
+mostró que el MVP (`fractal new` → Laravel en local → `fractal deploy` →
+HTTPS → redeploy por merge) **no funciona de punta a punta**, y el e2e de
+FRA-64 **no ejecuta `fractal new` ni `fractal deploy`** (sirve un
+`index.html` estático con `nginx:alpine`), por lo que los AC de deploy real,
+SSL en Docker, redeploy y e2e real **no están verdaderamente cubiertos**. Se
+crearon tickets en Linear para completarlos. Queda sin efecto el marcado
+como Implementado del 2026-10-14 previo — FRA-68 agregó el test automatizado
+de AC-1 (recolección interactiva de datos) en
+`packages/core/src/utils/deploy-prompts.test.ts`, pero eso no basta para el
+DoD §9. Revisión previa 2026-09-27 — seguía en **Aprobado** (no
+Implementado). M1 de deploy mergeado y verificado: FRA-37 (PR #41,
+orquestación hardening→runtime→DNS en
+`packages/core/src/commands/deploy.ts`), FRA-38 (PR #42, SSL Let's Encrypt +
+reload de Docker) y FRA-36 (PR #44, generación de CI/CD) — sumados a
+FRA-34/33/32/29 ya mergeados, cubren con tests AC-3, AC-4, AC-5, AC-6, AC-8,
+AC-10, AC-11 y AC-13 en `packages/deploy` y `packages/core`. Falta antes de
+marcar Implementado (DoD §9): el e2e contra un VPS efímero real "pasa en CI"
+— hoy no existe `.github/workflows/`, así que no hay CI que lo corra — y la
+documentación de usuario. Revisión previa 2026-09-06 — hardening SSH
+efectivo: drop-in `sshd_config.d` + verificación con `sshd -T` (password,
+root y keyboard-interactive). Revisión previa el mismo día: AC-2 y
+consideraciones de seguridad: las conexiones SSH verifican la clave del host
+contra `known_hosts` (TOFU interactivo; mismatch aborta). Revisión previa
+2026-08-26: resueltas las 7 preguntas abiertas acumuladas (4 originales + 3
+de ADR-0012/0013): AC-10 y AC-11 ampliados, AC-13 ampliado con `.gitignore`
+y `--reconfigure`, AC-14 nuevo (VPS con servicios preexistentes). Pasa de
+Draft a Aprobado.
 **Issue:** #
 
 ---
@@ -240,8 +249,8 @@ Automatizarlo permite el principio deploy-first: mostrar avances desde el día u
 
 | Depende de | Tipo | Estado |
 |---|---|---|
-| SPEC-0001 (comando `new`) | Bloqueante | Aprobado |
-| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Aprobado |
+| SPEC-0001 (comando `new`) | Bloqueante | Implementado |
+| SPEC-0002 (bridge Node → toolchain) | Bloqueante | Implementado |
 | ADR-0006 (runtime de producción) | Bloqueante | Aceptado |
 | ADR-0007 (CI/CD para deploy por merge) | Bloqueante | Aceptado |
 | ADR-0010 (topología del proyecto generado) | Bloqueante | Aceptado |
@@ -314,10 +323,32 @@ dejado ADR-0012/0013):
 
 - [x] AC-13 (coordinación multirepo) tiene test automatizado completo
 - [x] Todos los demás criterios de aceptación tienen test automatizado (AC-1 cubierto por `packages/core/src/utils/deploy-prompts.test.ts`)
-- [ ] Test end-to-end contra un VPS efímero real pasa en CI — el e2e de FRA-64 **no ejercita `fractal new` ni `fractal deploy`**: sirve un `index.html` estático con `nginx:alpine`, no despliega la app real ni valida deploy/SSL/redeploy de punta a punta (auditoría 2026-10-14; tickets nuevos en Linear)
-- [x] Documentación de usuario escrita (FRA-65, `docs/guides/fractal-deploy.md`)
+- [x] Test end-to-end contra un VPS efímero real pasa — `.github/workflows/deploy-e2e.yml` corre `fractal new` + `fractal deploy --non-interactive` contra un VPS Vultr efímero y un subdominio de `codigofractal.dev` (SSL Let's Encrypt staging, HTTPS, redirect HTTP→HTTPS, redeploy con refresco de volumen). FRA-73 (#87) y FRA-76 (#88) reemplazan el e2e estático de FRA-64 (`index.html` + `nginx:alpine`, auditoría 2026-10-14). Fractal QA post-merge #93: **PASS** en master `2df1d60` (caveats: §5 DNS box retry, §7 SKIPPED sin `gh`). FRA-80 (checkCertificate sin sudo) es un bug Low aparte, no forma parte de este cierre.
+- [x] Documentación de usuario escrita (FRA-65, `docs/guides/fractal-deploy.md`; actualizada en FRA-73/75)
 - [x] ADR-0006 y ADR-0007 creados y aceptados
-- [ ] Spec marcado como Implementado — revertido a **En curso** el 2026-10-14: el MVP de deploy no funciona de punta a punta (auditoría de código; tickets nuevos en Linear)
+- [x] Spec marcado como Implementado — ver cabecera (2026-10-26, FRA-81, decisión de Diego). La reversión a En curso del 2026-10-14 queda cerrada por FRA-73/76 + QA PASS.
+
+---
+
+## 9.1 Cierre — mapeo de evidencia (FRA-81)
+
+El DoD del §9 se cierra con el e2e real y la decisión de Diego. El resto de
+los AC ya tenía test automatizado mergeado (FRA-68 y anteriores); esta tabla
+solo resume dónde vive esa evidencia, sin inventar tests nuevos.
+
+| AC / DoD | Evidencia | Tickets / PRs |
+|---|---|---|
+| **AC-1** recolección de datos | `packages/core/src/utils/deploy-prompts.test.ts`; wizard de `fractal new` reutiliza el mismo set (FRA-77) | FRA-68 (#80), FRA-77 (#89) |
+| **AC-2** validación previa (SSH, Ubuntu, recursos, host key) | Conexión SSH con `known_hosts` (TOFU / pin en `--non-interactive`, FRA-75) | FRA-75 (#91) |
+| **AC-3..AC-6** hardening, runtime, DNS | Orquestación en `packages/core/src/commands/deploy.ts`; módulos en `packages/deploy` | FRA-37 (#41), FRA-31, FRA-75 |
+| **AC-7** SSL | Let's Encrypt + reload Docker; e2e real verifica HTTPS | FRA-38 (#42), FRA-71, FRA-73 |
+| **AC-8 / AC-9** CI/CD y deploy por merge | Generación de workflow; e2e real hace redeploy y verifica el cambio en producción | FRA-36 (#44), FRA-72, FRA-73 |
+| **AC-10 / AC-11** rollback e idempotencia | Rollback por tag de imagen; `state.json` en el VPS (JSON válido, FRA-78) | FRA-34/33, FRA-78 (#90) |
+| **AC-12** agnosticismo | Lint de acoplamiento en CI; runtime leído del contrato (SPEC-0006) | FRA-40, FRA-51 |
+| **AC-13** multirepo | `ManifestManager` + tests de coordinación | FRA-37 y tests `deploy-coordination` / `deploy-e2e` |
+| **AC-14** VPS con servicios preexistentes | Abort sin override en v1 | cubierto en el comando de deploy |
+| **e2e real** | `.github/workflows/deploy-e2e.yml`; QA PASS post-merge #93 en `2df1d60` | FRA-73 (#87), FRA-76 (#88) |
+| **Doc de usuario** | `docs/guides/fractal-deploy.md` | FRA-65 (#77) |
 
 ---
 
@@ -347,10 +378,12 @@ corresponde, repositorio Git y rama de producción. Además comprueba que:
   Git) rechazan datos inválidos y aceptan los válidos, probando que AC-1
   recolecta datos *válidos*.
 
-Con esto se cierra el último hueco del DoD §9 (rastreado como T8 / FRA-68): el
-resto de los AC ya tenía test automatizado, el e2e contra VPS efímero pasa
-verde en CI (FRA-64) y la documentación de usuario está escrita (FRA-65), por
-lo que la spec pasa a **Implementado**.
+Con esto se cerró el hueco de AC-1 (rastreado como T8 / FRA-68). El párrafo
+que seguía —«el e2e contra VPS efímero pasa verde en CI (FRA-64) … la spec
+pasa a **Implementado**»— quedó **sin efecto** el 2026-10-14: FRA-64 servía
+un `index.html` estático con `nginx:alpine` y no ejercitaba `fractal new` ni
+`fractal deploy`. El cierre real del DoD §9 es el 2026-10-26 (FRA-81): e2e
+real FRA-73/76 + QA PASS en master `2df1d60` + decisión de Diego. Ver §9.1.
 
 ---
 
