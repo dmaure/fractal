@@ -223,8 +223,8 @@ describe('SystemHardening', () => {
       expect(result.success).toBe(true);
       expect(result.steps).toHaveLength(5);
       expect(result.steps[0]).toContain('Usuario deploy creado');
-      // FRA-73: el grant NOPASSWD es un paso propio justo después de crear el usuario.
-      expect(result.steps[1]).toContain('Sudo sin contraseña (NOPASSWD) habilitado');
+      // FRA-73/FRA-75: el grant NOPASSWD acotado es un paso propio justo después de crear el usuario.
+      expect(result.steps[1]).toContain('Sudo acotado (NOPASSWD) habilitado');
       expect(result.steps[2]).toContain('Clave SSH agregada');
       // El firewall se configura ANTES de endurecer sshd; deshabilitar root
       // debe ser la última acción privilegiada (ver harden()).
@@ -240,12 +240,17 @@ describe('SystemHardening', () => {
         cmd.includes('KbdInteractiveAuthentication no')
       )).toBe(true);
       expect(sshCommands.some((cmd: string) => cmd.includes('sshd -T'))).toBe(true);
-      // FRA-73: se escribe y valida el drop-in NOPASSWD para el usuario deploy.
-      expect(sshCommands.some((cmd: string) =>
+      // FRA-75: se escribe y valida el drop-in NOPASSWD acotado (no ALL).
+      const sudoersCmd = sshCommands.find((cmd: string) =>
         cmd.includes('/etc/sudoers.d/90-fractal-deploy') &&
-        cmd.includes('NOPASSWD:ALL') &&
         cmd.includes('visudo -cf')
-      )).toBe(true);
+      );
+      expect(sudoersCmd).toBeDefined();
+      expect(sudoersCmd).toContain('/usr/bin/tee /etc/fractal/state.json');
+      expect(sudoersCmd).toContain('/usr/bin/docker');
+      expect(sudoersCmd).toContain('/usr/bin/certbot');
+      expect(sudoersCmd).toContain('/usr/bin/apt-get');
+      expect(sudoersCmd).not.toMatch(/NOPASSWD:\s*ALL\b/);
     });
 
     it('debe fallar si no se puede crear el usuario deploy', async () => {
@@ -934,6 +939,77 @@ describe('SystemHardening', () => {
       expect(sshCommands.some((cmd: string) =>
         cmd.includes('Include /etc/ssh/sshd_config.d/*.conf')
       )).toBe(true);
+    });
+
+    // FRA-75: regresión de idempotencia. `StateManager.writeState` abre una
+    // conexión SSH root nueva por comando, así que la escritura que persiste
+    // el hardening como 'completed' (un `tee /etc/fractal/state.json` cuyo
+    // cuerpo JSON trae hardening en estado "completed") debe emitirse ANTES
+    // del comando que deshabilita el login de root (el que contiene
+    // `PermitRootLogin`). Con el orden anterior (marcar 'completed' tras
+    // `hardenSshd`) este test queda en rojo.
+    it('debe persistir el estado completed ANTES de deshabilitar root en sshd', async () => {
+      executeCommandMock.mockImplementation(async (cmd: string) => {
+        if (cmd.includes('id deploy') && cmd.includes('not_found')) {
+          return {
+            success: true,
+            stdout: 'not_found',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('test -f')) {
+          return {
+            success: true,
+            stdout: 'exists',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('grep -q')) {
+          return {
+            success: true,
+            stdout: '',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        if (cmd.includes('command -v ufw')) {
+          return {
+            success: true,
+            stdout: 'installed',
+            stderr: '',
+            exitCode: 0,
+          } as SshCommandResult;
+        }
+
+        return {
+          success: true,
+          stdout: 'success',
+          stderr: '',
+          exitCode: 0,
+        } as SshCommandResult;
+      });
+
+      const result = await systemHardening.harden(validConfig);
+      expect(result.success).toBe(true);
+
+      const sshCommands = executeCommandMock.mock.calls.map((call: string[]) => call[0]);
+
+      const completedStateIndex = sshCommands.findIndex((cmd: string) =>
+        cmd.includes('tee /etc/fractal/state.json') &&
+        cmd.includes('"state": "completed"')
+      );
+      const permitRootLoginIndex = sshCommands.findIndex((cmd: string) =>
+        cmd.includes('PermitRootLogin')
+      );
+
+      expect(completedStateIndex).toBeGreaterThanOrEqual(0);
+      expect(permitRootLoginIndex).toBeGreaterThanOrEqual(0);
+      expect(completedStateIndex).toBeLessThan(permitRootLoginIndex);
     });
   });
 });

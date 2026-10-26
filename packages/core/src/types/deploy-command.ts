@@ -33,6 +33,12 @@ export interface DeployCommandOptions {
    * `/home/deploy/.env` en el servidor; no viaja en un `.env` local (FRA-76).
    */
   dbPassword?: string;
+
+  /**
+   * Ruta a un known_hosts con la host key pineada (FRA-75). También se lee
+   * de `FRACTAL_DEPLOY_SSH_KNOWN_HOSTS` (ruta o contenido).
+   */
+  sshKnownHosts?: string;
 }
 
 /**

@@ -70,6 +70,10 @@ program
     '--non-interactive',
     'Ejecuta el deploy sin prompts, leyendo los parámetros de variables de entorno (FRACTAL_DEPLOY_*)'
   )
+  .option(
+    '--ssh-known-hosts <path>',
+    'Ruta a known_hosts con la host key pineada (también FRACTAL_DEPLOY_SSH_KNOWN_HOSTS)'
+  )
   .action(async (options: DeployCommandOptions) => {
     try {
       await deployCommand(options);

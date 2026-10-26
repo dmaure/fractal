@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GitHubActionsGenerator } from './github-actions-generator.js';
+import { buildDeploySudoers } from '../hardening/sudoers.js';
 import type { DeployConfig } from './types.js';
 import type { DeployRuntime } from '@fractal/core';
 
@@ -538,6 +539,84 @@ describe('GitHubActionsGenerator', () => {
       expect(trapIdx).toBeGreaterThanOrEqual(0);
       expect(firstLogin).toBeGreaterThanOrEqual(0);
       expect(trapIdx).toBeLessThan(firstLogin);
+    });
+  });
+
+  /**
+   * Regresión de acoplamiento (FRA-75): el drop-in de sudoers es una allowlist
+   * por coincidencia EXACTA de comando. Si el workflow de redeploy FRA-72
+   * empieza a usar un `sudo` que la allowlist no cubre, el deploy fallaría en
+   * producción pidiendo contraseña. Este test extrae cada invocación `sudo` del
+   * workflow generado y afirma que está cubierta por el alias FRACTAL_STATE del
+   * drop-in. Falla tanto si el workflow agrega un `sudo` nuevo fuera de la
+   * allowlist como si el alias deja de cubrir uno existente.
+   */
+  describe('redeploy sudo stays within the sudoers allowlist (FRA-75)', () => {
+    const backendConfig: DeployConfig = {
+      provider: 'github-actions',
+      targetType: 'backend-full',
+      runtime: BACKEND_RUNTIME,
+      projectName: 'myapi',
+      productionBranch: 'production',
+      domain: 'api.example.com',
+      outputPath: '/tmp/test-github-fra75-sudo.yml',
+    };
+
+    /**
+     * Comandos que el alias FRACTAL_STATE autoriza, derivados del propio
+     * generador del drop-in (no hardcodeados), sin el prefijo `/usr/bin/`:
+     * sudo resuelve el binario a su ruta absoluta, así que el `sudo cat ...`
+     * del workflow matchea la entrada `/usr/bin/cat ...` del alias.
+     */
+    function allowedStateCommands(): string[] {
+      const sudoers = buildDeploySudoers('deploy');
+      // El bloque del alias va desde `FRACTAL_STATE =` hasta la línea en blanco.
+      const block = sudoers.match(/Cmnd_Alias FRACTAL_STATE =([\s\S]*?)\n\n/);
+      if (!block) {
+        throw new Error('No se encontró el alias FRACTAL_STATE en el drop-in de sudoers');
+      }
+      return block[1]
+        .split(',')
+        .map((entry) => entry.replace(/\\/g, '').trim())
+        .filter(Boolean)
+        .map((cmd) => cmd.replace(/^\/usr\/bin\//, ''));
+    }
+
+    /**
+     * Extrae cada invocación `sudo <cmd>` del workflow, resolviendo las
+     * expansiones de shell conocidas ($STATE_FILE y $(dirname $STATE_FILE)) a
+     * sus rutas literales. El comando termina en pipe, redirección, cierre de
+     * subshell, `;`, `&` o fin de línea. Robusto a espacios en blanco.
+     */
+    function extractSudoCommands(content: string): string[] {
+      const resolved = content
+        .replace(/\$\(dirname \$STATE_FILE\)/g, '/etc/fractal')
+        .replace(/\$STATE_FILE/g, '/etc/fractal/state.json');
+      const commands: string[] = [];
+      const re = /\bsudo\s+([^\n|>);&]+)/g;
+      let match: RegExpExecArray | null;
+      while ((match = re.exec(resolved)) !== null) {
+        commands.push(match[1].trim());
+      }
+      return commands;
+    }
+
+    it('every sudo invocation in the generated workflow is covered by FRACTAL_STATE', () => {
+      const content = generator.generateWorkflowContent(backendConfig);
+      const sudoCommands = extractSudoCommands(content);
+      const allowed = allowedStateCommands();
+
+      // Sanity: el workflow realmente usa sudo (si no, el test no protege nada).
+      expect(sudoCommands.length).toBeGreaterThan(0);
+
+      for (const cmd of sudoCommands) {
+        expect(
+          allowed,
+          `El workflow de redeploy usa "sudo ${cmd}", que NO está en la allowlist ` +
+            `de sudoers (alias FRACTAL_STATE: ${allowed.join(', ')}). ` +
+            `Agregá el comando al drop-in en packages/deploy/src/hardening/sudoers.ts.`
+        ).toContain(cmd);
+      }
     });
   });
 });

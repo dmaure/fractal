@@ -1,10 +1,12 @@
 import type { SshClient } from '../ssh/client.js';
+import type { SshCommandResult } from '../ssh/types.js';
 import type {
   HardeningConfig,
   HardeningResult,
   PortCheckResult,
 } from './types.js';
 import { StateManager } from '../state/state-manager.js';
+import { buildDeploySudoers } from './sudoers.js';
 
 /**
  * Manejador de hardening del sistema.
@@ -96,29 +98,23 @@ export class SystemHardening {
       }
       steps.push(`Usuario ${config.deployUser} creado con privilegios sudo`);
 
-      // 1b. Conceder sudo sin contraseña (NOPASSWD) al usuario deploy (FRA-73).
+      // 1b. Conceder sudo acotado (NOPASSWD, lista explícita) al usuario
+      // deploy (FRA-73 + FRA-75).
       //
       // POR QUÉ: los módulos de provisioning (runtime, SSL) y el workflow de
       // redeploy generado ejecutan `sudo` NO interactivo como este usuario sobre
       // una sesión SSH por clave (sin TTY). La sola pertenencia al grupo sudo
       // exige contraseña y no alcanza para un `sudo` sin TTY; hace falta un
-      // drop-in NOPASSWD. Corre como root y ANTES de que hardenSshd deshabilite
-      // el login de root (ver orden de los pasos más abajo).
-      const sudoGranted = await this.grantPasswordlessSudo(config.deployUser);
-      if (!sudoGranted) {
-        await this.stateManager.markStep(
-          'hardening',
-          'failed',
-          configHash,
-          `No se pudo conceder sudo sin contraseña a ${config.deployUser}`
-        );
-        return {
-          success: false,
-          steps,
-          error: `No se pudo conceder sudo sin contraseña a ${config.deployUser}`,
-        };
+      // drop-in NOPASSWD. FRA-75 acota el drop-in a los binarios y rutas que
+      // el camino de deploy realmente invoca (no NOPASSWD:ALL). Corre como
+      // root y ANTES de que hardenSshd deshabilite el login de root.
+      const sudoResult = await this.grantPasswordlessSudo(config.deployUser);
+      if (!sudoResult.success) {
+        const detalle = `No se pudo conceder sudo acotado a ${config.deployUser} (exitCode=${sudoResult.exitCode ?? 'null'}): ${sudoResult.stderr.trim() || 'sin stderr'}`;
+        await this.stateManager.markStep('hardening', 'failed', configHash, detalle);
+        return { success: false, steps, error: detalle };
       }
-      steps.push(`Sudo sin contraseña (NOPASSWD) habilitado para ${config.deployUser}`);
+      steps.push(`Sudo acotado (NOPASSWD) habilitado para ${config.deployUser}`);
 
       // 2. Configurar SSH para el usuario deploy
       const sshConfigured = await this.setupSshForUser(
@@ -164,32 +160,36 @@ export class SystemHardening {
       }
       steps.push(`Firewall UFW configurado (puertos: ${allowedPorts.join(', ')})`);
 
+      // Persistir el estado 'completed' ANTES de endurecer SSH. `hardenSshd`
+      // deshabilita `PermitRootLogin`, y `StateManager` abre una conexión SSH
+      // root nueva por cada comando, así que cualquier escritura de estado
+      // posterior al hardening de SSH sería rechazada (root bloqueado) y la
+      // idempotencia nunca quedaría registrada -> el redeploy como `deploy`
+      // re-entraría al hardening y fallaría en `grantPasswordlessSudo`.
+      // `hardenSshd` es el paso final e idempotente; registramos la
+      // finalización mientras la sesión root sigue viva.
+      const completedMark = await this.stateManager.markStep('hardening', 'completed', configHash);
+      if (!completedMark.success) {
+        return {
+          success: false,
+          steps,
+          error: `No se pudo persistir el estado 'completed' del hardening: ${completedMark.error ?? 'error desconocido'}`,
+        };
+      }
+
       // 4. Hardening de SSH: deshabilitar root login y password auth.
       // Debe ser lo ÚLTIMO: una vez deshabilitado el login de root, ningún
       // comando posterior que dependa de reconectar como root funcionaría.
       const sshHardened = await this.hardenSshd();
       if (!sshHardened) {
-        await this.stateManager.markStep(
-          'hardening',
-          'failed',
-          configHash,
-          'No se pudo endurecer la configuración de SSH'
-        );
-        return {
-          success: false,
-          steps,
-          error: 'No se pudo endurecer la configuración de SSH',
-        };
+        // Si la validación de sshd falla antes del reload, root sigue accesible:
+        // revertimos el marcador para que el próximo deploy re-endurezca.
+        await this.stateManager.markStep('hardening', 'failed', configHash, 'No se pudo endurecer la configuración de SSH');
+        return { success: false, steps, error: 'No se pudo endurecer la configuración de SSH' };
       }
       steps.push('SSH endurecido: root, password y keyboard-interactive deshabilitados');
 
-      // Marcar como completado
-      await this.stateManager.markStep('hardening', 'completed', configHash);
-
-      return {
-        success: true,
-        steps,
-      };
+      return { success: true, steps };
     } catch (error) {
       const configHash = StateManager.generateConfigHash(config);
       await this.stateManager.markStep(
@@ -244,24 +244,41 @@ export class SystemHardening {
   }
 
   /**
-   * Concede sudo sin contraseña (NOPASSWD) al usuario, de forma idempotente y
+   * Concede sudo sin contraseña y acotado al usuario, de forma idempotente y
    * validada con visudo.
    *
    * POR QUÉ (FRA-73): los módulos de provisioning y el workflow de redeploy
    * generado corren `sudo` NO interactivo como este usuario sobre una sesión SSH
    * por clave (sin TTY). La pertenencia al grupo sudo exige contraseña, así que
-   * no alcanza. El drop-in se valida con `visudo -cf` para no dejar nunca un
-   * sudoers roto, y `tee` lo reescribe en cada corrida (idempotente). Agnóstico
-   * de framework: solo usa utilidades estándar de Linux.
+   * no alcanza. FRA-75 limita el drop-in a la lista de `buildDeploySudoers`
+   * (docker, certbot, systemctl, apt-get, tee/mkdir/cat sobre `/etc/fractal/`,
+   * etc.) en vez de `NOPASSWD:ALL`. El drop-in se valida con `visudo -cf`
+   * para no dejar nunca un sudoers roto, y `tee` lo reescribe en cada corrida
+   * (idempotente). Agnóstico de framework: solo usa utilidades estándar de Linux.
    */
-  private async grantPasswordlessSudo(username: string): Promise<boolean> {
+  private async grantPasswordlessSudo(username: string): Promise<SshCommandResult> {
     const sudoersPath = `/etc/sudoers.d/90-fractal-${username}`;
-    const result = await this.sshClient.executeCommand(
-      `printf '%s ALL=(ALL) NOPASSWD:ALL\\n' ${username} | sudo tee ${sudoersPath} > /dev/null && ` +
-      `sudo chmod 440 ${sudoersPath} && ` +
-      `sudo visudo -cf ${sudoersPath}`
+    let content: string;
+    try {
+      content = buildDeploySudoers(username);
+    } catch (error) {
+      return {
+        success: false,
+        stdout: '',
+        stderr: error instanceof Error ? error.message : 'allowlist de sudoers inválida',
+        exitCode: null,
+      };
+    }
+
+    // Heredoc entrecomillado: el cuerpo no se expande (mismo patrón que
+    // writeState, FRA-78). El contenido ya trae el username interpolado.
+    return this.sshClient.executeCommand(
+      `sudo tee ${sudoersPath} > /dev/null << 'FRACTAL_SUDOERS_EOF'\n` +
+        `${content}` +
+        `FRACTAL_SUDOERS_EOF\n` +
+        `sudo chmod 440 ${sudoersPath} && ` +
+        `sudo visudo -cf ${sudoersPath}`
     );
-    return result.success;
   }
 
   /**

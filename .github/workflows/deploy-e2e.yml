@@ -148,6 +148,23 @@ jobs:
           if [ "$SSH_OK" != "1" ]; then echo "SSH no respondió a tiempo"; exit 1; fi
           echo "   SSH listo"
 
+          # FRA-75: Vultr no expone la host key por API. Tras el wait de SSH se
+          # pinea con ssh-keyscan y se pasa a fractal deploy (no TOFU ciego).
+          KNOWN_HOSTS_FILE="$RUNNER_TEMP/fractal-e2e-known-hosts"
+          SCAN_OK=0
+          for i in $(seq 1 10); do
+            ssh-keyscan -t ed25519,rsa,ecdsa "$IP" > "$KNOWN_HOSTS_FILE" 2>/dev/null || true
+            if grep -qE '[[:space:]](ssh-|ecdsa-)' "$KNOWN_HOSTS_FILE"; then
+              SCAN_OK=1; break
+            fi
+            sleep 2
+          done
+          if [ "$SCAN_OK" != "1" ]; then
+            echo "No se pudo obtener la host key del VPS con ssh-keyscan"; exit 1
+          fi
+          echo "FRACTAL_DEPLOY_SSH_KNOWN_HOSTS=$KNOWN_HOSTS_FILE" >> "$GITHUB_ENV"
+          echo "   Host key pineada ($(wc -l < "$KNOWN_HOSTS_FILE") líneas)"
+
       - name: Crear registro DNS Cloudflare (DNS-only, proxied:false)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -205,6 +222,7 @@ jobs:
           FRACTAL_DEPLOY_SSH_USER: root
           FRACTAL_DEPLOY_AUTH_METHOD: key
           FRACTAL_DEPLOY_SSH_KEY_PATH: ${{ env.FRACTAL_E2E_SSH_KEY_PATH }}
+          FRACTAL_DEPLOY_SSH_KNOWN_HOSTS: ${{ env.FRACTAL_DEPLOY_SSH_KNOWN_HOSTS }}
           FRACTAL_DEPLOY_DOMAIN: ${{ env.FRACTAL_E2E_DOMAIN }}
           FRACTAL_DEPLOY_EMAIL: e2e@codigofractal.dev
           # El registro A ya lo creó el workflow; 'manual' hace que deploy solo
@@ -260,6 +278,7 @@ jobs:
           FRACTAL_DEPLOY_SSH_USER: deploy
           FRACTAL_DEPLOY_AUTH_METHOD: key
           FRACTAL_DEPLOY_SSH_KEY_PATH: ${{ env.FRACTAL_E2E_SSH_KEY_PATH }}
+          FRACTAL_DEPLOY_SSH_KNOWN_HOSTS: ${{ env.FRACTAL_DEPLOY_SSH_KNOWN_HOSTS }}
           FRACTAL_DEPLOY_DOMAIN: ${{ env.FRACTAL_E2E_DOMAIN }}
           FRACTAL_DEPLOY_EMAIL: e2e@codigofractal.dev
           FRACTAL_DEPLOY_DNS_PROVIDER: manual
