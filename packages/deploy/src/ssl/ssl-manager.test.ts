@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SslManager } from './ssl-manager.js';
+import { SslManager, shouldReuseExistingCertificate } from './ssl-manager.js';
 import type { SslSshClient } from './types.js';
 import type { SslConfig } from './types.js';
 
@@ -381,23 +381,64 @@ describe('SslManager', () => {
   });
 
   describe('checkCertificate', () => {
+    it('no trata un cert LE válido como inexistente cuando live/ no es readable sin sudo (FRA-80)', async () => {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 89);
+      const certPath = '/etc/letsencrypt/live/example.com/cert.pem';
+
+      vi.mocked(mockSsh.executeCommand).mockImplementation(async (cmd: string) => {
+        // El directorio live/ es 700 root: test -f sin sudo falla aunque el cert exista.
+        if (cmd === `test -f ${certPath}`) {
+          return {
+            success: false,
+            exitCode: 1,
+            stdout: '',
+            stderr: 'Permission denied',
+          };
+        }
+        if (
+          cmd.includes('sudo') &&
+          cmd.includes('openssl') &&
+          cmd.includes(certPath)
+        ) {
+          return {
+            success: true,
+            exitCode: 0,
+            stdout: `notAfter=${futureDate.toUTCString()}`,
+            stderr: '',
+          };
+        }
+        return {
+          success: false,
+          exitCode: 1,
+          stdout: '',
+          stderr: `comando inesperado: ${cmd}`,
+        };
+      });
+
+      const result = await manager.checkCertificate('example.com');
+      const commands = vi.mocked(mockSsh.executeCommand).mock.calls.map(
+        (call) => call[0] as string
+      );
+
+      expect(result.exists).toBe(true);
+      expect(result.daysRemaining).toBeGreaterThan(80);
+      expect(result.daysRemaining).toBeLessThan(95);
+      expect(commands.some((cmd) => cmd === `test -f ${certPath}`)).toBe(false);
+      expect(commands.every((cmd) => cmd.startsWith('sudo '))).toBe(true);
+      expect(shouldReuseExistingCertificate(result)).toBe(true);
+    });
+
     it('detecta certificado existente con fecha de expiración', async () => {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 60);
-      
-      vi.mocked(mockSsh.executeCommand)
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: `notAfter=${futureDate.toUTCString()}`,
-          stderr: '',
-        });
+
+      vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: true,
+        exitCode: 0,
+        stdout: `notAfter=${futureDate.toUTCString()}`,
+        stderr: '',
+      });
 
       const result = await manager.checkCertificate('example.com');
 
@@ -405,6 +446,9 @@ describe('SslManager', () => {
       expect(result.expiresAt).toBeInstanceOf(Date);
       expect(result.daysRemaining).toBeGreaterThan(50);
       expect(result.daysRemaining).toBeLessThan(70);
+      expect(mockSsh.executeCommand).toHaveBeenCalledWith(
+        'sudo openssl x509 -enddate -noout -in /etc/letsencrypt/live/example.com/cert.pem'
+      );
     });
 
     it('detecta certificado inexistente', async () => {
@@ -420,46 +464,34 @@ describe('SslManager', () => {
       expect(result.exists).toBe(false);
       expect(result.expiresAt).toBeUndefined();
       expect(result.daysRemaining).toBeUndefined();
+      expect(shouldReuseExistingCertificate(result)).toBe(false);
     });
 
-    it('maneja certificado existente sin poder leer fecha', async () => {
-      vi.mocked(mockSsh.executeCommand)
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: false,
-          exitCode: 1,
-          stdout: '',
-          stderr: 'Could not read certificate',
-        });
+    it('maneja certificado existente sin poder parsear la fecha', async () => {
+      vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: true,
+        exitCode: 0,
+        stdout: 'unable to parse certificate dates',
+        stderr: '',
+      });
 
       const result = await manager.checkCertificate('example.com');
 
       expect(result.exists).toBe(true);
       expect(result.expiresAt).toBeUndefined();
+      expect(shouldReuseExistingCertificate(result)).toBe(false);
     });
 
     it('calcula días restantes correctamente', async () => {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 30);
-      
-      vi.mocked(mockSsh.executeCommand)
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: '',
-          stderr: '',
-        })
-        .mockResolvedValueOnce({
-          success: true,
-          exitCode: 0,
-          stdout: `notAfter=${futureDate.toUTCString()}`,
-          stderr: '',
-        });
+
+      vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
+        success: true,
+        exitCode: 0,
+        stdout: `notAfter=${futureDate.toUTCString()}`,
+        stderr: '',
+      });
 
       const result = await manager.checkCertificate('example.com');
 
@@ -473,6 +505,31 @@ describe('SslManager', () => {
       const result = await manager.checkCertificate('example.com');
 
       expect(result.exists).toBe(false);
+    });
+  });
+
+  describe('shouldReuseExistingCertificate (redeploy con cert existente)', () => {
+    it('reutiliza un cert válido con más de 30 días (no reemite)', () => {
+      expect(
+        shouldReuseExistingCertificate({ exists: true, daysRemaining: 89 })
+      ).toBe(true);
+    });
+
+    it('reemite si el cert no existe', () => {
+      expect(shouldReuseExistingCertificate({ exists: false })).toBe(false);
+    });
+
+    it('reemite si el cert expira en 30 días o menos', () => {
+      expect(
+        shouldReuseExistingCertificate({ exists: true, daysRemaining: 30 })
+      ).toBe(false);
+      expect(
+        shouldReuseExistingCertificate({ exists: true, daysRemaining: 10 })
+      ).toBe(false);
+    });
+
+    it('reemite si existe pero no hay vigencia conocida', () => {
+      expect(shouldReuseExistingCertificate({ exists: true })).toBe(false);
     });
   });
 

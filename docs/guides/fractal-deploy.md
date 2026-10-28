@@ -351,7 +351,9 @@ docker exec <nombre-del-proyecto>_nginx nginx -s reload
 
 El paso es idempotente: si ya hay un certificado válido con más de 30 días de
 vigencia, no se vuelve a emitir; si está por expirar o no existe, se re-emite.
-Todo el tráfico HTTP queda redirigido a HTTPS.
+El chequeo lee `/etc/letsencrypt/live` con `sudo openssl` (ese directorio es
+700 root; un `test -f` sin privilegios da un falso negativo). Todo el tráfico
+HTTP queda redirigido a HTTPS.
 
 ---
 
