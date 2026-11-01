@@ -79,6 +79,26 @@ invertir en generación de código.
 
 ---
 
+## M1.5 — Wizard v2: code-first y modularidad
+
+**Objetivo:** rediseñar el wizard de `fractal new` para reflejar el principio
+code-first con deploy opcional y una arquitectura modular de brazos (ADR-0016).
+
+| Spec | Capability | Estado |
+|---|---|---|
+| SPEC-00XX | Wizard v2: checklist inicial, brazos modulares, orden code-first | ⬜ |
+
+**Salida:** `fractal new` pregunta primero por el código (framework, topología, DB,
+frontend), después por infraestructura (opcional), GitHub (opcional) y deploy (opcional).
+El usuario puede generar un proyecto local sin datos de deploy.
+
+**Nota:** este milestone desbloquea M2. SPEC-0007 (motor de templating) asume que el
+wizard v2 ya está implementado; redactar SPEC-0007 antes del wizard v2 duplicaría el
+trabajo de adaptación. Por eso wizard v2 se documenta y se implementa **antes** de
+continuar con SPEC-0007.
+
+---
+
 ## M2 — FDL y generación de entidades
 
 **Objetivo:** el generador genera código útil, sobre una base agnóstica.
@@ -88,7 +108,7 @@ invertir en generación de código.
 | SPEC-0004 | Especificación del lenguaje FDL | ✅[^spec0004] |
 | SPEC-0005 | Parser y validador de FDL | ✅[^spec0005] |
 | SPEC-0006 | Contrato del adapter | ✅ |
-| SPEC-0007 | Motor de templating de stubs | ⬜ |
+| SPEC-0007 | Motor de templating de stubs | ⬜[^spec0007] |
 | SPEC-0008 | Entidad: migration, model, factory, seeder | ⬜ |
 | SPEC-0009 | Capas Repository y Service | ⬜ |
 | SPEC-0010 | API REST con validación y serialización | ⬜ |
@@ -130,6 +150,9 @@ invertir en generación de código.
     El spec está **Implementado** (2026-10-12, por decisión de Diego en FRA-63); el ✅ refleja `progress.json: completado`.
 [^spec0005]: Absorbido en SPEC-0004 (ver `docs/specs/0005-parser-y-validador-de-fdl.md`).
     Sin entrada propia en `progress.json`; sus tareas se trazan bajo SPEC-0004.
+[^spec0007]: **Pausado** hasta que wizard v2 (M1.5) esté documentado y aprobado (decisión
+    de Diego, 2026-11-01). El spec del motor de templating asume que el wizard v2 ya está
+    en su lugar; implementarlo antes duplicaría el trabajo de adaptación.
 
 ---
 

@@ -14,17 +14,29 @@ Fractal es un generador de aplicaciones production-ready, multi-framework.
 
 El nombre no es decorativo: describe la tesis del proyecto. La misma estructura
 —dominio, capas, CRUD, despliegue— se repite en cada framework destino. Fractal
-define esa estructura una vez y la proyecta sobre cada target.
+define esa estructura una vez y la proyecta sobre cada target. Cada "brazo" del
+fractal — ya sea un módulo interno (secciones del wizard, adapters) o externo
+(módulos del proyecto generado) — tiene un contrato claro y puede reemplazarse
+sin afectar al núcleo.
 
-El éxito se mide por una métrica primaria:
+El éxito se mide por dos métricas, según el camino elegido por el usuario:
 
+> **Time-to-Usable-Scaffold (TTS):** tiempo entre `fractal new` y tener un
+> proyecto local funcional, con servidor de desarrollo corriendo.
+>
 > **Time-to-Production (TTP):** tiempo entre `fractal new` y tener la aplicación
 > accesible en internet, con HTTPS, CI/CD activo y deploy por merge.
 
-**Objetivo:** TTP < 30 minutos, en cualquier target soportado.
+**Objetivos:** TTS < 5 minutos (sin deploy), TTP < 30 minutos (con deploy), en
+cualquier target soportado.
 
-Toda feature que aumente el TTP sin beneficio proporcional se rechaza o se mueve
-a un módulo opcional.
+El principio diferenciador es **code-first con deploy opcional**: el generador
+entrega primero un proyecto funcional local; desplegar es una capacidad valiosa
+que el usuario elige activar, no un requisito. Cuando el usuario elige el camino
+de deploy, el TTP aplica; cuando omite el deploy, se mide el TTS.
+
+Toda feature que aumente el TTS o TTP sin beneficio proporcional se rechaza o se
+mueve a un módulo opcional.
 
 ---
 
@@ -107,10 +119,29 @@ con resultado idéntico. Ejecutar `deploy` dos veces no rompe nada ni duplica co
 
 ## Artículo IX — Modularidad
 
-1. El core es mínimo: dominio, CRUD, auth básica, deploy.
-2. Todo lo demás es un módulo opcional instalable por separado.
-3. Un módulo opcional no depende de otro módulo opcional. Solo del core.
-4. Desinstalar un módulo es posible y está documentado.
+Fractal distingue dos niveles de modularidad:
+
+### IX.A — Brazos del wizard (modularidad interna)
+
+Cada sección del wizard (`fractal new`) es un **brazo modular** con contrato claro
+de entrada/salida, reemplazable de forma independiente:
+
+- **Código** (framework, topología, DB, frontend): obligatorio.
+- **Dominio** (FDL): opcional.
+- **Infraestructura** (VPS, SSH, DNS): opcional.
+- **GitHub** (crear repo remoto): opcional, independiente de infraestructura.
+
+Un brazo puede extenderse (ej. agregar proveedores de DNS) o reemplazarse sin
+afectar al resto del wizard.
+
+### IX.B — Módulos del proyecto generado (modularidad externa)
+
+El proyecto generado tiene un core mínimo: dominio, CRUD, auth básica, deploy.
+Todo lo demás es un módulo opcional instalable con `fractal module`:
+
+1. Un módulo opcional no depende de otro módulo opcional. Solo del core.
+2. Desinstalar un módulo es posible y está documentado.
+3. Los módulos se implementan en M5 (GraphQL, multi-tenancy, media library, etc.).
 
 ---
 
@@ -137,3 +168,4 @@ con resultado idéntico. Ejecutar `deploy` dos veces no rompe nada ni duplica co
 | Fecha | Artículo | Cambio | ADR |
 |---|---|---|---|
 | 2026-08-02 | — | Versión inicial | — |
+| 2026-11-01 | I, IX | Principio code-first con deploy opcional; métricas TTS y TTP; brazos modulares del wizard (IX.A) y módulos del proyecto generado (IX.B) | ADR-0016 |

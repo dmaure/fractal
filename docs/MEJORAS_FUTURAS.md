@@ -55,3 +55,21 @@ notificación (Slack/email/Telegram) en vez de solo reintentar en silencio.
 Ya es regla (punto 8 del "Contrato del orquestador" en
 `ARCHITECTURE_WORKFLOW.md`, regla 7 de `ORCHESTRATOR_PLAYBOOK.md`); falta
 confirmar que la implementación actual del orquestador la cumple en la práctica.
+
+### Persistir respuestas del wizard para deploy diferido
+
+**Origen:** ADR-0016 (decisiones del wizard v2, 2026-11-01). El wizard v2 permite
+generar un proyecto local sin datos de infraestructura; el deploy se vuelve opcional.
+**Contexto:** si el usuario genera un proyecto local (sin datos de deploy) y más
+tarde decide desplegarlo, tiene que volver a responder las preguntas de código
+(framework, topología, DB, frontend) que ya respondió en `fractal new`. Idealmente,
+`fractal deploy` debería poder leer esas respuestas de un manifiesto local
+(ej. `.fractal/config.yml` o similar) y solo pedir lo que falta (VPS, SSH, DNS).
+**Por qué se pospone:** el flujo actual (wizard completo en `fractal new`, o
+`fractal deploy` independiente con sus propios prompts) funciona para M1 y M1.5.
+Persistir las respuestas requiere diseñar el formato del manifiesto, decidir qué
+se guarda (¿todo? ¿solo lo no-sensible?), y coordinar la lectura entre `new` y
+`deploy`. No es bloqueante para wizard v2; se puede implementar después como mejora
+de UX.
+**Estado:** Idea, sin spec ni ADR. Candidata para un futuro spec de "manifiesto de
+configuración de proyecto" una vez que el wizard v2 esté estable.
