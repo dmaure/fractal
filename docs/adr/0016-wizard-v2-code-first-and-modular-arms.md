@@ -115,7 +115,7 @@ La metáfora unifica ambos: cada "brazo" del fractal — ya sea interno (wizard)
 1. Checklist inicial (¿qué datos tenés?)
 2. Sección de código:
    - Nombre del proyecto
-   - Framework (cuando haya más de uno)
+   - Framework
    - Topología
    - Base de datos
    - Frontend

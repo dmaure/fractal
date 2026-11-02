@@ -83,10 +83,10 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
 1. **Valida el directorio destino** (`<cwd>/<nombre>`). Procede si el directorio
    no existe, está vacío, o contiene únicamente un `.git` sin historia. Si
    existe y tiene contenido, exige `--force`.
-2. **Resuelve la topología**: la de `--topology`, o la elegida en el prompt
-   interactivo.
-3. **Checklist inicial (FRA-83, wizard v2)**: si el modo es interactivo, el wizard
-   pregunta **primero** qué datos tiene el usuario:
+2. **Wizard code-first** (FRA-83, FRA-84, wizard v2): orquesta el checklist y
+   el brazo Código:
+   
+   **a. Checklist inicial**: pregunta primero qué datos tiene el usuario:
    - ¿Tenés un servidor para desplegar? (sí / no / lo agrego después)
    - ¿Tenés un dominio y querés DNS automático? (sí / manual / no) — solo si respondió sí a servidor
    - ¿Tenés un token de GitHub? (sí / no)
@@ -95,12 +95,17 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
    - **Servidor "no" o "lo agrego después"** → saltea toda la sección de infraestructura
    - **GitHub token "no"** → no crea repositorio remoto
    
+   **b. Brazo Código**: recolecta los datos del código en orden code-first
+   (nombre, framework, topología, base de datos, frontend), **antes** que
+   infraestructura (ADR-0016 §6).
+   
    En modo no-interactivo, las respuestas se derivan de los datos en el contexto
    (si pasaste `--server-ip`, se asume que tenés servidor).
-4. **Wizard code-first (FRA-84)**: recolecta primero los datos del código
-   (nombre, framework, topología, base de datos, frontend), después los de
-   infraestructura (IP, SSH, DNS, etc.) según lo habilitado por el checklist.
-   Ver [Wizard](#wizard-code-first).
+   
+   Ver [Wizard](#wizard-code-first) para detalles.
+3. **Infraestructura** (si habilitada por el checklist): recolecta IP, SSH,
+   dominio, email SSL, DNS, contraseña de base de datos.
+4. **GitHub** (si habilitado por el checklist): token, owner, repo, visibilidad.
 5. **Resuelve el adapter** instalado por convención (`@fractal/adapter-*` con
    metadata `fractal` válida en su `package.json`). En v0 debe haber
    exactamente uno.
@@ -111,7 +116,7 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
 9. **Inicializa git** según la topología y, en multirepo, genera los
    manifiestos `fractal.project.yml` (excluidos de git).
 10. **Con token de GitHub:** crea el repo remoto, pushea el commit inicial y
-   setea (o imprime) los secrets del workflow, incluyendo `SSH_KNOWN_HOSTS`.
+    setea (o imprime) los secrets del workflow, incluyendo `SSH_KNOWN_HOSTS`.
 11. **Hand-off** a `fractal deploy` (comando siguiente + `export FRACTAL_DEPLOY_*`
     sin secrets), o encadena el deploy si pasaste `--deploy`.
 
