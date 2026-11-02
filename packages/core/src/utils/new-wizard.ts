@@ -274,28 +274,22 @@ async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGener
 
 /**
  * Wizard interactivo: orden code-first (FRA-84, ADR-0016).
- * Pregunta código (nombre, framework, topología, DB, frontend) antes que
- * infraestructura. Reutiliza los prompts de deploy para IP, SSH, DNS, email.
+ * Usa el orquestador con ChecklistArm y CodeArm para código,
+ * luego recolecta infraestructura y GitHub.
  * 
  * @param frameworkOptions Opciones de framework del adapter (Art. II: agnóstico)
  * @param defaultFramework Framework por defecto del adapter
+ * @param useOrchestrator Si false, usa prompts directos (solo para tests legacy)
  */
 export async function promptNewWizard(
   projectName: string | undefined,
   options: NewCommandOptions,
   frameworkOptions: WizardFrameworkOption[] = [],
-  defaultFramework?: string
+  defaultFramework?: string,
+  useOrchestrator: boolean = true
 ): Promise<NewWizardParams> {
-  // Sección Código (FRA-84, AC-1): primero
-  console.log('\n🎨 Código del proyecto\n');
-
-  const resolvedName = await promptProjectName(resolveProjectName(projectName, options));
-
-  // Solo preguntar framework si hay opciones disponibles
-  const framework = frameworkOptions.length > 0 
-    ? await promptFramework(frameworkOptions, defaultFramework)
-    : defaultFramework;
-
+  const resolvedName = resolveProjectName(projectName, options);
+  
   let topology = options.topology;
   if (!topology) {
     topology = await promptTopology();
@@ -305,36 +299,103 @@ export async function promptNewWizard(
     ]);
   }
 
-  const database = await promptDatabaseType();
-  const frontend = await promptFrontend();
+  let framework: string | undefined;
+  let database: string | undefined;
+  let frontend: string | undefined;
+  let shouldPromptInfra = true;
+  let shouldPromptGitHub = true;
 
-  // Infraestructura: después del código
-  console.log('\n🏗️  Infraestructura y deploy (opcional)\n');
-  console.log('Valores que no pueden tener default (servidor, DNS, GitHub, secrets)\n');
-  console.log('SSH — limitaciones conocidas:');
-  for (const gap of SSH_AUTH_GAPS) {
-    console.log(`   • ${gap}`);
+  if (useOrchestrator) {
+    // Flujo real: orquestador con ChecklistArm y CodeArm (FRA-82, FRA-83, FRA-84)
+    const { ChecklistArm } = await import('../wizard/arms/checklist-arm.js');
+    const { CodeArm } = await import('../wizard/arms/code-arm.js');
+    const { orchestrateWizard } = await import('../wizard/orchestrator.js');
+
+    const checklist = new ChecklistArm();
+    const codeArm = new CodeArm(frameworkOptions, defaultFramework);
+
+    const orchestratorResult = await orchestrateWizard({
+      arms: [checklist, codeArm],
+      initialContext: {
+        mode: 'interactive',
+        projectName: resolvedName,
+        topology,
+      },
+    });
+
+    if (!orchestratorResult.success) {
+      throw new NonInteractiveConfigError([
+        `Error en wizard: ${orchestratorResult.error?.message || 'desconocido'}`,
+      ]);
+    }
+
+    const { context } = orchestratorResult;
+    framework = context.framework;
+    database = context.database;
+    frontend = context.frontend;
+    shouldPromptInfra = context.checklist?.hasServer === 'yes';
+    shouldPromptGitHub = context.checklist?.hasGitHubToken === 'yes';
+  } else {
+    // Flujo legacy (solo tests): prompts directos
+    console.log('\n🎨 Código del proyecto\n');
+    const name = await promptProjectName(resolvedName);
+    framework = frameworkOptions.length > 0 
+      ? await promptFramework(frameworkOptions, defaultFramework)
+      : defaultFramework;
+    database = await promptDatabaseType();
+    frontend = await promptFrontend();
   }
-  console.log();
 
-  const deployParams = await promptDeployParams(false, undefined, {
-    skipGitRepository: true,
-  });
+  // Infraestructura: después del código (si checklist lo habilitó)
+  let deployParams;
+  if (shouldPromptInfra || !useOrchestrator) {
+    if (useOrchestrator) {
+      console.log('\n🏗️  Infraestructura y deploy\n');
+      console.log('Valores que no pueden tener default (servidor, DNS)\n');
+      console.log('SSH — limitaciones conocidas:');
+      for (const gap of SSH_AUTH_GAPS) {
+        console.log(`   • ${gap}`);
+      }
+      console.log();
+    }
 
-  console.log('\nConfiguración de GitHub\n');
-  const githubToken = await password({
-    message: 'Token de GitHub para crear el repo (Enter para omitir):',
-    mask: '*',
-  });
-  const trimmedToken = githubToken.trim() || undefined;
+    deployParams = await promptDeployParams(false, undefined, {
+      skipGitRepository: true,
+    });
+  } else {
+    // Valores dummy/defaults si no hay infra
+    deployParams = {
+      serverIp: '',
+      sshUser: 'root',
+      authMethod: 'key' as const,
+      domain: '',
+      email: '',
+      dnsProvider: 'manual' as const,
+      productionBranch: 'main',
+    };
+  }
 
-  let githubOwner = flagOrEnv(options.githubOwner, 'FRACTAL_NEW_GITHUB_OWNER');
-  if (trimmedToken && !githubOwner) {
-    githubOwner = (
-      await input({
+  // GitHub: si checklist lo habilitó
+  let githubToken: string | undefined;
+  let githubOwner: string | undefined;
+  
+  if (shouldPromptGitHub || !useOrchestrator) {
+    if (useOrchestrator) {
+      console.log('\nConfiguración de GitHub\n');
+    }
+    
+    const token = await password({
+      message: 'Token de GitHub para crear el repo (Enter para omitir):',
+      mask: '*',
+    });
+    githubToken = token.trim() || undefined;
+
+    if (githubToken && !flagOrEnv(options.githubOwner, 'FRACTAL_NEW_GITHUB_OWNER')) {
+      const owner = await input({
         message: 'Owner de GitHub (usuario u organización, Enter para el usuario del token):',
-      })
-    ).trim() || undefined;
+      });
+      githubOwner = owner.trim() || undefined;
+    }
   }
 
   const githubRepo =
@@ -345,6 +406,7 @@ export async function promptNewWizard(
   const githubVisibility: 'private' | 'public' =
     githubVisibilityRaw === 'public' ? 'public' : 'private';
 
+  // Secrets del workflow
   console.log('\nSecrets del workflow\n');
   console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
   const { dbPassword, dbPasswordGenerated } = await promptDbPassword();
@@ -358,7 +420,7 @@ export async function promptNewWizard(
         });
 
   return {
-    projectName: resolvedName,
+    projectName: resolvedName!,
     topology,
     framework,
     database,
@@ -376,8 +438,8 @@ export async function promptNewWizard(
     productionBranch:
       flagOrEnv(options.productionBranch, 'FRACTAL_NEW_PRODUCTION_BRANCH', 'FRACTAL_DEPLOY_PRODUCTION_BRANCH') ??
       deployParams.productionBranch,
-    githubToken: trimmedToken,
-    githubOwner,
+    githubToken,
+    githubOwner: githubOwner || flagOrEnv(options.githubOwner, 'FRACTAL_NEW_GITHUB_OWNER'),
     githubRepo,
     githubVisibility,
     dbPassword,

@@ -106,33 +106,40 @@ export async function newCommand(
   }
 
   // Resolver el adapter antes del wizard para obtener framework options (FRA-84, AC-6)
-  const cliPath = dirname(fileURLToPath(import.meta.url));
-  let adapter;
-  try {
-    adapter = resolveSingleAdapter(cliPath);
-    console.log(chalk.dim(`   Adapter: ${adapter.target}`));
-  } catch (error) {
-    console.error(
-      chalk.red(
-        `\n❌ Error al resolver adapter: ${error instanceof Error ? error.message : String(error)}`
-      )
-    );
-    process.exit(1);
+  // Solo si vamos a ejecutar el wizard
+  let frameworkOptions: Array<{ value: string; name: string; description: string }> = [];
+  let defaultFramework: string | undefined;
+  
+  if (mode !== 'skip') {
+    const cliPath = dirname(fileURLToPath(import.meta.url));
+    let adapter;
+    try {
+      adapter = resolveSingleAdapter(cliPath);
+      console.log(chalk.dim(`   Adapter: ${adapter.target}`));
+      
+      // Framework options del adapter (Art. II: el core no hardcodea frameworks)
+      frameworkOptions = [
+        {
+          value: adapter.target,
+          name: adapter.target.charAt(0).toUpperCase() + adapter.target.slice(1),
+          description: `Framework ${adapter.target}`,
+        },
+      ];
+      defaultFramework = adapter.target;
+    } catch (error) {
+      console.error(
+        chalk.red(
+          `\n❌ Error al resolver adapter: ${error instanceof Error ? error.message : String(error)}`
+        )
+      );
+      process.exit(1);
+    }
   }
-
-  // Framework options del adapter (Art. II: el core no hardcodea frameworks)
-  const frameworkOptions = [
-    {
-      value: adapter.target,
-      name: adapter.target.charAt(0).toUpperCase() + adapter.target.slice(1),
-      description: `Framework ${adapter.target}`,
-    },
-  ];
 
   let wizard: NewWizardParams | null = null;
   try {
     if (mode !== 'skip') {
-      wizard = await collectNewWizardParams(projectName, options, frameworkOptions, adapter.target);
+      wizard = await collectNewWizardParams(projectName, options, frameworkOptions, defaultFramework);
       if (wizard) {
         projectName = wizard.projectName;
         topology = wizard.topology;

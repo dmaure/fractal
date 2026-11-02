@@ -398,7 +398,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
     const { order } = setupInteractivePrompts({ githubToken: '' });
 
     // Sin framework options por ahora (se integrará completamente en futuros tickets)
-    const params = await promptNewWizard('demo-app', { topology: 'monolith' }, []);
+    const params = await promptNewWizard('demo-app', { topology: 'monolith' }, [], undefined, false);
 
     expect(order).toEqual([
       'select:Base de datos:',
@@ -427,7 +427,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('generate-or-ask: generate produce 48 hex y marca dbPasswordGenerated', async () => {
     setupInteractivePrompts({ dbPasswordMode: 'generate' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' }, []);
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, [], undefined, false);
 
     const dbSelect = vi.mocked(select).mock.calls.find(([config]) =>
       (config as PromptConfig).message.includes('Contraseña de la base de datos de producción')
@@ -445,7 +445,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('generate-or-ask: ask usa la contraseña ingresada y no genera', async () => {
     setupInteractivePrompts({ dbPasswordMode: 'ask', dbPassword: 'manual-secret' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' }, []);
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, [], undefined, false);
 
     expect(params.dbPassword).toBe('manual-secret');
     expect(params.dbPasswordGenerated).toBe(false);
@@ -454,7 +454,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('con token pregunta owner y no defaulta el token', async () => {
     setupInteractivePrompts({ githubToken: 'ghp_from_prompt', githubOwner: 'acme' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' }, []);
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, [], undefined, false);
 
     expect(params.githubToken).toBe('ghp_from_prompt');
     expect(params.githubOwner).toBe('acme');

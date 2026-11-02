@@ -116,12 +116,15 @@ describe('CodeArm - renderizado de selectores', () => {
       { value: 'test-fw', name: 'Test FW', description: 'Test' },
     ];
 
-    vi.mocked(select).mockImplementation(async (config: any) => {
-      if (config.message.includes('Framework del backend')) return 'test-fw';
-      if (config.message.includes('topología')) return 'monolith';
-      if (config.message.includes('Base de datos')) return 'postgresql';
-      if (config.message.includes('Framework del frontend')) return 'react-vite';
-      return 'default';
+    vi.mocked(select).mockImplementation((config: any) => {
+      let result: string;
+      if (config.message.includes('Framework del backend')) result = 'test-fw';
+      else if (config.message.includes('topología')) result = 'monolith';
+      else if (config.message.includes('Base de datos')) result = 'postgresql';
+      else if (config.message.includes('Framework del frontend')) result = 'react-vite';
+      else result = 'default';
+      
+      return Promise.resolve(result) as any;
     });
 
     const arm = new CodeArm(frameworkOptions, 'test-fw');
