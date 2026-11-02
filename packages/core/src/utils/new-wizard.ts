@@ -290,23 +290,17 @@ export async function promptNewWizard(
 ): Promise<NewWizardParams> {
   const resolvedName = resolveProjectName(projectName, options);
   
-  let topology = options.topology;
-  if (!topology) {
-    topology = await promptTopology();
-  } else if (!isValidTopology(topology)) {
-    throw new NonInteractiveConfigError([
-      `Topología inválida '${topology}'. Opciones válidas: monolith, monorepo, multirepo`,
-    ]);
-  }
-
+  let finalProjectName: string | undefined;
   let framework: string | undefined;
   let database: string | undefined;
   let frontend: string | undefined;
+  let topology: string | undefined;
   let shouldPromptInfra = true;
   let shouldPromptGitHub = true;
 
   if (useOrchestrator) {
     // Flujo real: orquestador con ChecklistArm y CodeArm (FRA-82, FRA-83, FRA-84)
+    // La topología se pregunta DENTRO del CodeArm (AC-2: código primero)
     const { ChecklistArm } = await import('../wizard/arms/checklist-arm.js');
     const { CodeArm } = await import('../wizard/arms/code-arm.js');
     const { orchestrateWizard } = await import('../wizard/orchestrator.js');
@@ -319,7 +313,7 @@ export async function promptNewWizard(
       initialContext: {
         mode: 'interactive',
         projectName: resolvedName,
-        topology,
+        topology: options.topology,
       },
     });
 
@@ -330,20 +324,50 @@ export async function promptNewWizard(
     }
 
     const { context } = orchestratorResult;
+    
+    // Leer valores del contexto del orquestador (FRA-84: fix bug de projectName perdido)
+    const finalProjectName = context.projectName;
+    if (!finalProjectName) {
+      throw new NonInteractiveConfigError(['Error: el nombre del proyecto no fue recolectado']);
+    }
+    
     framework = context.framework;
     database = context.database;
     frontend = context.frontend;
+    topology = context.topology;
+    
+    if (!topology || !isValidTopology(topology)) {
+      throw new NonInteractiveConfigError([
+        `Topología inválida '${topology}'. Opciones válidas: monolith, monorepo, multirepo`,
+      ]);
+    }
+    
     shouldPromptInfra = context.checklist?.hasServer === 'yes';
     shouldPromptGitHub = context.checklist?.hasGitHubToken === 'yes';
   } else {
     // Flujo legacy (solo tests): prompts directos
     console.log('\n🎨 Código del proyecto\n');
-    const name = await promptProjectName(resolvedName);
+    finalProjectName = await promptProjectName(resolvedName);
     framework = frameworkOptions.length > 0 
       ? await promptFramework(frameworkOptions, defaultFramework)
       : defaultFramework;
+    
+    // En path legacy, validar topology
+    topology = options.topology;
+    if (!topology) {
+      topology = await promptTopology();
+    } else if (!isValidTopology(topology)) {
+      throw new NonInteractiveConfigError([
+        `Topología inválida '${topology}'. Opciones válidas: monolith, monorepo, multirepo`,
+      ]);
+    }
+    
     database = await promptDatabaseType();
     frontend = await promptFrontend();
+  }
+  
+  if (!finalProjectName) {
+    throw new NonInteractiveConfigError(['Error: el nombre del proyecto no fue recolectado']);
   }
 
   // Infraestructura: después del código (si checklist lo habilitó)
@@ -399,7 +423,7 @@ export async function promptNewWizard(
   }
 
   const githubRepo =
-    flagOrEnv(options.githubRepo, 'FRACTAL_NEW_GITHUB_REPO') ?? resolvedName!;
+    flagOrEnv(options.githubRepo, 'FRACTAL_NEW_GITHUB_REPO') ?? finalProjectName;
 
   const githubVisibilityRaw =
     flagOrEnv(options.githubVisibility, 'FRACTAL_NEW_GITHUB_VISIBILITY') ?? 'private';
@@ -420,8 +444,8 @@ export async function promptNewWizard(
         });
 
   return {
-    projectName: resolvedName!,
-    topology,
+    projectName: finalProjectName,
+    topology: topology as ProjectTopology,
     framework: framework || defaultFramework,
     database: database || DEFAULT_WIZARD_DATABASE,
     frontend: frontend || DEFAULT_WIZARD_FRONTEND,
