@@ -422,9 +422,9 @@ export async function promptNewWizard(
   return {
     projectName: resolvedName!,
     topology,
-    framework,
-    database,
-    frontend,
+    framework: framework || defaultFramework,
+    database: database || DEFAULT_WIZARD_DATABASE,
+    frontend: frontend || DEFAULT_WIZARD_FRONTEND,
     force: options.force,
     serverIp: deployParams.serverIp,
     sshUser: deployParams.sshUser,
