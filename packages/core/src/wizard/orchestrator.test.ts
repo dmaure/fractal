@@ -202,7 +202,7 @@ describe('orchestrateWizard', () => {
       (ctx) => Boolean(ctx.hasInfrastructure),
       async (ctx) => ({
         success: true,
-        context: { ...ctx, database: { password: 'secret', passwordGenerated: false } },
+        context: { ...ctx, databasePassword: { password: 'secret', passwordGenerated: false } },
       })
     );
 
@@ -213,7 +213,7 @@ describe('orchestrateWizard', () => {
 
     expect(result.success).toBe(true);
     expect(result.executedArms).toEqual(['arm1', 'arm2']);
-    expect(result.context.database).toEqual({ password: 'secret', passwordGenerated: false });
+    expect(result.context.databasePassword).toEqual({ password: 'secret', passwordGenerated: false });
   });
 
   it('contexto inicial se preserva y extiende', async () => {

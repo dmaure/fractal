@@ -125,6 +125,111 @@ export async function promptProjectName(current?: string): Promise<string> {
   }).then((value) => value.trim());
 }
 
+/**
+ * Opciones de framework para el wizard.
+ * Visible aunque haya una sola opción (ADR-0016 §4, FRA-84 AC-2).
+ */
+export interface WizardFrameworkOption {
+  value: string;
+  name: string;
+  description: string;
+}
+
+export const WIZARD_FRAMEWORK_OPTIONS: WizardFrameworkOption[] = [
+  {
+    value: 'laravel',
+    name: 'Laravel',
+    description: 'Framework PHP para aplicaciones web modernas',
+  },
+];
+
+export const DEFAULT_WIZARD_FRAMEWORK = 'laravel';
+
+/**
+ * Prompt de framework (FRA-84). Visible aunque haya una sola opción.
+ */
+export async function promptFramework(): Promise<string> {
+  return select({
+    message: 'Framework del backend:',
+    choices: WIZARD_FRAMEWORK_OPTIONS.map((opt) => ({
+      value: opt.value,
+      name: opt.name,
+      description: opt.description,
+    })),
+    default: DEFAULT_WIZARD_FRAMEWORK,
+  });
+}
+
+/**
+ * Opciones de base de datos para el wizard.
+ * Visible aunque haya una sola opción (ADR-0016 §4, FRA-84 AC-2).
+ */
+export interface WizardDatabaseOption {
+  value: string;
+  name: string;
+  description: string;
+}
+
+export const WIZARD_DATABASE_OPTIONS: WizardDatabaseOption[] = [
+  {
+    value: 'postgresql',
+    name: 'PostgreSQL',
+    description: 'Base de datos relacional de producción',
+  },
+];
+
+export const DEFAULT_WIZARD_DATABASE = 'postgresql';
+
+/**
+ * Prompt de base de datos (FRA-84). Visible aunque haya una sola opción.
+ */
+export async function promptDatabaseType(): Promise<string> {
+  return select({
+    message: 'Base de datos:',
+    choices: WIZARD_DATABASE_OPTIONS.map((opt) => ({
+      value: opt.value,
+      name: opt.name,
+      description: opt.description,
+    })),
+    default: DEFAULT_WIZARD_DATABASE,
+  });
+}
+
+/**
+ * Opciones de frontend para el wizard.
+ * Visible aunque haya una sola opción (ADR-0016 §4, FRA-84 AC-2).
+ */
+export interface WizardFrontendOption {
+  value: string;
+  name: string;
+  description: string;
+}
+
+export const WIZARD_FRONTEND_OPTIONS: WizardFrontendOption[] = [
+  {
+    value: 'react-vite',
+    name: 'React + Vite',
+    description: 'SPA con React y Vite para desarrollo rápido',
+  },
+];
+
+export const DEFAULT_WIZARD_FRONTEND = 'react-vite';
+
+/**
+ * Prompt de frontend (FRA-84). Visible aunque haya una sola opción.
+ */
+export async function promptFrontend(): Promise<string> {
+  return select({
+    message: 'Framework del frontend:',
+    choices: WIZARD_FRONTEND_OPTIONS.map((opt) => ({
+      value: opt.value,
+      name: opt.name,
+      description: opt.description,
+    })),
+    default: DEFAULT_WIZARD_FRONTEND,
+  });
+}
+
 async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGenerated: boolean }> {
   const mode = await select<'generate' | 'ask'>({
     message: 'Contraseña de la base de datos de producción:',
@@ -162,14 +267,20 @@ async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGener
 }
 
 /**
- * Wizard interactivo: reutiliza los prompts de deploy (IP, SSH, DNS, email)
- * y agrega GitHub token + DB password + confirmación de encadenar deploy.
+ * Wizard interactivo: orden code-first (FRA-84, ADR-0016).
+ * Pregunta código (nombre, framework, topología, DB, frontend) antes que
+ * infraestructura. Reutiliza los prompts de deploy para IP, SSH, DNS, email.
  */
 export async function promptNewWizard(
   projectName: string | undefined,
   options: NewCommandOptions
 ): Promise<NewWizardParams> {
+  // Sección Código (FRA-84, AC-1): primero
+  console.log('\n🎨 Código del proyecto\n');
+
   const resolvedName = await promptProjectName(resolveProjectName(projectName, options));
+
+  const framework = await promptFramework();
 
   let topology = options.topology;
   if (!topology) {
@@ -180,7 +291,12 @@ export async function promptNewWizard(
     ]);
   }
 
-  console.log('\nValores que no pueden tener default (servidor, DNS, GitHub, secrets)\n');
+  const databaseType = await promptDatabaseType();
+  const frontend = await promptFrontend();
+
+  // Infraestructura: después del código
+  console.log('\n🏗️  Infraestructura y deploy (opcional)\n');
+  console.log('Valores que no pueden tener default (servidor, DNS, GitHub, secrets)\n');
   console.log('SSH — limitaciones conocidas:');
   for (const gap of SSH_AUTH_GAPS) {
     console.log(`   • ${gap}`);

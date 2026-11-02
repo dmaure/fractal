@@ -351,7 +351,10 @@ function setupInteractivePrompts(overrides: Partial<InteractiveAnswers> = {}): {
 
   vi.mocked(select).mockImplementation(((config: PromptConfig) => {
     order.push(`select:${config.message}`);
+    if (config.message.includes('Framework del backend')) return Promise.resolve('laravel');
     if (config.message.includes('topología')) return Promise.resolve(answers.topology ?? 'monolith');
+    if (config.message.includes('Base de datos')) return Promise.resolve('postgresql');
+    if (config.message.includes('Framework del frontend')) return Promise.resolve('react-vite');
     if (config.message.includes('autenticación')) return Promise.resolve(answers.authMethod);
     if (config.message.includes('Proveedor DNS')) return Promise.resolve(answers.dnsProvider);
     if (config.message.includes('Contraseña de la base de datos de producción')) {
@@ -393,6 +396,9 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
     const params = await promptNewWizard('demo-app', { topology: 'monolith' });
 
     expect(order).toEqual([
+      'select:Framework del backend:',
+      'select:Base de datos:',
+      'select:Framework del frontend:',
       'input:Dirección IP del VPS:',
       'input:Usuario SSH:',
       'select:Método de autenticación SSH:',
