@@ -77,8 +77,8 @@ flowchart LR
     classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
 
     class M1 done;
-    class M0,M2 curso;
-    class M1.5,M3,M4,M5,M6 pend;
+    class M0,M1.5,M2 curso;
+    class M3,M4,M5,M6 pend;
 ```
 <!-- progress-map:auto:end -->
 

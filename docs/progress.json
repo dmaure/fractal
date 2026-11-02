@@ -9,7 +9,7 @@
   "milestones": [
     { "id": "M0", "nombre": "Fundaciones", "entregable": "reglas, docs y CI base", "estado": "en_curso" },
     { "id": "M1", "nombre": "Esqueleto vertical", "entregable": "new + deploy = app online", "estado": "completado" },
-    { "id": "M1.5", "nombre": "Wizard v2", "entregable": "wizard code-first y modular", "estado": "pendiente" },
+    { "id": "M1.5", "nombre": "Wizard v2", "entregable": "wizard code-first y modular", "estado": "en_curso" },
     { "id": "M2", "nombre": "FDL y entidades", "entregable": "CRUD generado y desplegable", "estado": "en_curso" },
     { "id": "M3", "nombre": "Autenticación y autorización", "entregable": "roles, OAuth, 2FA", "estado": "pendiente" },
     { "id": "M4", "nombre": "Adapter Rails", "entregable": "multi-target verificado", "estado": "pendiente" },
@@ -143,6 +143,21 @@
         { "id": "T5", "ticket": "FRA-47", "label": "Llevar regeneracion de Diagrama 1 + 2 a `fractal status --write`", "estado": "completado" },
         { "id": "T6", "ticket": "FRA-48", "label": "Exportar los diagramas del mapa de progreso como SVG/PNG (`--export`)", "estado": "completado" },
         { "id": "T7", "ticket": "FRA-49", "label": "Alinear README y SPEC-0031 con la implementacion real de `fractal status`", "estado": "completado" }
+      ]
+    },
+    {
+      "id": "SPEC-0032",
+      "label": "Wizard v2 — code-first y brazos modulares",
+      "milestone": "M1.5",
+      "estado": "pendiente",
+      "tareas": [
+        { "id": "T1", "ticket": "FRA-82", "label": "Contrato de brazo + orquestador modular en core", "estado": "pendiente" },
+        { "id": "T2", "ticket": "FRA-83", "label": "Checklist inicial del wizard", "estado": "pendiente" },
+        { "id": "T3", "ticket": "FRA-84", "label": "Brazo Código: reorden code-first + selectores", "estado": "pendiente" },
+        { "id": "T4", "ticket": "FRA-85", "label": "Brazo Infraestructura opcional + local-only + hand-off", "estado": "pendiente" },
+        { "id": "T5", "ticket": "FRA-86", "label": "Brazo GitHub opcional e independiente", "estado": "pendiente" },
+        { "id": "T6", "ticket": "FRA-87", "label": "Brazo Base de datos (condicional)", "estado": "pendiente" },
+        { "id": "T7", "ticket": "FRA-88", "label": "Paridad no-interactiva + bot QA + TTS/hand-off + docs", "estado": "pendiente" }
       ]
     }
   ]
