@@ -399,7 +399,7 @@ export async function promptNewWizard(
   }
 
   const githubRepo =
-    flagOrEnv(options.githubRepo, 'FRACTAL_NEW_GITHUB_REPO') ?? resolvedName;
+    flagOrEnv(options.githubRepo, 'FRACTAL_NEW_GITHUB_REPO') ?? resolvedName!;
 
   const githubVisibilityRaw =
     flagOrEnv(options.githubVisibility, 'FRACTAL_NEW_GITHUB_VISIBILITY') ?? 'private';
