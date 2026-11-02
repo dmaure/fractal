@@ -29,10 +29,7 @@ export const DEPLOY_SUDOERS_REQUIRED = [
   '/usr/bin/tee /etc/apt/sources.list.d/docker.list',
   '/usr/bin/mkdir -p /home/deploy/docker/nginx/certbot/.well-known/acme-challenge',
   '/usr/bin/chmod -R 755 /home/deploy/docker/nginx/certbot/.well-known',
-  '/usr/bin/cp -L /etc/letsencrypt/live/*/fullchain.pem /home/deploy/docker/nginx/ssl/fullchain.pem',
-  '/usr/bin/cp -L /etc/letsencrypt/live/*/privkey.pem /home/deploy/docker/nginx/ssl/privkey.pem',
-  '/usr/bin/chmod 644 /home/deploy/docker/nginx/ssl/fullchain.pem',
-  '/usr/bin/chmod 600 /home/deploy/docker/nginx/ssl/privkey.pem',
+  '/usr/local/bin/fractal-refresh-certs',
   '/usr/bin/tee /etc/cron.d/certbot-renewal',
   '/usr/bin/tee /etc/letsencrypt/renewal-hooks/post/reload-services',
   '/usr/bin/ln -sf /snap/bin/certbot /usr/bin/certbot',
@@ -57,6 +54,43 @@ export function assertSafeSudoersUsername(username: string): void {
         `(solo [a-z_][a-z0-9_-], máximo 32 caracteres)`
     );
   }
+}
+
+/**
+ * Genera el script helper que copia certificados SSL desde Let's Encrypt.
+ * 
+ * Este script se instala en `/usr/local/bin/fractal-refresh-certs` y se
+ * referencia en sudoers en lugar de usar wildcards (que visudo no permite).
+ * 
+ * El script busca el primer directorio bajo `/etc/letsencrypt/live/` y copia
+ * los certificados a `/home/deploy/docker/nginx/ssl/` con los permisos correctos.
+ */
+export function buildCertRefreshScript(): string {
+  return [
+    `#!/bin/bash`,
+    `# Fractal — helper script para refrescar certificados SSL desde Let's Encrypt`,
+    `# (visudo no permite wildcards en argumentos de comandos; por eso este script)`,
+    ``,
+    `set -euo pipefail`,
+    ``,
+    `# Buscar el primer directorio de dominio bajo /etc/letsencrypt/live/`,
+    `# (ignorar el directorio README)`,
+    `CERT_DIR=$(find /etc/letsencrypt/live -mindepth 1 -maxdepth 1 -type d ! -name README | head -n 1)`,
+    ``,
+    `if [[ -z "$CERT_DIR" ]]; then`,
+    `  echo "Error: No se encontró ningún certificado en /etc/letsencrypt/live/" >&2`,
+    `  exit 1`,
+    `fi`,
+    ``,
+    `# Copiar certificados`,
+    `/usr/bin/cp -L "$CERT_DIR/fullchain.pem" /home/deploy/docker/nginx/ssl/fullchain.pem`,
+    `/usr/bin/cp -L "$CERT_DIR/privkey.pem" /home/deploy/docker/nginx/ssl/privkey.pem`,
+    ``,
+    `# Establecer permisos`,
+    `/usr/bin/chmod 644 /home/deploy/docker/nginx/ssl/fullchain.pem`,
+    `/usr/bin/chmod 600 /home/deploy/docker/nginx/ssl/privkey.pem`,
+    ``,
+  ].join('\n');
 }
 
 /**
@@ -103,10 +137,7 @@ export function buildDeploySudoers(username: string): string {
     `    /usr/bin/systemctl start certbot.timer, \\`,
     `    /usr/bin/mkdir -p /home/deploy/docker/nginx/certbot/.well-known/acme-challenge, \\`,
     `    /usr/bin/chmod -R 755 /home/deploy/docker/nginx/certbot/.well-known, \\`,
-    `    /usr/bin/cp -L /etc/letsencrypt/live/*/fullchain.pem /home/deploy/docker/nginx/ssl/fullchain.pem, \\`,
-    `    /usr/bin/cp -L /etc/letsencrypt/live/*/privkey.pem /home/deploy/docker/nginx/ssl/privkey.pem, \\`,
-    `    /usr/bin/chmod 644 /home/deploy/docker/nginx/ssl/fullchain.pem, \\`,
-    `    /usr/bin/chmod 600 /home/deploy/docker/nginx/ssl/privkey.pem, \\`,
+    `    /usr/local/bin/fractal-refresh-certs, \\`,
     `    /usr/bin/tee /etc/cron.d/certbot-renewal, \\`,
     `    /usr/bin/chmod 644 /etc/cron.d/certbot-renewal, \\`,
     `    /usr/bin/tee /etc/letsencrypt/renewal-hooks/post/reload-services, \\`,

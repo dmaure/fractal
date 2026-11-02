@@ -34,18 +34,8 @@ describe('ContainerCertInstaller', () => {
 
     const commands = vi.mocked(mockSsh.executeCommand).mock.calls.map((c) => c[0]);
 
-    expect(commands).toContainEqual(
-      'sudo cp -L /etc/letsencrypt/live/example.com/fullchain.pem /home/deploy/docker/nginx/ssl/fullchain.pem'
-    );
-    expect(commands).toContainEqual(
-      'sudo cp -L /etc/letsencrypt/live/example.com/privkey.pem /home/deploy/docker/nginx/ssl/privkey.pem'
-    );
-    expect(commands).toContainEqual(
-      'sudo chmod 644 /home/deploy/docker/nginx/ssl/fullchain.pem'
-    );
-    expect(commands).toContainEqual(
-      'sudo chmod 600 /home/deploy/docker/nginx/ssl/privkey.pem'
-    );
+    // Ahora usa el helper script en lugar de comandos individuales cp/chmod
+    expect(commands).toContainEqual('sudo /usr/local/bin/fractal-refresh-certs');
     expect(commands).toContainEqual('docker exec myapp_nginx nginx -t');
     expect(commands).toContainEqual('docker exec myapp_nginx nginx -s reload');
   });
@@ -87,7 +77,7 @@ describe('ContainerCertInstaller', () => {
     expect(mockSsh.executeCommand).not.toHaveBeenCalled();
   });
 
-  it('falla si no se puede copiar fullchain.pem', async () => {
+  it('falla si no se pueden copiar los certificados', async () => {
     vi.mocked(mockSsh.executeCommand).mockResolvedValueOnce({
       success: false,
       exitCode: 1,
@@ -98,15 +88,12 @@ describe('ContainerCertInstaller', () => {
     const result = await installer.install(config);
 
     expect(result.success).toBe(false);
-    expect(result.error).toContain('No se pudo copiar fullchain.pem');
+    expect(result.error).toContain('No se pudieron copiar los certificados');
   });
 
   it('falla si la validación de nginx en el contenedor falla', async () => {
     vi.mocked(mockSsh.executeCommand)
-      // cp fullchain, cp privkey, chmod 644, chmod 600
-      .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
-      .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
-      .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
+      // fractal-refresh-certs (ahora un solo comando en lugar de 4)
       .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
       // docker exec nginx -t falla
       .mockResolvedValueOnce({
@@ -124,10 +111,7 @@ describe('ContainerCertInstaller', () => {
 
   it('falla si la recarga de nginx en el contenedor falla', async () => {
     vi.mocked(mockSsh.executeCommand)
-      // cp fullchain, cp privkey, chmod 644, chmod 600, nginx -t
-      .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
-      .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
-      .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
+      // fractal-refresh-certs, nginx -t
       .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
       .mockResolvedValueOnce({ success: true, exitCode: 0, stdout: '', stderr: '' })
       // docker exec nginx -s reload falla
