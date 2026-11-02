@@ -22,21 +22,6 @@ export interface FrameworkOption {
 }
 
 /**
- * Frameworks soportados.
- * En v0 solo Laravel; Rails llegará en M4.
- * El selector se muestra aunque haya una sola opción (ADR-0016 §4, AC-2).
- */
-export const FRAMEWORK_OPTIONS: FrameworkOption[] = [
-  {
-    value: 'laravel',
-    name: 'Laravel',
-    description: 'Framework PHP para aplicaciones web modernas',
-  },
-];
-
-export const DEFAULT_FRAMEWORK = 'laravel';
-
-/**
  * Opciones de base de datos disponibles.
  */
 export interface DatabaseOption {
@@ -103,16 +88,26 @@ export async function promptProjectName(current?: string): Promise<string> {
 /**
  * Prompt para seleccionar el framework.
  * Visible aunque haya una sola opción (ADR-0016 §4, AC-2).
+ * 
+ * @param options Lista de opciones disponibles (del adapter)
+ * @param defaultValue Valor por defecto
  */
-export async function promptFramework(): Promise<string> {
+export async function promptFramework(
+  options: FrameworkOption[],
+  defaultValue?: string
+): Promise<string> {
+  if (options.length === 0) {
+    throw new Error('No hay frameworks disponibles');
+  }
+  
   return select({
     message: 'Framework del backend:',
-    choices: FRAMEWORK_OPTIONS.map((opt) => ({
+    choices: options.map((opt) => ({
       value: opt.value,
       name: opt.name,
       description: opt.description,
     })),
-    default: DEFAULT_FRAMEWORK,
+    default: defaultValue ?? options[0]?.value,
   });
 }
 
@@ -155,6 +150,17 @@ export class CodeArm implements WizardArm {
     'Recolecta nombre del proyecto, framework, topología, base de datos, frontend';
   readonly required = true;
 
+  private frameworkOptions: FrameworkOption[];
+  private defaultFramework?: string;
+
+  constructor(
+    frameworkOptions: FrameworkOption[] = [],
+    defaultFramework?: string
+  ) {
+    this.frameworkOptions = frameworkOptions;
+    this.defaultFramework = defaultFramework;
+  }
+
   isEnabled(_context: WizardContext): boolean {
     // Brazo obligatorio: siempre habilitado
     return true;
@@ -175,7 +181,12 @@ export class CodeArm implements WizardArm {
 
     try {
       const projectName = await promptProjectName(context.projectName);
-      const framework = await promptFramework();
+      
+      // Solo preguntar framework si hay opciones disponibles
+      const framework = this.frameworkOptions.length > 0
+        ? await promptFramework(this.frameworkOptions, this.defaultFramework)
+        : undefined;
+      
       const topology = context.topology ?? (await promptTopology());
       const database = await promptDatabase();
       const frontend = await promptFrontend();

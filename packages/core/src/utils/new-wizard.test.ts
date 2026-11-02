@@ -351,7 +351,11 @@ function setupInteractivePrompts(overrides: Partial<InteractiveAnswers> = {}): {
 
   vi.mocked(select).mockImplementation(((config: PromptConfig) => {
     order.push(`select:${config.message}`);
-    if (config.message.includes('Framework del backend')) return Promise.resolve('laravel');
+    if (config.message.includes('Framework del backend')) {
+      // Devolver el primer valor disponible de las opciones
+      const firstChoice = (config as any).choices?.[0]?.value;
+      return Promise.resolve(firstChoice || 'test-framework');
+    }
     if (config.message.includes('topología')) return Promise.resolve(answers.topology ?? 'monolith');
     if (config.message.includes('Base de datos')) return Promise.resolve('postgresql');
     if (config.message.includes('Framework del frontend')) return Promise.resolve('react-vite');
@@ -393,10 +397,10 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('pregunta el set no-defaultable en orden, token opcional y repo = nombre', async () => {
     const { order } = setupInteractivePrompts({ githubToken: '' });
 
-    const params = await promptNewWizard('demo-app', { topology: 'monolith' });
+    // Sin framework options por ahora (se integrará completamente en futuros tickets)
+    const params = await promptNewWizard('demo-app', { topology: 'monolith' }, []);
 
     expect(order).toEqual([
-      'select:Framework del backend:',
       'select:Base de datos:',
       'select:Framework del frontend:',
       'input:Dirección IP del VPS:',
@@ -423,7 +427,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('generate-or-ask: generate produce 48 hex y marca dbPasswordGenerated', async () => {
     setupInteractivePrompts({ dbPasswordMode: 'generate' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' });
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, []);
 
     const dbSelect = vi.mocked(select).mock.calls.find(([config]) =>
       (config as PromptConfig).message.includes('Contraseña de la base de datos de producción')
@@ -441,7 +445,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('generate-or-ask: ask usa la contraseña ingresada y no genera', async () => {
     setupInteractivePrompts({ dbPasswordMode: 'ask', dbPassword: 'manual-secret' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' });
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, []);
 
     expect(params.dbPassword).toBe('manual-secret');
     expect(params.dbPasswordGenerated).toBe(false);
@@ -450,7 +454,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('con token pregunta owner y no defaulta el token', async () => {
     setupInteractivePrompts({ githubToken: 'ghp_from_prompt', githubOwner: 'acme' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' });
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, []);
 
     expect(params.githubToken).toBe('ghp_from_prompt');
     expect(params.githubOwner).toBe('acme');

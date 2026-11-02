@@ -36,19 +36,19 @@ export interface WizardContext {
 
   /**
    * Framework del backend (valor opaco para el core, Art. II).
-   * Ej: 'laravel', 'rails'.
+   * Ejemplo de valores: identificadores de adapter como target.
    */
   framework?: string;
 
   /**
    * Base de datos del proyecto (valor opaco para el core).
-   * Ej: 'postgresql', 'mysql'.
+   * Ejemplo de valores: 'postgresql', 'mysql'.
    */
   database?: string;
 
   /**
    * Framework del frontend (valor opaco para el core).
-   * Ej: 'react-vite', 'vue-vite'.
+   * Ejemplo de valores: 'react-vite', 'vue-vite'.
    */
   frontend?: string;
 

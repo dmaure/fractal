@@ -127,7 +127,7 @@ export async function promptProjectName(current?: string): Promise<string> {
 
 /**
  * Opciones de framework para el wizard.
- * Visible aunque haya una sola opción (ADR-0016 §4, FRA-84 AC-2).
+ * Se obtienen dinámicamente de los adapters instalados (Art. II).
  */
 export interface WizardFrameworkOption {
   value: string;
@@ -135,28 +135,34 @@ export interface WizardFrameworkOption {
   description: string;
 }
 
-export const WIZARD_FRAMEWORK_OPTIONS: WizardFrameworkOption[] = [
-  {
-    value: 'laravel',
-    name: 'Laravel',
-    description: 'Framework PHP para aplicaciones web modernas',
-  },
-];
-
-export const DEFAULT_WIZARD_FRAMEWORK = 'laravel';
-
 /**
- * Prompt de framework (FRA-84). Visible aunque haya una sola opción.
+ * Prompt de framework. Las opciones se obtienen dinámicamente de los adapters
+ * instalados. Se muestra aunque haya una sola opción (ADR-0016 §4, FRA-84 AC-2).
+ * 
+ * @param options Lista de frameworks disponibles (del adapter)
+ * @param defaultValue Framework por defecto
  */
-export async function promptFramework(): Promise<string> {
+export async function promptFramework(
+  options: WizardFrameworkOption[],
+  defaultValue?: string
+): Promise<string> {
+  if (options.length === 0) {
+    throw new Error('No hay frameworks disponibles');
+  }
+  
+  // Si solo hay una opción y no es interactivo, usar esa sin preguntar
+  if (options.length === 1 && !process.stdin.isTTY) {
+    return options[0].value;
+  }
+  
   return select({
     message: 'Framework del backend:',
-    choices: WIZARD_FRAMEWORK_OPTIONS.map((opt) => ({
+    choices: options.map((opt) => ({
       value: opt.value,
       name: opt.name,
       description: opt.description,
     })),
-    default: DEFAULT_WIZARD_FRAMEWORK,
+    default: defaultValue ?? options[0]?.value,
   });
 }
 
@@ -270,17 +276,25 @@ async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGener
  * Wizard interactivo: orden code-first (FRA-84, ADR-0016).
  * Pregunta código (nombre, framework, topología, DB, frontend) antes que
  * infraestructura. Reutiliza los prompts de deploy para IP, SSH, DNS, email.
+ * 
+ * @param frameworkOptions Opciones de framework del adapter (Art. II: agnóstico)
+ * @param defaultFramework Framework por defecto del adapter
  */
 export async function promptNewWizard(
   projectName: string | undefined,
-  options: NewCommandOptions
+  options: NewCommandOptions,
+  frameworkOptions: WizardFrameworkOption[] = [],
+  defaultFramework?: string
 ): Promise<NewWizardParams> {
   // Sección Código (FRA-84, AC-1): primero
   console.log('\n🎨 Código del proyecto\n');
 
   const resolvedName = await promptProjectName(resolveProjectName(projectName, options));
 
-  const framework = await promptFramework();
+  // Solo preguntar framework si hay opciones disponibles
+  const framework = frameworkOptions.length > 0 
+    ? await promptFramework(frameworkOptions, defaultFramework)
+    : undefined;
 
   let topology = options.topology;
   if (!topology) {
