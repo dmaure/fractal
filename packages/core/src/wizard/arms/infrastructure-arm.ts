@@ -13,10 +13,9 @@ export class InfrastructureArm implements WizardArm {
   readonly responsibility = 'Recolecta IP, SSH, dominio, DNS (opcional)';
   readonly required = false;
 
-  isEnabled(_context: WizardContext): boolean {
-    // Placeholder: se habilita si el checklist indica que el usuario tiene
-    // servidor. Por ahora siempre false.
-    return false;
+  isEnabled(context: WizardContext): boolean {
+    // Habilitado si el checklist indica que el usuario tiene servidor
+    return context.checklist?.hasServer === 'yes';
   }
 
   async execute(context: WizardContext): Promise<WizardArmResult> {

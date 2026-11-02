@@ -15,6 +15,16 @@
  */
 export interface WizardContext {
   /**
+   * Checklist inicial: qué datos tiene el usuario.
+   * FRA-83, ADR-0016 §3.
+   */
+  checklist?: {
+    hasServer: 'yes' | 'no' | 'later';
+    hasDomain: 'yes' | 'no' | 'manual';
+    hasGitHubToken: 'yes' | 'no';
+  };
+
+  /**
    * Nombre del proyecto.
    */
   projectName?: string;
