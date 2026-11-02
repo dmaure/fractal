@@ -13,10 +13,9 @@ export class GitHubArm implements WizardArm {
   readonly responsibility = 'Crea repositorio remoto y setea secrets (opcional)';
   readonly required = false;
 
-  isEnabled(_context: WizardContext): boolean {
-    // Placeholder: se habilita si el usuario provee token de GitHub (checklist
-    // o flag). Por ahora siempre false.
-    return false;
+  isEnabled(context: WizardContext): boolean {
+    // Habilitado si el checklist indica que el usuario tiene token de GitHub
+    return context.checklist?.hasGitHubToken === 'yes';
   }
 
   async execute(context: WizardContext): Promise<WizardArmResult> {

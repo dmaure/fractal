@@ -4,12 +4,12 @@
 guía describe el flujo real del comando y sus tres topologías, con el adapter
 de referencia (Laravel) instalado.
 
-> **Nota sobre wizard v2 (M1.5):** esta guía refleja el wizard actual (M1). El
-> diseño del wizard se está rediseñando para seguir el principio **code-first con
-> deploy opcional** (ADR-0016): el wizard preguntará primero por el código (framework,
-> topología, DB, frontend) y después por infraestructura (opcional), GitHub (opcional)
-> y deploy (opcional). El usuario podrá generar un proyecto local sin datos de deploy.
-> Esta guía se actualizará cuando el wizard v2 esté implementado.
+> **Nota sobre wizard v2 (M1.5):** esta guía refleja el wizard v2 en progreso.
+> El checklist inicial (FRA-83) ya está implementado: el wizard ahora pregunta
+> primero qué datos tiene el usuario (¿tenés servidor?, ¿dominio?, ¿token de
+> GitHub?) y habilita/deshabilita las secciones correspondientes. El usuario puede
+> generar un proyecto local sin datos de deploy. Las secciones de código,
+> infraestructura, GitHub y base de datos se implementan en FRA-84..FRA-87.
 
 > Fuente de verdad: el comando vive en `packages/core`
 > (`src/commands/new.ts`) y delega la generación al adapter vía el bridge
@@ -84,26 +84,44 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
    existe y tiene contenido, exige `--force`.
 2. **Resuelve la topología**: la de `--topology`, o la elegida en el prompt
    interactivo.
-3. **Wizard de valores no-defaultables** (TTY, o `--non-interactive`): IP,
+3. **Checklist inicial (FRA-83, wizard v2)**: si el modo es interactivo, el wizard
+   pregunta **primero** qué datos tiene el usuario:
+   - ¿Tenés un servidor para desplegar? (sí / no / lo agrego después)
+   - ¿Tenés un dominio y querés DNS automático? (sí / manual / no) — solo si respondió sí a servidor
+   - ¿Tenés un token de GitHub? (sí / no)
+   
+   Las respuestas habilitan o deshabilitan las secciones posteriores:
+   - **Servidor "no" o "lo agrego después"** → saltea toda la sección de infraestructura
+   - **GitHub token "no"** → no crea repositorio remoto
+   
+   En modo no-interactivo, las respuestas se derivan de los datos en el contexto
+   (si pasaste `--server-ip`, se asume que tenés servidor).
+4. **Wizard de valores no-defaultables** (TTY, o `--non-interactive`): IP,
    SSH, dominio, email SSL, DNS, token de GitHub y contraseña de la base.
    Ver [Wizard](#wizard-valores-que-no-pueden-tener-default).
-4. **Resuelve el adapter** instalado por convención (`@fractal/adapter-*` con
+5. **Resuelve el adapter** instalado por convención (`@fractal/adapter-*` con
    metadata `fractal` válida en su `package.json`). En v0 debe haber
    exactamente uno.
-5. **Obtiene el contrato** del adapter (acción `get-contract` del bridge).
-6. **Verifica los requisitos de runtime** (PHP/Composer y sus versiones
+6. **Obtiene el contrato** del adapter (acción `get-contract` del bridge).
+7. **Verifica los requisitos de runtime** (PHP/Composer y sus versiones
    mínimas) leídos del contrato.
-7. **Genera la estructura** del proyecto (acción `create-project` del bridge).
-8. **Inicializa git** según la topología y, en multirepo, genera los
+8. **Genera la estructura** del proyecto (acción `create-project` del bridge).
+9. **Inicializa git** según la topología y, en multirepo, genera los
    manifiestos `fractal.project.yml` (excluidos de git).
-9. **Con token de GitHub:** crea el repo remoto, pushea el commit inicial y
+10. **Con token de GitHub:** crea el repo remoto, pushea el commit inicial y
    setea (o imprime) los secrets del workflow, incluyendo `SSH_KNOWN_HOSTS`.
-10. **Hand-off** a `fractal deploy` (comando siguiente + `export FRACTAL_DEPLOY_*`
+11. **Hand-off** a `fractal deploy` (comando siguiente + `export FRACTAL_DEPLOY_*`
     sin secrets), o encadena el deploy si pasaste `--deploy`.
 
 ---
 
 ## Wizard: valores que no pueden tener default
+
+> **Nota:** esta sección refleja el wizard v1 actual. Con wizard v2 (FRA-83), el
+> **checklist inicial** (paso 3 del flujo) pregunta **primero** qué datos tiene el
+> usuario y saltea secciones completas según sus respuestas. Si respondés "no" a
+> servidor, nunca se te piden IP/SSH/dominio/DNS. Si respondés "no" a GitHub token,
+> no se crea repo remoto.
 
 Pedido de producto (FRA-77): el camino feliz a producción necesita datos
 user-specific que **no** admiten un default seguro. El wizard los pide en TTY

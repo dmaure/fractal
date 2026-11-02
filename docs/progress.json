@@ -152,7 +152,7 @@
       "estado": "pendiente",
       "tareas": [
         { "id": "T1", "ticket": "FRA-82", "label": "Contrato de brazo + orquestador modular en core", "estado": "pendiente" },
-        { "id": "T2", "ticket": "FRA-83", "label": "Checklist inicial del wizard", "estado": "pendiente" },
+        { "id": "T2", "ticket": "FRA-83", "label": "Checklist inicial del wizard", "estado": "completado" },
         { "id": "T3", "ticket": "FRA-84", "label": "Brazo Código: reorden code-first + selectores", "estado": "pendiente" },
         { "id": "T4", "ticket": "FRA-85", "label": "Brazo Infraestructura opcional + local-only + hand-off", "estado": "pendiente" },
         { "id": "T5", "ticket": "FRA-86", "label": "Brazo GitHub opcional e independiente", "estado": "pendiente" },
