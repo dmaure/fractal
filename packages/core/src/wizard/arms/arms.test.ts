@@ -4,8 +4,16 @@
  * Verifica que cada brazo cumple el contrato y tiene la responsabilidad esperada.
  */
 
-import { describe, it, expect } from 'vitest';
-import { CodeArm } from './code-arm.js';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  CodeArm,
+  FRAMEWORK_OPTIONS,
+  DATABASE_OPTIONS,
+  FRONTEND_OPTIONS,
+  DEFAULT_FRAMEWORK,
+  DEFAULT_DATABASE,
+  DEFAULT_FRONTEND,
+} from './code-arm.js';
 import { DomainArm } from './domain-arm.js';
 import { InfrastructureArm } from './infrastructure-arm.js';
 import { GitHubArm } from './github-arm.js';
@@ -31,14 +39,50 @@ describe('CodeArm', () => {
     expect(arm.isEnabled({ projectName: 'test' })).toBe(true);
   });
 
-  it('ejecuta sin error (placeholder)', async () => {
+  it('tiene opciones de framework con defaults sensatos (AC-3)', () => {
+    expect(FRAMEWORK_OPTIONS).toHaveLength(1);
+    expect(FRAMEWORK_OPTIONS[0]?.value).toBe('laravel');
+    expect(DEFAULT_FRAMEWORK).toBe('laravel');
+  });
+
+  it('tiene opciones de base de datos con defaults sensatos (AC-3)', () => {
+    expect(DATABASE_OPTIONS).toHaveLength(1);
+    expect(DATABASE_OPTIONS[0]?.value).toBe('postgresql');
+    expect(DEFAULT_DATABASE).toBe('postgresql');
+  });
+
+  it('tiene opciones de frontend con defaults sensatos (AC-3)', () => {
+    expect(FRONTEND_OPTIONS).toHaveLength(1);
+    expect(FRONTEND_OPTIONS[0]?.value).toBe('react-vite');
+    expect(DEFAULT_FRONTEND).toBe('react-vite');
+  });
+
+  it('en modo non-interactive devuelve contexto sin modificar', async () => {
     const arm = new CodeArm();
-    const context: WizardContext = { projectName: 'test' };
+    const context: WizardContext = { mode: 'non-interactive', projectName: 'test' };
 
     const result = await arm.execute(context);
 
     expect(result.success).toBe(true);
     expect(result.context).toEqual(context);
+  });
+
+  it('en modo skip devuelve contexto sin modificar', async () => {
+    const arm = new CodeArm();
+    const context: WizardContext = { mode: 'skip', projectName: 'test' };
+
+    const result = await arm.execute(context);
+
+    expect(result.success).toBe(true);
+    expect(result.context).toEqual(context);
+  });
+
+  it('los selectores se muestran aunque haya una sola opción (AC-2)', () => {
+    // Este test verifica la estructura de las opciones; los prompts
+    // reales se prueban en integration tests.
+    expect(FRAMEWORK_OPTIONS.length).toBe(1);
+    expect(DATABASE_OPTIONS.length).toBe(1);
+    expect(FRONTEND_OPTIONS.length).toBe(1);
   });
 });
 

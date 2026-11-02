@@ -35,6 +35,24 @@ export interface WizardContext {
   topology?: 'monolith' | 'monorepo' | 'multirepo';
 
   /**
+   * Framework del backend (valor opaco para el core, Art. II).
+   * Ej: 'laravel', 'rails'.
+   */
+  framework?: string;
+
+  /**
+   * Base de datos del proyecto (valor opaco para el core).
+   * Ej: 'postgresql', 'mysql'.
+   */
+  database?: string;
+
+  /**
+   * Framework del frontend (valor opaco para el core).
+   * Ej: 'react-vite', 'vue-vite'.
+   */
+  frontend?: string;
+
+  /**
    * Datos de infraestructura (IP, SSH, dominio, DNS).
    */
   infrastructure?: {
@@ -61,9 +79,9 @@ export interface WizardContext {
   };
 
   /**
-   * Configuración de base de datos.
+   * Configuración de contraseña de base de datos.
    */
-  database?: {
+  databasePassword?: {
     password: string;
     passwordGenerated: boolean;
   };
