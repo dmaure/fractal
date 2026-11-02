@@ -294,7 +294,7 @@ export async function promptNewWizard(
   // Solo preguntar framework si hay opciones disponibles
   const framework = frameworkOptions.length > 0 
     ? await promptFramework(frameworkOptions, defaultFramework)
-    : undefined;
+    : defaultFramework;
 
   let topology = options.topology;
   if (!topology) {
@@ -305,7 +305,7 @@ export async function promptNewWizard(
     ]);
   }
 
-  const databaseType = await promptDatabaseType();
+  const database = await promptDatabaseType();
   const frontend = await promptFrontend();
 
   // Infraestructura: después del código
@@ -360,6 +360,9 @@ export async function promptNewWizard(
   return {
     projectName: resolvedName,
     topology,
+    framework,
+    database,
+    frontend,
     force: options.force,
     serverIp: deployParams.serverIp,
     sshUser: deployParams.sshUser,
@@ -401,7 +404,9 @@ function requireValue(
  */
 export function loadNewWizardFromEnvAndFlags(
   projectName: string | undefined,
-  options: NewCommandOptions
+  options: NewCommandOptions,
+  frameworkOptions: WizardFrameworkOption[] = [],
+  defaultFramework?: string
 ): NewWizardParams {
   const errors: string[] = [];
 
@@ -560,6 +565,9 @@ export function loadNewWizardFromEnvAndFlags(
   return {
     projectName: resolvedName!,
     topology,
+    framework: defaultFramework,
+    database: DEFAULT_WIZARD_DATABASE,
+    frontend: DEFAULT_WIZARD_FRONTEND,
     force: options.force,
     serverIp: serverIp!,
     sshUser,
@@ -583,16 +591,18 @@ export function loadNewWizardFromEnvAndFlags(
 
 export async function collectNewWizardParams(
   projectName: string | undefined,
-  options: NewCommandOptions
+  options: NewCommandOptions,
+  frameworkOptions: WizardFrameworkOption[] = [],
+  defaultFramework?: string
 ): Promise<NewWizardParams | null> {
   const mode = resolveWizardMode(options);
   if (mode === 'skip') {
     return null;
   }
   if (mode === 'non-interactive') {
-    return loadNewWizardFromEnvAndFlags(projectName, options);
+    return loadNewWizardFromEnvAndFlags(projectName, options, frameworkOptions, defaultFramework);
   }
-  return promptNewWizard(projectName, options);
+  return promptNewWizard(projectName, options, frameworkOptions, defaultFramework);
 }
 
 /**

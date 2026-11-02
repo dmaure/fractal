@@ -67,11 +67,20 @@ export interface ValidatedNewParams {
 /**
  * Valores no-defaultables recolectados por el wizard de `fractal new` (FRA-77).
  * Los campos de servidor/DNS reutilizan las mismas reglas que `fractal deploy`.
+ * 
+ * FRA-84: incluye framework, database y frontend del brazo Código.
  */
 export interface NewWizardParams {
   projectName: string;
   topology: ProjectTopology;
   force?: boolean;
+
+  /** Framework del backend (valor opaco, Art. II). Ej: target del adapter */
+  framework?: string;
+  /** Base de datos seleccionada (valor opaco) */
+  database?: string;
+  /** Framework del frontend (valor opaco) */
+  frontend?: string;
 
   serverIp: string;
   sshUser: string;
