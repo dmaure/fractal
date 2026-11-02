@@ -28,7 +28,7 @@ El nuevo principio diferenciador es:
 
 **Implicación inmediata:** el wizard v2 debe reordenar el flujo:
 
-1. **Primero:** nombre del proyecto, framework (cuando haya más de uno), topología, base de datos, frontend, FDL opcional.
+1. **Primero:** nombre del proyecto, framework, topología, base de datos, frontend, FDL opcional.
 2. **Al final:** sección de infraestructura (VPS, SSH, DNS) como **opcional** — el usuario responde sí/no/parcial en un checklist.
 3. Token de GitHub: sección independiente de la de servidor, también opcional.
 
