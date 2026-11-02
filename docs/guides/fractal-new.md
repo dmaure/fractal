@@ -4,6 +4,13 @@
 guía describe el flujo real del comando y sus tres topologías, con el adapter
 de referencia (Laravel) instalado.
 
+> **Nota sobre wizard v2 (M1.5):** esta guía refleja el wizard actual (M1). El
+> diseño del wizard se está rediseñando para seguir el principio **code-first con
+> deploy opcional** (ADR-0016): el wizard preguntará primero por el código (framework,
+> topología, DB, frontend) y después por infraestructura (opcional), GitHub (opcional)
+> y deploy (opcional). El usuario podrá generar un proyecto local sin datos de deploy.
+> Esta guía se actualizará cuando el wizard v2 esté implementado.
+
 > Fuente de verdad: el comando vive en `packages/core`
 > (`src/commands/new.ts`) y delega la generación al adapter vía el bridge
 > (SPEC-0002). Los requisitos de runtime y la estructura generada los declara

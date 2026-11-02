@@ -6,7 +6,7 @@ import type {
   PortCheckResult,
 } from './types.js';
 import { StateManager } from '../state/state-manager.js';
-import { buildDeploySudoers } from './sudoers.js';
+import { buildDeploySudoers, buildCertRefreshScript } from './sudoers.js';
 
 /**
  * Manejador de hardening del sistema.
@@ -267,6 +267,25 @@ export class SystemHardening {
         stdout: '',
         stderr: error instanceof Error ? error.message : 'allowlist de sudoers inválida',
         exitCode: null,
+      };
+    }
+
+    // Instalar el helper script para refrescar certificados SSL (visudo no permite wildcards)
+    const certScriptPath = '/usr/local/bin/fractal-refresh-certs';
+    const certScript = buildCertRefreshScript();
+    const installScriptResult = await this.sshClient.executeCommand(
+      `sudo tee ${certScriptPath} > /dev/null << 'FRACTAL_CERT_SCRIPT_EOF'\n` +
+        `${certScript}` +
+        `FRACTAL_CERT_SCRIPT_EOF\n` +
+        `sudo chmod 755 ${certScriptPath}`
+    );
+
+    if (!installScriptResult.success) {
+      return {
+        success: false,
+        stdout: installScriptResult.stdout,
+        stderr: `Error instalando ${certScriptPath}: ${installScriptResult.stderr}`,
+        exitCode: installScriptResult.exitCode,
       };
     }
 

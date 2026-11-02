@@ -63,13 +63,14 @@ justamente lo que este mapa necesita.
 flowchart LR
     M0["M0 · Fundaciones<br/>reglas, docs y CI base"]
     M1["M1 · Esqueleto vertical<br/>new + deploy = app online"]
+    M1.5["M1.5 · Wizard v2<br/>wizard code-first y modular"]
     M2["M2 · FDL y entidades<br/>CRUD generado y desplegable"]
     M3["M3 · Autenticación y autorización<br/>roles, OAuth, 2FA"]
     M4["M4 · Adapter Rails<br/>multi-target verificado"]
     M5["M5 · Módulos avanzados<br/>módulos instalables"]
     M6["M6 · Operación<br/>backups, monitoreo, upgrade"]
 
-    M0 --> M1 --> M2 --> M3 --> M4 --> M5 --> M6
+    M0 --> M1 --> M1.5 --> M2 --> M3 --> M4 --> M5 --> M6
 
     classDef done fill:#2e7d32,color:#fff,stroke:#1b5e20;
     classDef curso fill:#f9a825,color:#000,stroke:#f57f17;
@@ -77,7 +78,7 @@ flowchart LR
 
     class M1 done;
     class M0,M2 curso;
-    class M3,M4,M5,M6 pend;
+    class M1.5,M3,M4,M5,M6 pend;
 ```
 <!-- progress-map:auto:end -->
 

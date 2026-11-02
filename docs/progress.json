@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-10-26",
+  "actualizado": "2026-11-01",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -9,6 +9,7 @@
   "milestones": [
     { "id": "M0", "nombre": "Fundaciones", "entregable": "reglas, docs y CI base", "estado": "en_curso" },
     { "id": "M1", "nombre": "Esqueleto vertical", "entregable": "new + deploy = app online", "estado": "completado" },
+    { "id": "M1.5", "nombre": "Wizard v2", "entregable": "wizard code-first y modular", "estado": "pendiente" },
     { "id": "M2", "nombre": "FDL y entidades", "entregable": "CRUD generado y desplegable", "estado": "en_curso" },
     { "id": "M3", "nombre": "Autenticación y autorización", "entregable": "roles, OAuth, 2FA", "estado": "pendiente" },
     { "id": "M4", "nombre": "Adapter Rails", "entregable": "multi-target verificado", "estado": "pendiente" },

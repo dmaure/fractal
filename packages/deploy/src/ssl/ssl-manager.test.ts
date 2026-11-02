@@ -45,9 +45,8 @@ describe('SslManager', () => {
       // FRA-71: el paso de nginx ahora copia el cert al montaje del contenedor y
       // recarga nginx vía docker exec (ya no configura nginx del host).
       const commands = vi.mocked(mockSsh.executeCommand).mock.calls.map((c) => c[0]);
-      expect(commands).toContainEqual(
-        'sudo cp -L /etc/letsencrypt/live/example.com/fullchain.pem /home/deploy/docker/nginx/ssl/fullchain.pem'
-      );
+      // Ahora usa el helper script en lugar de cp individuales
+      expect(commands).toContainEqual('sudo /usr/local/bin/fractal-refresh-certs');
       expect(commands).toContainEqual('docker exec myapp_nginx nginx -s reload');
       // Ya no se configura nginx del host (sites-available / sites-enabled).
       expect(commands.some((c) => typeof c === 'string' && c.includes('sites-available'))).toBe(false);

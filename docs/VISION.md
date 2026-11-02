@@ -38,7 +38,9 @@ Un CLI que entrega, en menos de 30 minutos:
 
 Dos diferenciadores frente a JHipster:
 
-1. **Deploy-first.** JHipster genera código. Fractal genera código **y lo pone en producción**.
+1. **Deploy opcional pero automático.** JHipster genera código. Fractal genera código
+   y, **si el usuario lo elige**, lo pone en producción en menos de 30 minutos. El deploy
+   no es obligatorio; el usuario puede generar un proyecto local y desplegarlo después (o nunca).
 2. **Multi-target real.** El dominio se define una vez, en FDL, y se proyecta a cualquier
    framework soportado.
 
@@ -65,8 +67,11 @@ arquitectónica entre ellos.
 
 ## 4. Principios diferenciadores
 
-> **Deploy-first.** El deploy no es el último paso del proyecto. Es el primero.
-> Se despliega una aplicación vacía pero funcional antes de escribir lógica de negocio.
+> **Code-first con deploy opcional.** El generador entrega primero un proyecto
+> funcional local en minutos. Desplegar es una capacidad valiosa que el usuario
+> elige activar, no un requisito. Cuando el usuario elige el camino de deploy,
+> Fractal genera el código **y lo pone en producción** — ese sigue siendo el
+> diferenciador clave frente a JHipster. Pero el deploy deja de ser obligatorio.
 
 > **Un dominio, N frameworks.** El modelo de dominio se define una sola vez.
 > Cambiar de target no implica reescribir la definición.
@@ -81,6 +86,7 @@ arquitectónica entre ellos.
                  ▼
         ┌─────────────────┐
         │   CLI (core)    │   prompts, orquestación
+        │  wizard modular │   brazos: código, infraestructura, GitHub, DNS
         └─────────────────┘
                  │
                  ▼
@@ -103,12 +109,18 @@ arquitectónica entre ellos.
                  ▼
         ┌─────────────────┐
         │  Capa de Deploy │   agnóstica del framework
-        │ Docker · Nginx  │
+        │ Docker · Nginx  │   OPCIONAL
         │ SSL · CI/CD     │
         └─────────────────┘
 ```
 
-Los adapters exponen un contrato uniforme al core. El core no sabe qué hay del otro lado.
+**Metáfora de los brazos:** cada componente reemplazable de Fractal — ya sea
+interno (secciones del wizard, adapters) o externo (módulos del proyecto generado) —
+es un "brazo" del fractal con contrato claro. Los adapters exponen un contrato
+uniforme al core. El core no sabe qué hay del otro lado.
+
+La capa de deploy es **opcional**: el usuario puede generar solo el proyecto local
+y desplegarlo más tarde (o nunca).
 
 ---
 
@@ -180,14 +192,18 @@ el core estaba mal diseñado.
 
 | Métrica | Objetivo v1 |
 |---|---|
-| Time-to-Production | < 30 min |
+| Time-to-Usable-Scaffold (TTS) — sin deploy | < 5 min |
+| Time-to-Production (TTP) — con deploy | < 30 min |
 | Generación de una entidad completa | < 10 s |
 | Deploy tras merge | < 3 min |
 | Cobertura de tests del código generado | > 80% |
 | Pasos manuales en el deploy | ≤ 2 |
 | Cambios en el core al agregar el segundo target | 0 |
 
-La última métrica es la prueba de fuego de la arquitectura.
+**TTS** mide el tiempo hasta tener un proyecto local funcional (`composer install` +
+`php artisan serve`). **TTP** mide el tiempo hasta producción cuando el usuario elige
+desplegar. La última métrica (cero cambios en el core al agregar Rails) es la prueba
+de fuego de la arquitectura.
 
 ---
 

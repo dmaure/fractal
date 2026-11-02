@@ -72,55 +72,19 @@ export class ContainerCertInstaller {
     }
 
     try {
-      const liveDir = `/etc/letsencrypt/live/${domain}`;
       const sslDir = `${deployDir}/docker/nginx/ssl`;
-      const fullchainDst = `${sslDir}/fullchain.pem`;
-      const privkeyDst = `${sslDir}/privkey.pem`;
 
-      // 1. Copiar fullchain
-      const cpFullchain = await this.exec(
-        `sudo cp -L ${liveDir}/fullchain.pem ${fullchainDst}`
-      );
-      if (cpFullchain.exitCode !== 0) {
+      // 1. Copiar certificados y configurar permisos con el helper script
+      // (visudo no permite wildcards, por eso usamos /usr/local/bin/fractal-refresh-certs)
+      const refreshResult = await this.exec('sudo /usr/local/bin/fractal-refresh-certs');
+      if (refreshResult.exitCode !== 0) {
         return {
           success: false,
           steps,
-          error: `No se pudo copiar fullchain.pem: ${cpFullchain.stderr}`,
+          error: `No se pudieron copiar los certificados: ${refreshResult.stderr}`,
         };
       }
-      steps.push('Certificado (fullchain.pem) copiado al montaje del contenedor');
-
-      // 2. Copiar privkey
-      const cpPrivkey = await this.exec(
-        `sudo cp -L ${liveDir}/privkey.pem ${privkeyDst}`
-      );
-      if (cpPrivkey.exitCode !== 0) {
-        return {
-          success: false,
-          steps,
-          error: `No se pudo copiar privkey.pem: ${cpPrivkey.stderr}`,
-        };
-      }
-      steps.push('Clave privada (privkey.pem) copiada al montaje del contenedor');
-
-      // 3. Permisos
-      const chmodFullchain = await this.exec(`sudo chmod 644 ${fullchainDst}`);
-      if (chmodFullchain.exitCode !== 0) {
-        return {
-          success: false,
-          steps,
-          error: `No se pudieron ajustar permisos de fullchain.pem: ${chmodFullchain.stderr}`,
-        };
-      }
-      const chmodPrivkey = await this.exec(`sudo chmod 600 ${privkeyDst}`);
-      if (chmodPrivkey.exitCode !== 0) {
-        return {
-          success: false,
-          steps,
-          error: `No se pudieron ajustar permisos de privkey.pem: ${chmodPrivkey.stderr}`,
-        };
-      }
-      steps.push('Permisos del certificado configurados');
+      steps.push('Certificados copiados al montaje del contenedor con permisos configurados');
 
       // 4. Validar configuración de nginx en el contenedor
       const nginxTest = await this.exec(
