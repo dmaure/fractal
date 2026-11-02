@@ -64,7 +64,8 @@ describe('CodeArm - renderizado de selectores', () => {
     const call = vi.mocked(select).mock.calls[0][0];
     expect(call.message).toBe('Framework del backend:');
     expect(call.choices).toHaveLength(1);
-    expect(call.choices[0].value).toBe('laravel');
+    const firstChoice = call.choices[0] as { value: string; name: string; description: string };
+    expect(firstChoice.value).toBe('laravel');
   });
 
   it('promptDatabase renderiza el selector con una opción (AC-2)', async () => {
