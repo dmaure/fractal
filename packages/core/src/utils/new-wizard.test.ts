@@ -460,3 +460,64 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
     expect(params.githubOwner).toBe('acme');
   });
 });
+
+describe('promptNewWizard (rama orquestador real, FRA-84)', () => {
+  beforeEach(() => {
+    clearEnv();
+    vi.clearAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(clearEnv);
+
+  it('propaga el projectName del contexto del orquestador (ChecklistArm + CodeArm reales)', async () => {
+    // Usuario "ingresa" el nombre del proyecto en el CodeArm.
+    vi.mocked(input).mockImplementation(((config: PromptConfig) => {
+      if (config.message.includes('Nombre del proyecto')) {
+        return Promise.resolve('mi-proyecto-real');
+      }
+      throw new Error(`input() inesperado: ${config.message}`);
+    }) as unknown as typeof input);
+
+    vi.mocked(select).mockImplementation(((config: PromptConfig) => {
+      const msg = config.message;
+      // ChecklistArm: sin servidor ni GitHub → no se piden infra/github después.
+      if (msg.includes('¿Tenés un servidor para desplegar?')) return Promise.resolve('no');
+      if (msg.includes('¿Tenés un token de GitHub')) return Promise.resolve('no');
+      // CodeArm: framework / topología / base de datos / frontend (defaults).
+      if (msg.includes('Framework del backend')) {
+        const firstChoice = (config as { choices?: Array<{ value: string }> }).choices?.[0]?.value;
+        return Promise.resolve(firstChoice ?? 'test-framework');
+      }
+      if (msg.includes('topología')) return Promise.resolve('monolith');
+      if (msg.includes('Base de datos')) return Promise.resolve('postgresql');
+      if (msg.includes('Framework del frontend')) return Promise.resolve('react-vite');
+      // Secrets del workflow (se corre siempre).
+      if (msg.includes('Contraseña de la base de datos de producción')) {
+        return Promise.resolve('generate');
+      }
+      throw new Error(`select() inesperado: ${msg}`);
+    }) as unknown as typeof select);
+
+    vi.mocked(confirm).mockImplementation(((config: PromptConfig) => {
+      if (config.message.includes('fractal deploy')) return Promise.resolve(false);
+      throw new Error(`confirm() inesperado: ${config.message}`);
+    }) as unknown as typeof confirm);
+
+    const frameworkOptions = [
+      { value: 'test-framework', name: 'Test FW', description: 'Framework de prueba' },
+    ];
+
+    // useOrchestrator=true: ejercita el bloque de orquestador real (new-wizard.ts
+    // líneas 326-346 + guard 369), donde vivía el bug de shadowing de projectName.
+    const params = await promptNewWizard(
+      undefined,
+      {},
+      frameworkOptions,
+      'test-framework',
+      true
+    );
+
+    expect(params.projectName).toBe('mi-proyecto-real');
+  });
+});

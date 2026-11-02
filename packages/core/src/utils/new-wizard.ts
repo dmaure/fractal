@@ -326,7 +326,7 @@ export async function promptNewWizard(
     const { context } = orchestratorResult;
     
     // Leer valores del contexto del orquestador (FRA-84: fix bug de projectName perdido)
-    const finalProjectName = context.projectName;
+    finalProjectName = context.projectName;
     if (!finalProjectName) {
       throw new NonInteractiveConfigError(['Error: el nombre del proyecto no fue recolectado']);
     }
