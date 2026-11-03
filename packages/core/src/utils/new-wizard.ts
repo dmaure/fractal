@@ -648,11 +648,8 @@ export function loadNewWizardFromEnvAndFlags(
     }
   }
 
-  const githubToken = requireValue(
-    errors,
-    flagOrEnv(options.githubToken, 'FRACTAL_NEW_GITHUB_TOKEN'),
-    'FRACTAL_NEW_GITHUB_TOKEN (o --github-token)'
-  );
+  // GitHub es opcional (FRA-86, AC-2): sin token, no se crea repo remoto
+  const githubToken = flagOrEnv(options.githubToken, 'FRACTAL_NEW_GITHUB_TOKEN');
   const githubOwner = flagOrEnv(options.githubOwner, 'FRACTAL_NEW_GITHUB_OWNER');
   const githubRepo =
     flagOrEnv(options.githubRepo, 'FRACTAL_NEW_GITHUB_REPO') ?? resolvedName ?? '';
