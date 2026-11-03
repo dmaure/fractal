@@ -154,7 +154,7 @@
         { "id": "T1", "ticket": "FRA-82", "label": "Contrato de brazo + orquestador modular en core", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-83", "label": "Checklist inicial del wizard", "estado": "completado" },
         { "id": "T3", "ticket": "FRA-84", "label": "Brazo Código: reorden code-first + selectores", "estado": "en_curso" },
-        { "id": "T4", "ticket": "FRA-85", "label": "Brazo Infraestructura opcional + local-only + hand-off", "estado": "pendiente" },
+        { "id": "T4", "ticket": "FRA-85", "label": "Brazo Infraestructura opcional + local-only + hand-off", "estado": "completado" },
         { "id": "T5", "ticket": "FRA-86", "label": "Brazo GitHub opcional e independiente", "estado": "pendiente" },
         { "id": "T6", "ticket": "FRA-87", "label": "Brazo Base de datos (condicional)", "estado": "pendiente" },
         { "id": "T7", "ticket": "FRA-88", "label": "Paridad no-interactiva + bot QA + TTS/hand-off + docs", "estado": "pendiente" }
