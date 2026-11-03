@@ -6,8 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import chalk from 'chalk';
 import { printHandoff } from './new.js';
-import type { ValidatedNewParams } from '../types/new-command.js';
-import type { NewWizardParams } from '../types/new-command.js';
+import type { ValidatedNewParams, NewWizardParams } from '../types/new-command.js';
 
 // Captura console.log para verificar el output
 function captureConsoleLog(fn: () => void): string[] {
@@ -46,11 +45,8 @@ describe('printHandoff (FRA-85)', () => {
           target: 'default',
         };
         const wizard = null;
-        const createdRepos: any[] = [];
-        const secretsSet: string[] = [];
-        const secretsPrinted: string[] = [];
         
-        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
+        printHandoff(params, wizard, [], [], []);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -92,11 +88,7 @@ describe('printHandoff (FRA-85)', () => {
           chainDeploy: false,
         };
         
-        const createdRepos: any[] = [];
-        const secretsSet: string[] = [];
-        const secretsPrinted: string[] = [];
-        
-        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
+        printHandoff(params, wizard, [], [], []);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -140,11 +132,7 @@ describe('printHandoff (FRA-85)', () => {
           chainDeploy: false,
         };
         
-        const createdRepos: any[] = [];
-        const secretsSet: string[] = [];
-        const secretsPrinted: string[] = [];
-        
-        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
+        printHandoff(params, wizard, [], [], []);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -196,11 +184,7 @@ describe('printHandoff (FRA-85)', () => {
           chainDeploy: false,
         };
         
-        const createdRepos: any[] = [];
-        const secretsSet: string[] = [];
-        const secretsPrinted: string[] = [];
-        
-        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
+        printHandoff(params, wizard, [], [], []);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -253,14 +237,10 @@ describe('printHandoff (FRA-85)', () => {
           githubVisibility: 'private',
           dbPassword: 'secret789',
           dbPasswordGenerated: false,
-          chainDeploy: true, // Encadena deploy
+          chainDeploy: true,
         };
         
-        const createdRepos: any[] = [];
-        const secretsSet: string[] = [];
-        const secretsPrinted: string[] = [];
-        
-        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
+        printHandoff(params, wizard, [], [], []);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -303,11 +283,7 @@ describe('printHandoff (FRA-85)', () => {
           chainDeploy: false,
         };
         
-        const createdRepos: any[] = [];
-        const secretsSet: string[] = [];
-        const secretsPrinted: string[] = [];
-        
-        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
+        printHandoff(params, wizard, [], [], []);
       });
 
       expect(output).toMatchInlineSnapshot(`
