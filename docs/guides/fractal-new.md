@@ -182,7 +182,11 @@ Los prompts y validaciones de IP, SSH, dominio, email y DNS son los mismos
 que `fractal deploy` (`packages/core/src/utils/deploy-prompts.ts`). Route53
 sigue sin estar implementado: si lo elegís, el comando aborta igual que deploy.
 
-### Sección 3: GitHub y secrets
+### Sección 3: GitHub (opcional e independiente, FRA-86)
+
+**GitHub es un brazo independiente** de la infraestructura (AC-5). Podés crear
+el repo en GitHub **sin** proveer datos de servidor, o viceversa. El token es
+**opcional**: sin token, no se crea ningún repo remoto.
 
 Con `--github-token` / `FRACTAL_NEW_GITHUB_TOKEN` el CLI:
 
@@ -190,8 +194,15 @@ Con `--github-token` / `FRACTAL_NEW_GITHUB_TOKEN` el CLI:
    `--github-owner`.
 2. Pushea el commit inicial a `--production-branch` (default `main`) **sin**
    dejar el token en `git remote -v`.
-3. Setea los secrets que el workflow generado **realmente** usa, más
-   `DB_PASSWORD`:
+3. **Setea solo los secrets de GitHub** en el repo remoto:
+
+   | Secret | Origen |
+   |---|---|
+   | `DOCKER_REGISTRY_USER` | login de GitHub |
+   | `DOCKER_REGISTRY_TOKEN` | el mismo token (necesita `write:packages` para ghcr.io) |
+
+4. **Si además hay datos de infraestructura** (servidor), setea los secrets de
+   infraestructura:
 
    | Secret | Origen |
    |---|---|
@@ -199,12 +210,14 @@ Con `--github-token` / `FRACTAL_NEW_GITHUB_TOKEN` el CLI:
    | `SSH_USER` | `deploy` (usuario post-hardening, no el de provisioning) |
    | `SSH_PRIVATE_KEY` | Contenido de `--ssh-key-path` si no está cifrada |
    | `SSH_KNOWN_HOSTS` | `ssh-keyscan` contra la IP (si el VPS aún no responde, se imprime el comando) |
-   | `DOCKER_REGISTRY_USER` | login de GitHub |
-   | `DOCKER_REGISTRY_TOKEN` | el mismo token (necesita `write:packages` para ghcr.io) |
    | `DB_PASSWORD` | la del wizard (generada o ingresada) |
 
    `APP_KEY` no se inventa acá: la genera el primer `fractal deploy` al armar
    el compose.
+
+**Importante (AC-4):** `FRACTAL_NEW_GITHUB_TOKEN` **NO** se lee de `GITHUB_TOKEN`.
+Esta separación evita reutilizar por accidente el token del entorno de CI. Solo
+se lee de `--github-token` o `FRACTAL_NEW_GITHUB_TOKEN`.
 
 Scopes mínimos del token: `repo`, `workflow`, `write:packages`.
 
@@ -263,9 +276,10 @@ falta. Precedencia: **flag > `FRACTAL_NEW_*` > `FRACTAL_DEPLOY_*`**.
 | DB password | `--db-password` | `FRACTAL_NEW_DB_PASSWORD` | `FRACTAL_DEPLOY_DB_PASSWORD` |
 | Encadenar deploy | `--deploy` | `FRACTAL_NEW_DEPLOY` | — |
 
-`FRACTAL_NEW_GITHUB_TOKEN` es propio de `new` (crear repo + secrets). No se
-lee `GITHUB_TOKEN` a propósito: en CI de este monorepo ese token es el del
-repo de Fractal, no el del proyecto generado.
+`FRACTAL_NEW_GITHUB_TOKEN` es propio de `new` (crear repo + secrets). **No se
+lee `GITHUB_TOKEN`** a propósito (FRA-86, AC-4): en CI de este monorepo ese
+token es el del repo de Fractal, no el del proyecto generado. Esta invariante
+está protegida con test de regresión.
 
 Al terminar, si no encadenaste deploy, el CLI imprime los `export
 FRACTAL_DEPLOY_*` (sin secrets) para `fractal deploy --non-interactive`.

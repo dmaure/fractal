@@ -5,7 +5,7 @@
  * los brazos vía el orquestador (SPEC-0032 AC-1, AC-2, AC-3).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { orchestrateWizard } from './orchestrator.js';
 import {
   ChecklistArm,
@@ -16,14 +16,47 @@ import {
 } from './arms/index.js';
 import type { WizardContext } from '../types/wizard-arm.js';
 
+vi.mock('../utils/github-repo.js');
+
 describe('Integración checklist + orquestador', () => {
+  beforeEach(async () => {
+    // Mock de las funciones de GitHub para los tests de integración
+    const {
+      createGitHubRepository,
+      pushRepositoryToGitHub,
+      setGitHubActionsSecrets,
+      getAuthenticatedUser,
+    } = await import('../utils/github-repo.js');
+
+    const mockCreate = vi.mocked(createGitHubRepository);
+    const mockPush = vi.mocked(pushRepositoryToGitHub);
+    const mockSetSecrets = vi.mocked(setGitHubActionsSecrets);
+    const mockGetUser = vi.mocked(getAuthenticatedUser);
+
+    mockCreate.mockResolvedValue({
+      owner: 'testuser',
+      name: 'test-repo',
+      htmlUrl: 'https://github.com/testuser/test-repo',
+      cloneUrl: 'https://github.com/testuser/test-repo.git',
+    });
+
+    mockGetUser.mockResolvedValue({ login: 'testuser' });
+
+    mockSetSecrets.mockResolvedValue({
+      set: ['DOCKER_REGISTRY_USER', 'DOCKER_REGISTRY_TOKEN'],
+      failed: [],
+    });
+
+    mockPush.mockReturnValue(undefined);
+  });
+
   describe('orden de ejecución', () => {
     it('el checklist corre primero, antes que cualquier otro brazo', async () => {
       const arms = [
         new ChecklistArm(),
         new CodeArm(),
         new InfrastructureArm(),
-        new GitHubArm(),
+        new GitHubArm({ localRepositories: [] }),
         new DatabaseArm(),
       ];
 
@@ -117,7 +150,7 @@ describe('Integración checklist + orquestador', () => {
 
   describe('caso: hasGitHubToken=yes → GitHub habilitado', () => {
     it('saltea el brazo de GitHub si hasGitHubToken=no', async () => {
-      const arms = [new ChecklistArm(), new CodeArm(), new GitHubArm()];
+      const arms = [new ChecklistArm(), new CodeArm(), new GitHubArm({ localRepositories: [] })];
 
       const initialContext: WizardContext = {
         mode: 'non-interactive',
@@ -134,7 +167,7 @@ describe('Integración checklist + orquestador', () => {
     });
 
     it('habilita el brazo de GitHub si hasGitHubToken=yes', async () => {
-      const arms = [new ChecklistArm(), new CodeArm(), new GitHubArm()];
+      const arms = [new ChecklistArm(), new CodeArm(), new GitHubArm({ localRepositories: [] })];
 
       const initialContext: WizardContext = {
         mode: 'non-interactive',
@@ -204,7 +237,7 @@ describe('Integración checklist + orquestador', () => {
         new ChecklistArm(),
         new CodeArm(),
         new InfrastructureArm(),
-        new GitHubArm(),
+        new GitHubArm({ localRepositories: [] }),
         new DatabaseArm(),
       ];
 
@@ -227,7 +260,7 @@ describe('Integración checklist + orquestador', () => {
         new ChecklistArm(),
         new CodeArm(),
         new InfrastructureArm(),
-        new GitHubArm(),
+        new GitHubArm({ localRepositories: [] }),
         new DatabaseArm(),
       ];
 
@@ -258,7 +291,7 @@ describe('Integración checklist + orquestador', () => {
         new ChecklistArm(),
         new CodeArm(),
         new InfrastructureArm(),
-        new GitHubArm(),
+        new GitHubArm({ localRepositories: [] }),
         new DatabaseArm(),
       ];
 
@@ -287,7 +320,7 @@ describe('Integración checklist + orquestador', () => {
         new ChecklistArm(),
         new CodeArm(),
         new InfrastructureArm(),
-        new GitHubArm(),
+        new GitHubArm({ localRepositories: [] }),
         new DatabaseArm(),
       ];
 

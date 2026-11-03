@@ -94,6 +94,24 @@ export interface WizardContext {
   };
 
   /**
+   * Resultado de la ejecución del brazo GitHub.
+   */
+  githubOutcome?: {
+    repos: Array<{
+      owner: string;
+      name: string;
+      htmlUrl: string;
+      cloneUrl: string;
+    }>;
+    secretsSet?: string[];
+    secretsFailed?: Array<{ name: string; error: string }>;
+    pushWarnings?: Array<{
+      repo: string;
+      error: string;
+    }>;
+  };
+
+  /**
    * Si se debe encadenar deploy al finalizar.
    */
   chainDeploy?: boolean;

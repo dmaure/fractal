@@ -160,4 +160,29 @@ describe('regresión de NewWizardParams', () => {
     expect(typeof params.dbPasswordGenerated).toBe('boolean');
     expect(typeof params.chainDeploy).toBe('boolean');
   });
+
+  it('FRACTAL_NEW_GITHUB_TOKEN NO se lee de GITHUB_TOKEN (AC-4, FRA-86)', () => {
+    // Regresión: el token de GitHub debe leerse SOLO de FRACTAL_NEW_GITHUB_TOKEN
+    // o del flag --github-token, NUNCA de GITHUB_TOKEN del entorno
+    process.env.GITHUB_TOKEN = 'ghp_should_not_be_used';
+    process.env.FRACTAL_NEW_SERVER_IP = '192.0.2.10';
+    process.env.FRACTAL_NEW_SSH_KEY_PATH = '/tmp/id_ed25519';
+    process.env.FRACTAL_NEW_DOMAIN = 'app.example.com';
+    process.env.FRACTAL_NEW_EMAIL = 'ops@example.com';
+
+    const params = loadNewWizardFromEnvAndFlags('demo', { topology: 'monolith' });
+
+    // githubToken debe ser undefined porque no se proveyó FRACTAL_NEW_GITHUB_TOKEN
+    expect(params.githubToken).toBeUndefined();
+
+    // Ahora con FRACTAL_NEW_GITHUB_TOKEN seteado
+    process.env.FRACTAL_NEW_GITHUB_TOKEN = 'ghp_correct_token';
+    const params2 = loadNewWizardFromEnvAndFlags('demo2', { topology: 'monolith' });
+
+    expect(params2.githubToken).toBe('ghp_correct_token');
+    expect(params2.githubToken).not.toBe('ghp_should_not_be_used');
+
+    delete process.env.GITHUB_TOKEN;
+    delete process.env.FRACTAL_NEW_GITHUB_TOKEN;
+  });
 });
