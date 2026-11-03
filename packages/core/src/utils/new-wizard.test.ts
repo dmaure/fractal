@@ -351,7 +351,14 @@ function setupInteractivePrompts(overrides: Partial<InteractiveAnswers> = {}): {
 
   vi.mocked(select).mockImplementation(((config: PromptConfig) => {
     order.push(`select:${config.message}`);
+    if (config.message.includes('Framework del backend')) {
+      // Devolver el primer valor disponible de las opciones
+      const firstChoice = (config as any).choices?.[0]?.value;
+      return Promise.resolve(firstChoice || 'test-framework');
+    }
     if (config.message.includes('topología')) return Promise.resolve(answers.topology ?? 'monolith');
+    if (config.message.includes('Base de datos')) return Promise.resolve('postgresql');
+    if (config.message.includes('Framework del frontend')) return Promise.resolve('react-vite');
     if (config.message.includes('autenticación')) return Promise.resolve(answers.authMethod);
     if (config.message.includes('Proveedor DNS')) return Promise.resolve(answers.dnsProvider);
     if (config.message.includes('Contraseña de la base de datos de producción')) {
@@ -390,9 +397,12 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('pregunta el set no-defaultable en orden, token opcional y repo = nombre', async () => {
     const { order } = setupInteractivePrompts({ githubToken: '' });
 
-    const params = await promptNewWizard('demo-app', { topology: 'monolith' });
+    // Sin framework options por ahora (se integrará completamente en futuros tickets)
+    const params = await promptNewWizard('demo-app', { topology: 'monolith' }, [], undefined, false);
 
     expect(order).toEqual([
+      'select:Base de datos:',
+      'select:Framework del frontend:',
       'input:Dirección IP del VPS:',
       'input:Usuario SSH:',
       'select:Método de autenticación SSH:',
@@ -417,7 +427,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('generate-or-ask: generate produce 48 hex y marca dbPasswordGenerated', async () => {
     setupInteractivePrompts({ dbPasswordMode: 'generate' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' });
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, [], undefined, false);
 
     const dbSelect = vi.mocked(select).mock.calls.find(([config]) =>
       (config as PromptConfig).message.includes('Contraseña de la base de datos de producción')
@@ -435,7 +445,7 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('generate-or-ask: ask usa la contraseña ingresada y no genera', async () => {
     setupInteractivePrompts({ dbPasswordMode: 'ask', dbPassword: 'manual-secret' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' });
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, [], undefined, false);
 
     expect(params.dbPassword).toBe('manual-secret');
     expect(params.dbPasswordGenerated).toBe(false);
@@ -444,9 +454,70 @@ describe('promptNewWizard (rama interactiva, AC-12)', () => {
   it('con token pregunta owner y no defaulta el token', async () => {
     setupInteractivePrompts({ githubToken: 'ghp_from_prompt', githubOwner: 'acme' });
 
-    const params = await promptNewWizard('demo', { topology: 'monolith' });
+    const params = await promptNewWizard('demo', { topology: 'monolith' }, [], undefined, false);
 
     expect(params.githubToken).toBe('ghp_from_prompt');
     expect(params.githubOwner).toBe('acme');
+  });
+});
+
+describe('promptNewWizard (rama orquestador real, FRA-84)', () => {
+  beforeEach(() => {
+    clearEnv();
+    vi.clearAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(clearEnv);
+
+  it('propaga el projectName del contexto del orquestador (ChecklistArm + CodeArm reales)', async () => {
+    // Usuario "ingresa" el nombre del proyecto en el CodeArm.
+    vi.mocked(input).mockImplementation(((config: PromptConfig) => {
+      if (config.message.includes('Nombre del proyecto')) {
+        return Promise.resolve('mi-proyecto-real');
+      }
+      throw new Error(`input() inesperado: ${config.message}`);
+    }) as unknown as typeof input);
+
+    vi.mocked(select).mockImplementation(((config: PromptConfig) => {
+      const msg = config.message;
+      // ChecklistArm: sin servidor ni GitHub → no se piden infra/github después.
+      if (msg.includes('¿Tenés un servidor para desplegar?')) return Promise.resolve('no');
+      if (msg.includes('¿Tenés un token de GitHub')) return Promise.resolve('no');
+      // CodeArm: framework / topología / base de datos / frontend (defaults).
+      if (msg.includes('Framework del backend')) {
+        const firstChoice = (config as { choices?: Array<{ value: string }> }).choices?.[0]?.value;
+        return Promise.resolve(firstChoice ?? 'test-framework');
+      }
+      if (msg.includes('topología')) return Promise.resolve('monolith');
+      if (msg.includes('Base de datos')) return Promise.resolve('postgresql');
+      if (msg.includes('Framework del frontend')) return Promise.resolve('react-vite');
+      // Secrets del workflow (se corre siempre).
+      if (msg.includes('Contraseña de la base de datos de producción')) {
+        return Promise.resolve('generate');
+      }
+      throw new Error(`select() inesperado: ${msg}`);
+    }) as unknown as typeof select);
+
+    vi.mocked(confirm).mockImplementation(((config: PromptConfig) => {
+      if (config.message.includes('fractal deploy')) return Promise.resolve(false);
+      throw new Error(`confirm() inesperado: ${config.message}`);
+    }) as unknown as typeof confirm);
+
+    const frameworkOptions = [
+      { value: 'test-framework', name: 'Test FW', description: 'Framework de prueba' },
+    ];
+
+    // useOrchestrator=true: ejercita el bloque de orquestador real (new-wizard.ts
+    // líneas 326-346 + guard 369), donde vivía el bug de shadowing de projectName.
+    const params = await promptNewWizard(
+      undefined,
+      {},
+      frameworkOptions,
+      'test-framework',
+      true
+    );
+
+    expect(params.projectName).toBe('mi-proyecto-real');
   });
 });

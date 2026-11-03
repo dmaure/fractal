@@ -125,6 +125,117 @@ export async function promptProjectName(current?: string): Promise<string> {
   }).then((value) => value.trim());
 }
 
+/**
+ * Opciones de framework para el wizard.
+ * Se obtienen dinámicamente de los adapters instalados (Art. II).
+ */
+export interface WizardFrameworkOption {
+  value: string;
+  name: string;
+  description: string;
+}
+
+/**
+ * Prompt de framework. Las opciones se obtienen dinámicamente de los adapters
+ * instalados. Se muestra aunque haya una sola opción (ADR-0016 §4, FRA-84 AC-2).
+ * 
+ * @param options Lista de frameworks disponibles (del adapter)
+ * @param defaultValue Framework por defecto
+ */
+export async function promptFramework(
+  options: WizardFrameworkOption[],
+  defaultValue?: string
+): Promise<string> {
+  if (options.length === 0) {
+    throw new Error('No hay frameworks disponibles');
+  }
+  
+  // Si solo hay una opción y no es interactivo, usar esa sin preguntar
+  if (options.length === 1 && !process.stdin.isTTY) {
+    return options[0].value;
+  }
+  
+  return select({
+    message: 'Framework del backend:',
+    choices: options.map((opt) => ({
+      value: opt.value,
+      name: opt.name,
+      description: opt.description,
+    })),
+    default: defaultValue ?? options[0]?.value,
+  });
+}
+
+/**
+ * Opciones de base de datos para el wizard.
+ * Visible aunque haya una sola opción (ADR-0016 §4, FRA-84 AC-2).
+ */
+export interface WizardDatabaseOption {
+  value: string;
+  name: string;
+  description: string;
+}
+
+export const WIZARD_DATABASE_OPTIONS: WizardDatabaseOption[] = [
+  {
+    value: 'postgresql',
+    name: 'PostgreSQL',
+    description: 'Base de datos relacional de producción',
+  },
+];
+
+export const DEFAULT_WIZARD_DATABASE = 'postgresql';
+
+/**
+ * Prompt de base de datos (FRA-84). Visible aunque haya una sola opción.
+ */
+export async function promptDatabaseType(): Promise<string> {
+  return select({
+    message: 'Base de datos:',
+    choices: WIZARD_DATABASE_OPTIONS.map((opt) => ({
+      value: opt.value,
+      name: opt.name,
+      description: opt.description,
+    })),
+    default: DEFAULT_WIZARD_DATABASE,
+  });
+}
+
+/**
+ * Opciones de frontend para el wizard.
+ * Visible aunque haya una sola opción (ADR-0016 §4, FRA-84 AC-2).
+ */
+export interface WizardFrontendOption {
+  value: string;
+  name: string;
+  description: string;
+}
+
+export const WIZARD_FRONTEND_OPTIONS: WizardFrontendOption[] = [
+  {
+    value: 'react-vite',
+    name: 'React + Vite',
+    description: 'SPA con React y Vite para desarrollo rápido',
+  },
+];
+
+export const DEFAULT_WIZARD_FRONTEND = 'react-vite';
+
+/**
+ * Prompt de frontend (FRA-84). Visible aunque haya una sola opción.
+ */
+export async function promptFrontend(): Promise<string> {
+  return select({
+    message: 'Framework del frontend:',
+    choices: WIZARD_FRONTEND_OPTIONS.map((opt) => ({
+      value: opt.value,
+      name: opt.name,
+      description: opt.description,
+    })),
+    default: DEFAULT_WIZARD_FRONTEND,
+  });
+}
+
 async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGenerated: boolean }> {
   const mode = await select<'generate' | 'ask'>({
     message: 'Contraseña de la base de datos de producción:',
@@ -162,59 +273,164 @@ async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGener
 }
 
 /**
- * Wizard interactivo: reutiliza los prompts de deploy (IP, SSH, DNS, email)
- * y agrega GitHub token + DB password + confirmación de encadenar deploy.
+ * Wizard interactivo: orden code-first (FRA-84, ADR-0016).
+ * Usa el orquestador con ChecklistArm y CodeArm para código,
+ * luego recolecta infraestructura y GitHub.
+ * 
+ * @param frameworkOptions Opciones de framework del adapter (Art. II: agnóstico)
+ * @param defaultFramework Framework por defecto del adapter
+ * @param useOrchestrator Si false, usa prompts directos (solo para tests legacy)
  */
 export async function promptNewWizard(
   projectName: string | undefined,
-  options: NewCommandOptions
+  options: NewCommandOptions,
+  frameworkOptions: WizardFrameworkOption[] = [],
+  defaultFramework?: string,
+  useOrchestrator: boolean = true
 ): Promise<NewWizardParams> {
-  const resolvedName = await promptProjectName(resolveProjectName(projectName, options));
+  const resolvedName = resolveProjectName(projectName, options);
+  
+  let finalProjectName: string | undefined;
+  let framework: string | undefined;
+  let database: string | undefined;
+  let frontend: string | undefined;
+  let topology: string | undefined;
+  let shouldPromptInfra = true;
+  let shouldPromptGitHub = true;
 
-  let topology = options.topology;
-  if (!topology) {
-    topology = await promptTopology();
-  } else if (!isValidTopology(topology)) {
-    throw new NonInteractiveConfigError([
-      `Topología inválida '${topology}'. Opciones válidas: monolith, monorepo, multirepo`,
-    ]);
+  if (useOrchestrator) {
+    // Flujo real: orquestador con ChecklistArm y CodeArm (FRA-82, FRA-83, FRA-84)
+    // La topología se pregunta DENTRO del CodeArm (AC-2: código primero)
+    const { ChecklistArm } = await import('../wizard/arms/checklist-arm.js');
+    const { CodeArm } = await import('../wizard/arms/code-arm.js');
+    const { orchestrateWizard } = await import('../wizard/orchestrator.js');
+
+    const checklist = new ChecklistArm();
+    const codeArm = new CodeArm(frameworkOptions, defaultFramework);
+
+    const orchestratorResult = await orchestrateWizard({
+      arms: [checklist, codeArm],
+      initialContext: {
+        mode: 'interactive',
+        projectName: resolvedName,
+        topology: options.topology,
+      },
+    });
+
+    if (!orchestratorResult.success) {
+      throw new NonInteractiveConfigError([
+        `Error en wizard: ${orchestratorResult.error?.message || 'desconocido'}`,
+      ]);
+    }
+
+    const { context } = orchestratorResult;
+    
+    // Leer valores del contexto del orquestador (FRA-84: fix bug de projectName perdido)
+    finalProjectName = context.projectName;
+    if (!finalProjectName) {
+      throw new NonInteractiveConfigError(['Error: el nombre del proyecto no fue recolectado']);
+    }
+    
+    framework = context.framework;
+    database = context.database;
+    frontend = context.frontend;
+    topology = context.topology;
+    
+    if (!topology || !isValidTopology(topology)) {
+      throw new NonInteractiveConfigError([
+        `Topología inválida '${topology}'. Opciones válidas: monolith, monorepo, multirepo`,
+      ]);
+    }
+    
+    shouldPromptInfra = context.checklist?.hasServer === 'yes';
+    shouldPromptGitHub = context.checklist?.hasGitHubToken === 'yes';
+  } else {
+    // Flujo legacy (solo tests): prompts directos
+    console.log('\n🎨 Código del proyecto\n');
+    finalProjectName = await promptProjectName(resolvedName);
+    framework = frameworkOptions.length > 0 
+      ? await promptFramework(frameworkOptions, defaultFramework)
+      : defaultFramework;
+    
+    // En path legacy, validar topology
+    topology = options.topology;
+    if (!topology) {
+      topology = await promptTopology();
+    } else if (!isValidTopology(topology)) {
+      throw new NonInteractiveConfigError([
+        `Topología inválida '${topology}'. Opciones válidas: monolith, monorepo, multirepo`,
+      ]);
+    }
+    
+    database = await promptDatabaseType();
+    frontend = await promptFrontend();
+  }
+  
+  if (!finalProjectName) {
+    throw new NonInteractiveConfigError(['Error: el nombre del proyecto no fue recolectado']);
   }
 
-  console.log('\nValores que no pueden tener default (servidor, DNS, GitHub, secrets)\n');
-  console.log('SSH — limitaciones conocidas:');
-  for (const gap of SSH_AUTH_GAPS) {
-    console.log(`   • ${gap}`);
+  // Infraestructura: después del código (si checklist lo habilitó)
+  let deployParams;
+  if (shouldPromptInfra || !useOrchestrator) {
+    if (useOrchestrator) {
+      console.log('\n🏗️  Infraestructura y deploy\n');
+      console.log('Valores que no pueden tener default (servidor, DNS)\n');
+      console.log('SSH — limitaciones conocidas:');
+      for (const gap of SSH_AUTH_GAPS) {
+        console.log(`   • ${gap}`);
+      }
+      console.log();
+    }
+
+    deployParams = await promptDeployParams(false, undefined, {
+      skipGitRepository: true,
+    });
+  } else {
+    // Valores dummy/defaults si no hay infra
+    deployParams = {
+      serverIp: '',
+      sshUser: 'root',
+      authMethod: 'key' as const,
+      domain: '',
+      email: '',
+      dnsProvider: 'manual' as const,
+      productionBranch: 'main',
+    };
   }
-  console.log();
 
-  const deployParams = await promptDeployParams(false, undefined, {
-    skipGitRepository: true,
-  });
+  // GitHub: si checklist lo habilitó
+  let githubToken: string | undefined;
+  let githubOwner: string | undefined;
+  
+  if (shouldPromptGitHub || !useOrchestrator) {
+    if (useOrchestrator) {
+      console.log('\nConfiguración de GitHub\n');
+    }
+    
+    const token = await password({
+      message: 'Token de GitHub para crear el repo (Enter para omitir):',
+      mask: '*',
+    });
+    githubToken = token.trim() || undefined;
 
-  console.log('\nConfiguración de GitHub\n');
-  const githubToken = await password({
-    message: 'Token de GitHub para crear el repo (Enter para omitir):',
-    mask: '*',
-  });
-  const trimmedToken = githubToken.trim() || undefined;
-
-  let githubOwner = flagOrEnv(options.githubOwner, 'FRACTAL_NEW_GITHUB_OWNER');
-  if (trimmedToken && !githubOwner) {
-    githubOwner = (
-      await input({
+    if (githubToken && !flagOrEnv(options.githubOwner, 'FRACTAL_NEW_GITHUB_OWNER')) {
+      const owner = await input({
         message: 'Owner de GitHub (usuario u organización, Enter para el usuario del token):',
-      })
-    ).trim() || undefined;
+      });
+      githubOwner = owner.trim() || undefined;
+    }
   }
 
   const githubRepo =
-    flagOrEnv(options.githubRepo, 'FRACTAL_NEW_GITHUB_REPO') ?? resolvedName;
+    flagOrEnv(options.githubRepo, 'FRACTAL_NEW_GITHUB_REPO') ?? finalProjectName;
 
   const githubVisibilityRaw =
     flagOrEnv(options.githubVisibility, 'FRACTAL_NEW_GITHUB_VISIBILITY') ?? 'private';
   const githubVisibility: 'private' | 'public' =
     githubVisibilityRaw === 'public' ? 'public' : 'private';
 
+  // Secrets del workflow
   console.log('\nSecrets del workflow\n');
   console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
   const { dbPassword, dbPasswordGenerated } = await promptDbPassword();
@@ -228,8 +444,11 @@ export async function promptNewWizard(
         });
 
   return {
-    projectName: resolvedName,
-    topology,
+    projectName: finalProjectName,
+    topology: topology as ProjectTopology,
+    framework: framework || defaultFramework,
+    database: database || DEFAULT_WIZARD_DATABASE,
+    frontend: frontend || DEFAULT_WIZARD_FRONTEND,
     force: options.force,
     serverIp: deployParams.serverIp,
     sshUser: deployParams.sshUser,
@@ -243,8 +462,8 @@ export async function promptNewWizard(
     productionBranch:
       flagOrEnv(options.productionBranch, 'FRACTAL_NEW_PRODUCTION_BRANCH', 'FRACTAL_DEPLOY_PRODUCTION_BRANCH') ??
       deployParams.productionBranch,
-    githubToken: trimmedToken,
-    githubOwner,
+    githubToken,
+    githubOwner: githubOwner || flagOrEnv(options.githubOwner, 'FRACTAL_NEW_GITHUB_OWNER'),
     githubRepo,
     githubVisibility,
     dbPassword,
@@ -271,7 +490,9 @@ function requireValue(
  */
 export function loadNewWizardFromEnvAndFlags(
   projectName: string | undefined,
-  options: NewCommandOptions
+  options: NewCommandOptions,
+  frameworkOptions: WizardFrameworkOption[] = [],
+  defaultFramework?: string
 ): NewWizardParams {
   const errors: string[] = [];
 
@@ -430,6 +651,9 @@ export function loadNewWizardFromEnvAndFlags(
   return {
     projectName: resolvedName!,
     topology,
+    framework: defaultFramework,
+    database: DEFAULT_WIZARD_DATABASE,
+    frontend: DEFAULT_WIZARD_FRONTEND,
     force: options.force,
     serverIp: serverIp!,
     sshUser,
@@ -453,16 +677,18 @@ export function loadNewWizardFromEnvAndFlags(
 
 export async function collectNewWizardParams(
   projectName: string | undefined,
-  options: NewCommandOptions
+  options: NewCommandOptions,
+  frameworkOptions: WizardFrameworkOption[] = [],
+  defaultFramework?: string
 ): Promise<NewWizardParams | null> {
   const mode = resolveWizardMode(options);
   if (mode === 'skip') {
     return null;
   }
   if (mode === 'non-interactive') {
-    return loadNewWizardFromEnvAndFlags(projectName, options);
+    return loadNewWizardFromEnvAndFlags(projectName, options, frameworkOptions, defaultFramework);
   }
-  return promptNewWizard(projectName, options);
+  return promptNewWizard(projectName, options, frameworkOptions, defaultFramework);
 }
 
 /**

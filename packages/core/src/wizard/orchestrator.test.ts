@@ -202,7 +202,7 @@ describe('orchestrateWizard', () => {
       (ctx) => Boolean(ctx.hasInfrastructure),
       async (ctx) => ({
         success: true,
-        context: { ...ctx, database: { password: 'secret', passwordGenerated: false } },
+        context: { ...ctx, databasePassword: { password: 'secret', passwordGenerated: false } },
       })
     );
 
@@ -213,7 +213,7 @@ describe('orchestrateWizard', () => {
 
     expect(result.success).toBe(true);
     expect(result.executedArms).toEqual(['arm1', 'arm2']);
-    expect(result.context.database).toEqual({ password: 'secret', passwordGenerated: false });
+    expect(result.context.databasePassword).toEqual({ password: 'secret', passwordGenerated: false });
   });
 
   it('contexto inicial se preserva y extiende', async () => {
@@ -244,5 +244,22 @@ describe('orchestrateWizard', () => {
     expect(result.context).toEqual({ test: 'data' });
     expect(result.executedArms).toEqual([]);
     expect(result.skippedArms).toEqual([]);
+  });
+
+  it('projectName se propaga correctamente a través del orquestador (bug fix FRA-84)', async () => {
+    // Bug: fractal new interactivo sin nombre posicional perdía el nombre ingresado
+    // El CodeArm pide el nombre y lo guarda en context.projectName
+    const codeArm = new TestArm('code', async (ctx) => ({
+      success: true,
+      context: { ...ctx, projectName: 'user-entered-name' },
+    }));
+
+    const result = await orchestrateWizard({
+      arms: [codeArm],
+      initialContext: { projectName: undefined },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.context.projectName).toBe('user-entered-name');
   });
 });

@@ -1,15 +1,16 @@
 # Guía de usuario: `fractal new`
 
 `fractal new` genera un proyecto base listo para desarrollo y deploy. Esta
-guía describe el flujo real del comando y sus tres topologías, con el adapter
-de referencia (Laravel) instalado.
+guía describe el flujo del comando tras la implementación del wizard v2
+**code-first** (FRA-84, M1.5), con el adapter de referencia (Laravel) instalado.
 
-> **Nota sobre wizard v2 (M1.5):** esta guía refleja el wizard v2 en progreso.
-> El checklist inicial (FRA-83) ya está implementado: el wizard ahora pregunta
-> primero qué datos tiene el usuario (¿tenés servidor?, ¿dominio?, ¿token de
-> GitHub?) y habilita/deshabilita las secciones correspondientes. El usuario puede
-> generar un proyecto local sin datos de deploy. Las secciones de código,
-> infraestructura, GitHub y base de datos se implementan en FRA-84..FRA-87.
+> **Wizard v2 code-first (M1.5):** El wizard ahora sigue el principio **code-first
+> con deploy opcional** (ADR-0016). El checklist inicial (FRA-83) pregunta primero
+> qué datos tiene el usuario (¿tenés servidor?, ¿dominio?, ¿token de GitHub?) y
+> habilita/deshabilita las secciones correspondientes. Luego, el brazo Código
+> (FRA-84) pregunta por nombre, framework, topología, base de datos y frontend
+> ANTES que infraestructura. Los selectores se muestran **aunque solo haya una
+> opción disponible**, comunicando las opciones futuras (Rails, otras DB).
 
 > Fuente de verdad: el comando vive en `packages/core`
 > (`src/commands/new.ts`) y delega la generación al adapter vía el bridge
@@ -82,10 +83,10 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
 1. **Valida el directorio destino** (`<cwd>/<nombre>`). Procede si el directorio
    no existe, está vacío, o contiene únicamente un `.git` sin historia. Si
    existe y tiene contenido, exige `--force`.
-2. **Resuelve la topología**: la de `--topology`, o la elegida en el prompt
-   interactivo.
-3. **Checklist inicial (FRA-83, wizard v2)**: si el modo es interactivo, el wizard
-   pregunta **primero** qué datos tiene el usuario:
+2. **Wizard code-first** (FRA-83, FRA-84, wizard v2): orquesta el checklist y
+   el brazo Código:
+   
+   **a. Checklist inicial**: pregunta primero qué datos tiene el usuario:
    - ¿Tenés un servidor para desplegar? (sí / no / lo agrego después)
    - ¿Tenés un dominio y querés DNS automático? (sí / manual / no) — solo si respondió sí a servidor
    - ¿Tenés un token de GitHub? (sí / no)
@@ -94,11 +95,17 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
    - **Servidor "no" o "lo agrego después"** → saltea toda la sección de infraestructura
    - **GitHub token "no"** → no crea repositorio remoto
    
+   **b. Brazo Código**: recolecta los datos del código en orden code-first
+   (nombre, framework, topología, base de datos, frontend), **antes** que
+   infraestructura (ADR-0016 §6).
+   
    En modo no-interactivo, las respuestas se derivan de los datos en el contexto
    (si pasaste `--server-ip`, se asume que tenés servidor).
-4. **Wizard de valores no-defaultables** (TTY, o `--non-interactive`): IP,
-   SSH, dominio, email SSL, DNS, token de GitHub y contraseña de la base.
-   Ver [Wizard](#wizard-valores-que-no-pueden-tener-default).
+   
+   Ver [Wizard](#wizard-code-first) para detalles.
+3. **Infraestructura** (si habilitada por el checklist): recolecta IP, SSH,
+   dominio, email SSL, DNS, contraseña de base de datos.
+4. **GitHub** (si habilitado por el checklist): token, owner, repo, visibilidad.
 5. **Resuelve el adapter** instalado por convención (`@fractal/adapter-*` con
    metadata `fractal` válida en su `package.json`). En v0 debe haber
    exactamente uno.
@@ -109,38 +116,58 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
 9. **Inicializa git** según la topología y, en multirepo, genera los
    manifiestos `fractal.project.yml` (excluidos de git).
 10. **Con token de GitHub:** crea el repo remoto, pushea el commit inicial y
-   setea (o imprime) los secrets del workflow, incluyendo `SSH_KNOWN_HOSTS`.
+    setea (o imprime) los secrets del workflow, incluyendo `SSH_KNOWN_HOSTS`.
 11. **Hand-off** a `fractal deploy` (comando siguiente + `export FRACTAL_DEPLOY_*`
     sin secrets), o encadena el deploy si pasaste `--deploy`.
 
 ---
 
-## Wizard: valores que no pueden tener default
+## Wizard: code-first
 
-> **Nota:** esta sección refleja el wizard v1 actual. Con wizard v2 (FRA-83), el
-> **checklist inicial** (paso 3 del flujo) pregunta **primero** qué datos tiene el
-> usuario y saltea secciones completas según sus respuestas. Si respondés "no" a
-> servidor, nunca se te piden IP/SSH/dominio/DNS. Si respondés "no" a GitHub token,
-> no se crea repo remoto.
+> **Nota:** El wizard v2 integra el **checklist inicial** (FRA-83) que pregunta
+> primero qué datos tiene el usuario, y el **brazo Código** (FRA-84) que recolecta
+> datos de código antes que infraestructura. Si respondés "no" a servidor en el
+> checklist, nunca se te piden IP/SSH/dominio/DNS. Si respondés "no" a GitHub
+> token, no se crea repo remoto.
 
-Pedido de producto (FRA-77): el camino feliz a producción necesita datos
-user-specific que **no** admiten un default seguro. El wizard los pide en TTY
-y el mismo set entra por flag o env para el bot de QA.
+Principio de ADR-0016 implementado en FRA-84 (M1.5): el wizard pregunta primero
+por el código, después por infraestructura (opcional).
+
+### Sección 1: Código (obligatoria)
+
+**Orden:** nombre → framework → topología → base de datos → frontend.
+
+Todos los selectores se muestran **aunque haya una sola opción disponible**
+(ADR-0016 §4). Esto comunica las opciones que llegarán en el futuro (Rails en
+M4, otras bases de datos y frontends).
+
+| Prompt | Opciones actuales | Default | Futuro |
+|---|---|---|---|
+| **Framework del backend** | Laravel | Laravel | Rails (M4) |
+| **Topología** | monolith, monorepo, multirepo | monolith | — |
+| **Base de datos** | PostgreSQL | PostgreSQL | MySQL, otros |
+| **Framework del frontend** | React + Vite | React + Vite | Vue, Svelte |
+
+Todos los defaults son navegables con Enter (Art. IV): responder Enter a cada
+prompt produce un proyecto funcional (monolito Laravel + PostgreSQL + React).
+
+### Sección 2: Infraestructura (opcional)
+
+Si el checklist habilitó infraestructura (respondiste "sí" a servidor), el
+wizard pregunta los valores que **no** admiten un default seguro (user-specific,
+FRA-77):
+
+- **VPS:** IP, usuario SSH, método de autenticación (clave o contraseña), ruta
+  a la clave privada (si usás clave).
+- **Dominio y SSL:** dominio, email para notificaciones de Let's Encrypt.
+- **DNS:** proveedor (Cloudflare automatizado, o manual) y token de API si
+  elegiste Cloudflare.
 
 Los prompts y validaciones de IP, SSH, dominio, email y DNS son los mismos
 que `fractal deploy` (`packages/core/src/utils/deploy-prompts.ts`). Route53
 sigue sin estar implementado: si lo elegís, el comando aborta igual que deploy.
 
-### SSH — gaps documentados
-
-El wizard **no** soporta:
-
-- **Claves con passphrase.** No se pide la passphrase ni se reenvía a
-  `ssh-keygen`. Usá una clave sin cifrar o descifrala antes.
-- **ssh-agent.** No se consulta el agent. La clave privada tiene que ser un
-  archivo en disco (`--ssh-key-path` / `FRACTAL_NEW_SSH_KEY_PATH`).
-
-### GitHub
+### Sección 3: GitHub y secrets
 
 Con `--github-token` / `FRACTAL_NEW_GITHUB_TOKEN` el CLI:
 
@@ -149,7 +176,7 @@ Con `--github-token` / `FRACTAL_NEW_GITHUB_TOKEN` el CLI:
 2. Pushea el commit inicial a `--production-branch` (default `main`) **sin**
    dejar el token en `git remote -v`.
 3. Setea los secrets que el workflow generado **realmente** usa, más
-   `DB_PASSWORD` (la lista de CI/CD la declara el generador):
+   `DB_PASSWORD`:
 
    | Secret | Origen |
    |---|---|
@@ -167,6 +194,15 @@ Con `--github-token` / `FRACTAL_NEW_GITHUB_TOKEN` el CLI:
 Scopes mínimos del token: `repo`, `workflow`, `write:packages`.
 
 En **multirepo** se crean `${nombre}-api` y `${nombre}-web`.
+
+### SSH — gaps documentados
+
+El wizard **no** soporta:
+
+- **Claves con passphrase.** No se pide la passphrase ni se reenvía a
+  `ssh-keygen`. Usá una clave sin cifrar o descifrala antes.
+- **ssh-agent.** No se consulta el agent. La clave privada tiene que ser un
+  archivo en disco (`--ssh-key-path` / `FRACTAL_NEW_SSH_KEY_PATH`).
 
 ### Contraseña de la base (FRA-76)
 
