@@ -55,6 +55,7 @@ export class GitHubArm implements WizardArm {
       // Determinar qué repositorios crear según la topología
       const repoSpecs = this.buildRepoSpecs(topology, github.repo);
       const createdRepos: CreatedGitHubRepo[] = [];
+      const pushWarnings: Array<{ repo: string; error: string }> = [];
 
       // Crear repositorios en GitHub
       for (const spec of repoSpecs) {
@@ -79,26 +80,16 @@ export class GitHubArm implements WizardArm {
               github.productionBranch
             );
           } catch (pushError) {
-            // Repo creado pero push falló: no es un error fatal
-            // El contexto ya incluye información de los repos creados
-            return {
-              success: true,
-              context: {
-                ...context,
-                githubOutcome: {
-                  repos: createdRepos,
-                  pushWarning: {
-                    repo: spec.name,
-                    error: pushError instanceof Error ? pushError.message : String(pushError),
-                  },
-                },
-              },
-            };
+            // Repo creado pero push falló: acumular warning y continuar con el resto
+            pushWarnings.push({
+              repo: spec.name,
+              error: pushError instanceof Error ? pushError.message : String(pushError),
+            });
           }
         }
       }
 
-      // Setear secrets de GitHub (solo los de GitHub, no los de infraestructura)
+      // Setear secrets de GitHub en todos los repos creados, incluso si algún push falló
       const secretsSet: string[] = [];
       const secretsFailed: Array<{ name: string; error: string }> = [];
 
@@ -118,6 +109,7 @@ export class GitHubArm implements WizardArm {
             repos: createdRepos,
             secretsSet,
             secretsFailed,
+            ...(pushWarnings.length > 0 && { pushWarnings }),
           },
         },
       };
@@ -158,17 +150,23 @@ export class GitHubArm implements WizardArm {
 
     // Inferir owner del token si no se proveyó
     let registryUser = owner || '';
+    let userInferenceError: string | undefined;
     if (!registryUser) {
       try {
         const user = await getAuthenticatedUser(token);
         registryUser = user.login;
-      } catch {
-        // Si falla, lo dejamos vacío
+      } catch (error) {
+        userInferenceError = error instanceof Error ? error.message : String(error);
       }
     }
 
     if (registryUser) {
       secrets.push({ name: 'DOCKER_REGISTRY_USER', value: registryUser });
+    } else if (userInferenceError) {
+      console.warn(
+        `⚠️  No se pudo obtener el usuario autenticado: ${userInferenceError}\n` +
+        '   DOCKER_REGISTRY_USER no se seteará. El workflow de CI puede fallar si lo necesita.'
+      );
     }
 
     secrets.push({ name: 'DOCKER_REGISTRY_TOKEN', value: token });

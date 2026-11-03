@@ -189,7 +189,7 @@ export async function newCommand(
   let knownHosts: string | undefined;
   const secretsSet: string[] = [];
   const secretsPrinted: string[] = [];
-  let pushWarning: { repo: string; error: string } | undefined;
+  let pushWarnings: Array<{ repo: string; error: string }> = [];
 
   // FRA-86: GitHub es brazo independiente, habilitado por su propio token
   if (wizard?.githubToken) {
@@ -197,7 +197,7 @@ export async function newCommand(
     createdRepos = githubOutcome.repos;
     secretsSet.push(...githubOutcome.secretsSet);
     secretsPrinted.push(...githubOutcome.secretsPrinted);
-    pushWarning = githubOutcome.pushWarning;
+    pushWarnings = githubOutcome.pushWarnings;
 
     if (createdRepos[0]) {
       wizard.gitRepository = createdRepos[0].cloneUrl;
@@ -215,7 +215,7 @@ export async function newCommand(
     secretsPrinted.push(...infraOutcome.secretsPrinted);
   }
 
-  printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted, knownHosts, pushWarning);
+  printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted, knownHosts, pushWarnings);
 
   if (wizard?.chainDeploy) {
     await chainToDeploy(params, wizard);
@@ -349,7 +349,7 @@ async function provisionGitHub(
   repos: CreatedGitHubRepo[];
   secretsSet: string[];
   secretsPrinted: string[];
-  pushWarning?: { repo: string; error: string };
+  pushWarnings: Array<{ repo: string; error: string }>;
 }> {
   const githubArm = new GitHubArm({ localRepositories: localRepos });
 
@@ -371,7 +371,7 @@ async function provisionGitHub(
   if (!result.success) {
     console.error(chalk.red(`\n❌ ${result.error}`));
     console.log(chalk.dim('   El proyecto local ya está generado; podés crear el remoto a mano.'));
-    return { repos: [], secretsSet: [], secretsPrinted: [] };
+    return { repos: [], secretsSet: [], secretsPrinted: [], pushWarnings: [] };
   }
 
   const githubOutcome = result.context.githubOutcome!;
@@ -382,16 +382,18 @@ async function provisionGitHub(
     console.log(chalk.dim(`     ${repo.htmlUrl}`));
   }
 
-  // Mostrar push exitoso o warning
-  if (githubOutcome.pushWarning) {
-    const { repo, error } = githubOutcome.pushWarning;
-    console.error(chalk.yellow(`   ⚠️  Repo creado pero el push falló: ${error}`));
-    console.error(chalk.yellow(`   ⚠️  El remoto ${repo} quedó vacío (sin código).`));
-    console.log(chalk.dim('      Recuperá el push con:'));
-    const localRepo = localRepos.find((r) => r.includes(repo));
-    if (localRepo) {
-      console.log(chalk.dim(`        cd ${localRepo}`));
-      console.log(chalk.dim(`        git push -u origin ${wizard.productionBranch}`));
+  // Mostrar push exitoso o warnings
+  if (githubOutcome.pushWarnings && githubOutcome.pushWarnings.length > 0) {
+    for (const warning of githubOutcome.pushWarnings) {
+      const { repo, error } = warning;
+      console.error(chalk.yellow(`   ⚠️  Repo ${repo} creado pero el push falló: ${error}`));
+      console.error(chalk.yellow(`   ⚠️  El remoto ${repo} quedó vacío (sin código).`));
+      console.log(chalk.dim('      Recuperá el push con:'));
+      const localRepo = localRepos.find((r) => r.includes(repo));
+      if (localRepo) {
+        console.log(chalk.dim(`        cd ${localRepo}`));
+        console.log(chalk.dim(`        git push -u origin ${wizard.productionBranch}`));
+      }
     }
   } else {
     console.log(chalk.green(`   ✓ Push inicial a ${wizard.productionBranch}`));
@@ -415,7 +417,7 @@ async function provisionGitHub(
     repos: githubOutcome.repos,
     secretsSet: githubOutcome.secretsSet || [],
     secretsPrinted: githubOutcome.secretsSet || [],
-    pushWarning: githubOutcome.pushWarning,
+    pushWarnings: githubOutcome.pushWarnings || [],
   };
 }
 
@@ -524,7 +526,7 @@ export function printHandoff(
   secretsSet: string[],
   _secretsPrinted: string[],
   knownHosts?: string,
-  _pushWarning?: { repo: string; error: string }
+  _pushWarnings?: Array<{ repo: string; error: string }>
 ): void {
   console.log(chalk.dim('\nPróximos pasos:'));
 

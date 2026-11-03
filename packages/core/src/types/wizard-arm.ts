@@ -105,10 +105,10 @@ export interface WizardContext {
     }>;
     secretsSet?: string[];
     secretsFailed?: Array<{ name: string; error: string }>;
-    pushWarning?: {
+    pushWarnings?: Array<{
       repo: string;
       error: string;
-    };
+    }>;
   };
 
   /**
