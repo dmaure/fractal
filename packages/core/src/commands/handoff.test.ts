@@ -5,6 +5,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import chalk from 'chalk';
+import { printHandoff } from './new.js';
+import type { ValidatedNewParams } from '../types/new-command.js';
+import type { NewWizardParams } from '../types/new-command.js';
 
 // Captura console.log para verificar el output
 function captureConsoleLog(fn: () => void): string[] {
@@ -35,12 +38,11 @@ describe('printHandoff (FRA-85)', () => {
 
   describe('camino local-only (AC-3, AC-11)', () => {
     it('muestra comandos locales cuando no hay datos de infraestructura', () => {
-      // Simular printHandoff con wizard null
       const output = captureConsoleLog(() => {
-        const params = {
+        const params: ValidatedNewParams = {
           projectName: 'test-app',
           targetDir: '/tmp/test-app',
-          topology: 'monolith' as const,
+          topology: 'monolith',
           target: 'default',
         };
         const wizard = null;
@@ -48,14 +50,7 @@ describe('printHandoff (FRA-85)', () => {
         const secretsSet: string[] = [];
         const secretsPrinted: string[] = [];
         
-        // Inline de printHandoff para este test
-        console.log('\nPróximos pasos:');
-        console.log(`  cd ${params.projectName}`);
-        console.log('  # Configurar dependencias y correr el servidor de desarrollo');
-        console.log('  # Ver README.md para instrucciones específicas del framework');
-        console.log();
-        console.log('💡 Para desplegar más adelante:');
-        console.log('  fractal deploy');
+        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -74,39 +69,34 @@ describe('printHandoff (FRA-85)', () => {
 
     it('muestra comandos locales cuando wizard tiene datos vacíos de infraestructura', () => {
       const output = captureConsoleLog(() => {
-        const params = {
+        const params: ValidatedNewParams = {
           projectName: 'local-project',
           targetDir: '/tmp/local-project',
-          topology: 'monolith' as const,
+          topology: 'monolith',
           target: 'default',
         };
-        const wizard = {
+        const wizard: NewWizardParams = {
           projectName: 'local-project',
-          topology: 'monolith' as const,
+          topology: 'monolith',
           serverIp: '', // vacío = local-only
           domain: '', // vacío = local-only
+          email: '',
           sshUser: 'root',
-          authMethod: 'key' as const,
-          dnsProvider: 'manual' as const,
+          authMethod: 'key',
+          dnsProvider: 'manual',
           productionBranch: 'main',
           githubRepo: 'local-project',
-          githubVisibility: 'private' as const,
+          githubVisibility: 'private',
           dbPassword: '',
           dbPasswordGenerated: false,
           chainDeploy: false,
         };
         
-        const hasInfrastructure = wizard.serverIp && wizard.domain;
+        const createdRepos: any[] = [];
+        const secretsSet: string[] = [];
+        const secretsPrinted: string[] = [];
         
-        console.log('\nPróximos pasos:');
-        if (!hasInfrastructure) {
-          console.log(`  cd ${params.projectName}`);
-          console.log('  # Configurar dependencias y correr el servidor de desarrollo');
-          console.log('  # Ver README.md para instrucciones específicas del framework');
-          console.log();
-          console.log('💡 Para desplegar más adelante:');
-          console.log('  fractal deploy');
-        }
+        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -127,45 +117,34 @@ describe('printHandoff (FRA-85)', () => {
   describe('camino con infraestructura (AC-11)', () => {
     it('muestra fractal deploy cuando hay datos de servidor', () => {
       const output = captureConsoleLog(() => {
-        const params = {
+        const params: ValidatedNewParams = {
           projectName: 'prod-app',
           targetDir: '/tmp/prod-app',
-          topology: 'monolith' as const,
+          topology: 'monolith',
           target: 'default',
         };
-        const wizard = {
+        const wizard: NewWizardParams = {
           projectName: 'prod-app',
-          topology: 'monolith' as const,
+          topology: 'monolith',
           serverIp: '192.168.1.100',
           domain: 'prod.example.com',
           email: 'admin@example.com',
           sshUser: 'root',
-          authMethod: 'key' as const,
-          dnsProvider: 'manual' as const,
+          authMethod: 'key',
+          dnsProvider: 'manual',
           productionBranch: 'main',
           githubRepo: 'prod-app',
-          githubVisibility: 'private' as const,
+          githubVisibility: 'private',
           dbPassword: 'secret123',
           dbPasswordGenerated: true,
           chainDeploy: false,
         };
         
-        const hasInfrastructure = wizard.serverIp && wizard.domain;
+        const createdRepos: any[] = [];
+        const secretsSet: string[] = [];
+        const secretsPrinted: string[] = [];
         
-        console.log('\nPróximos pasos:');
-        if (!hasInfrastructure) {
-          console.log(`  cd ${params.projectName}`);
-          console.log('  # Configurar dependencias y correr el servidor de desarrollo');
-          console.log('  # Ver README.md para instrucciones específicas del framework');
-          console.log();
-          console.log('💡 Para desplegar más adelante:');
-          console.log('  fractal deploy');
-          return;
-        }
-        
-        // Camino con infraestructura
-        console.log(`  cd ${params.projectName}`);
-        console.log('  fractal deploy');
+        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -174,55 +153,54 @@ describe('printHandoff (FRA-85)', () => {
         Próximos pasos:",
           "  cd prod-app",
           "  fractal deploy",
+          "
+          El .env local NO se sube al VPS (FRA-76): DB_PASSWORD vive en /home/deploy/.env.",
+          "  Se generó una DB_PASSWORD; quedó como secret de GitHub (no se commitea).",
+          "  SSH_KNOWN_HOSTS: ssh-keyscan -t ed25519,rsa,ecdsa 192.168.1.100",
+          "
+          Para reusar estos valores en fractal deploy --non-interactive:",
+          "    export FRACTAL_DEPLOY_SERVER_IP=192.168.1.100",
+          "    export FRACTAL_DEPLOY_SSH_USER=root",
+          "    export FRACTAL_DEPLOY_AUTH_METHOD=key",
+          "    export FRACTAL_DEPLOY_DOMAIN=prod.example.com",
+          "    export FRACTAL_DEPLOY_EMAIL=admin@example.com",
+          "    export FRACTAL_DEPLOY_DNS_PROVIDER=manual",
+          "    export FRACTAL_DEPLOY_PRODUCTION_BRANCH=main",
+          "    # DNS token, SSH password y GitHub token no se reimprimen.",
         ]
       `);
     });
 
     it('muestra comandos para cada repo en multirepo con infraestructura', () => {
       const output = captureConsoleLog(() => {
-        const params = {
+        const params: ValidatedNewParams = {
           projectName: 'multi-app',
           targetDir: '/tmp/multi-app',
-          topology: 'multirepo' as const,
+          topology: 'multirepo',
           target: 'default',
         };
-        const wizard = {
+        const wizard: NewWizardParams = {
           projectName: 'multi-app',
-          topology: 'multirepo' as const,
+          topology: 'multirepo',
           serverIp: '10.0.0.5',
           domain: 'multi.example.com',
           email: 'ops@example.com',
           sshUser: 'deploy',
-          authMethod: 'key' as const,
-          dnsProvider: 'cloudflare' as const,
+          authMethod: 'key',
+          dnsProvider: 'cloudflare',
           productionBranch: 'main',
           githubRepo: 'multi-app',
-          githubVisibility: 'public' as const,
+          githubVisibility: 'public',
           dbPassword: 'pass456',
           dbPasswordGenerated: false,
           chainDeploy: false,
         };
         
-        const hasInfrastructure = wizard.serverIp && wizard.domain;
+        const createdRepos: any[] = [];
+        const secretsSet: string[] = [];
+        const secretsPrinted: string[] = [];
         
-        console.log('\nPróximos pasos:');
-        if (!hasInfrastructure) {
-          console.log(`  cd ${params.projectName}`);
-          console.log('  # Configurar dependencias y correr el servidor de desarrollo');
-          console.log('  # Ver README.md para instrucciones específicas del framework');
-          console.log();
-          console.log('💡 Para desplegar más adelante:');
-          console.log('  fractal deploy');
-          return;
-        }
-        
-        // Camino con infraestructura en multirepo
-        if (params.topology === 'multirepo') {
-          console.log(`  cd ${params.projectName}-api`);
-          console.log(`  fractal deploy`);
-          console.log(`\n  cd ../${params.projectName}-web`);
-          console.log(`  fractal deploy`);
-        }
+        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -234,6 +212,19 @@ describe('printHandoff (FRA-85)', () => {
           "
           cd ../multi-app-web",
           "  fractal deploy",
+          "
+          El .env local NO se sube al VPS (FRA-76): DB_PASSWORD vive en /home/deploy/.env.",
+          "  SSH_KNOWN_HOSTS: ssh-keyscan -t ed25519,rsa,ecdsa 10.0.0.5",
+          "
+          Para reusar estos valores en fractal deploy --non-interactive:",
+          "    export FRACTAL_DEPLOY_SERVER_IP=10.0.0.5",
+          "    export FRACTAL_DEPLOY_SSH_USER=deploy",
+          "    export FRACTAL_DEPLOY_AUTH_METHOD=key",
+          "    export FRACTAL_DEPLOY_DOMAIN=multi.example.com",
+          "    export FRACTAL_DEPLOY_EMAIL=ops@example.com",
+          "    export FRACTAL_DEPLOY_DNS_PROVIDER=cloudflare",
+          "    export FRACTAL_DEPLOY_PRODUCTION_BRANCH=main",
+          "    # DNS token, SSH password y GitHub token no se reimprimen.",
         ]
       `);
     });
@@ -242,48 +233,34 @@ describe('printHandoff (FRA-85)', () => {
   describe('chainDeploy', () => {
     it('indica que fractal deploy se ejecutará a continuación cuando chainDeploy=true', () => {
       const output = captureConsoleLog(() => {
-        const params = {
+        const params: ValidatedNewParams = {
           projectName: 'chain-app',
           targetDir: '/tmp/chain-app',
-          topology: 'monolith' as const,
+          topology: 'monolith',
           target: 'default',
         };
-        const wizard = {
+        const wizard: NewWizardParams = {
           projectName: 'chain-app',
-          topology: 'monolith' as const,
+          topology: 'monolith',
           serverIp: '172.16.0.10',
           domain: 'chain.example.com',
           email: 'dev@example.com',
           sshUser: 'ubuntu',
-          authMethod: 'password' as const,
-          dnsProvider: 'manual' as const,
+          authMethod: 'password',
+          dnsProvider: 'manual',
           productionBranch: 'main',
           githubRepo: 'chain-app',
-          githubVisibility: 'private' as const,
+          githubVisibility: 'private',
           dbPassword: 'secret789',
           dbPasswordGenerated: false,
           chainDeploy: true, // Encadena deploy
         };
         
-        const hasInfrastructure = wizard.serverIp && wizard.domain;
+        const createdRepos: any[] = [];
+        const secretsSet: string[] = [];
+        const secretsPrinted: string[] = [];
         
-        console.log('\nPróximos pasos:');
-        if (!hasInfrastructure) {
-          console.log(`  cd ${params.projectName}`);
-          console.log('  # Configurar dependencias y correr el servidor de desarrollo');
-          console.log('  # Ver README.md para instrucciones específicas del framework');
-          console.log();
-          console.log('💡 Para desplegar más adelante:');
-          console.log('  fractal deploy');
-          return;
-        }
-        
-        console.log(`  cd ${params.projectName}`);
-        if (wizard.chainDeploy) {
-          console.log('  # fractal deploy se ejecuta a continuación');
-        } else {
-          console.log('  fractal deploy');
-        }
+        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
       });
 
       expect(output).toMatchInlineSnapshot(`
@@ -292,6 +269,61 @@ describe('printHandoff (FRA-85)', () => {
         Próximos pasos:",
           "  cd chain-app",
           "  # fractal deploy se ejecuta a continuación",
+          "
+          El .env local NO se sube al VPS (FRA-76): DB_PASSWORD vive en /home/deploy/.env.",
+          "  SSH_KNOWN_HOSTS: ssh-keyscan -t ed25519,rsa,ecdsa 172.16.0.10",
+        ]
+      `);
+    });
+  });
+
+  describe('multirepo local-only (FRA-85, bloqueante 1)', () => {
+    it('muestra directorios correctos (-api/-web) en multirepo sin infraestructura', () => {
+      const output = captureConsoleLog(() => {
+        const params: ValidatedNewParams = {
+          projectName: 'local-multi',
+          targetDir: '/tmp/local-multi',
+          topology: 'multirepo',
+          target: 'default',
+        };
+        const wizard: NewWizardParams = {
+          projectName: 'local-multi',
+          topology: 'multirepo',
+          serverIp: '', // local-only
+          domain: '', // local-only
+          email: '',
+          sshUser: 'root',
+          authMethod: 'key',
+          dnsProvider: 'manual',
+          productionBranch: 'main',
+          githubRepo: 'local-multi',
+          githubVisibility: 'private',
+          dbPassword: '',
+          dbPasswordGenerated: false,
+          chainDeploy: false,
+        };
+        
+        const createdRepos: any[] = [];
+        const secretsSet: string[] = [];
+        const secretsPrinted: string[] = [];
+        
+        printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted);
+      });
+
+      expect(output).toMatchInlineSnapshot(`
+        [
+          "
+        Próximos pasos:",
+          "  cd local-multi-api",
+          "  # Configurar dependencias y correr el servidor de desarrollo",
+          "  # Ver README.md para instrucciones específicas del framework",
+          "",
+          "  cd ../local-multi-web",
+          "  # Configurar dependencias y correr el servidor de desarrollo",
+          "  # Ver README.md para instrucciones específicas del framework",
+          "",
+          "💡 Para desplegar más adelante:",
+          "  fractal deploy",
         ]
       `);
     });

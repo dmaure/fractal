@@ -492,7 +492,7 @@ async function buildSecretValues(
   return secrets.filter((secret) => secret.value);
 }
 
-function printHandoff(
+export function printHandoff(
   params: ValidatedNewParams,
   wizard: NewWizardParams | null,
   createdRepos: CreatedGitHubRepo[],
@@ -503,13 +503,24 @@ function printHandoff(
   console.log(chalk.dim('\nPróximos pasos:'));
 
   // FRA-85: detectar camino local-only (sin datos de infraestructura)
-  const hasInfrastructure = wizard?.serverIp && wizard.domain;
+  const hasInfrastructure = Boolean(wizard?.serverIp && wizard.domain);
 
   if (!hasInfrastructure) {
     // Camino local-only (FRA-85, AC-3, AC-11)
-    console.log(chalk.dim(`  cd ${params.projectName}`));
-    console.log(chalk.dim('  # Configurar dependencias y correr el servidor de desarrollo'));
-    console.log(chalk.dim('  # Ver README.md para instrucciones específicas del framework'));
+    // FRA-85: contemplar topología multirepo (bug fix ronda 1)
+    if (params.topology === 'multirepo') {
+      console.log(chalk.dim(`  cd ${params.projectName}-api`));
+      console.log(chalk.dim('  # Configurar dependencias y correr el servidor de desarrollo'));
+      console.log(chalk.dim('  # Ver README.md para instrucciones específicas del framework'));
+      console.log();
+      console.log(chalk.dim(`  cd ../${params.projectName}-web`));
+      console.log(chalk.dim('  # Configurar dependencias y correr el servidor de desarrollo'));
+      console.log(chalk.dim('  # Ver README.md para instrucciones específicas del framework'));
+    } else {
+      console.log(chalk.dim(`  cd ${params.projectName}`));
+      console.log(chalk.dim('  # Configurar dependencias y correr el servidor de desarrollo'));
+      console.log(chalk.dim('  # Ver README.md para instrucciones específicas del framework'));
+    }
     console.log();
     console.log(chalk.yellow('💡 Para desplegar más adelante:'));
     console.log(chalk.dim('  fractal deploy'));
