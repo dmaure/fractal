@@ -297,19 +297,23 @@ export async function promptNewWizard(
   let topology: string | undefined;
   let shouldPromptInfra = true;
   let shouldPromptGitHub = true;
+  let orchestratorResult: any = null; // FRA-85: necesitamos acceder al context más tarde
 
   if (useOrchestrator) {
-    // Flujo real: orquestador con ChecklistArm y CodeArm (FRA-82, FRA-83, FRA-84)
+    // Flujo real: orquestador con ChecklistArm, CodeArm e InfrastructureArm
+    // (FRA-82, FRA-83, FRA-84, FRA-85)
     // La topología se pregunta DENTRO del CodeArm (AC-2: código primero)
     const { ChecklistArm } = await import('../wizard/arms/checklist-arm.js');
     const { CodeArm } = await import('../wizard/arms/code-arm.js');
+    const { InfrastructureArm } = await import('../wizard/arms/infrastructure-arm.js');
     const { orchestrateWizard } = await import('../wizard/orchestrator.js');
 
     const checklist = new ChecklistArm();
     const codeArm = new CodeArm(frameworkOptions, defaultFramework);
+    const infraArm = new InfrastructureArm();
 
-    const orchestratorResult = await orchestrateWizard({
-      arms: [checklist, codeArm],
+    orchestratorResult = await orchestrateWizard({
+      arms: [checklist, codeArm, infraArm],
       initialContext: {
         mode: 'interactive',
         projectName: resolvedName,
@@ -342,7 +346,8 @@ export async function promptNewWizard(
       ]);
     }
     
-    shouldPromptInfra = context.checklist?.hasServer === 'yes';
+    // FRA-85: InfrastructureArm ya recolectó los datos si el checklist lo habilitó
+    shouldPromptInfra = false; // Ya manejado por el orquestador
     shouldPromptGitHub = context.checklist?.hasGitHubToken === 'yes';
   } else {
     // Flujo legacy (solo tests): prompts directos
@@ -370,33 +375,50 @@ export async function promptNewWizard(
     throw new NonInteractiveConfigError(['Error: el nombre del proyecto no fue recolectado']);
   }
 
-  // Infraestructura: después del código (si checklist lo habilitó)
+  // Infraestructura: leer del contexto del orquestador (FRA-85)
   let deployParams;
-  if (shouldPromptInfra || !useOrchestrator) {
-    if (useOrchestrator) {
-      console.log('\n🏗️  Infraestructura y deploy\n');
-      console.log('Valores que no pueden tener default (servidor, DNS)\n');
-      console.log('SSH — limitaciones conocidas:');
-      for (const gap of SSH_AUTH_GAPS) {
-        console.log(`   • ${gap}`);
-      }
-      console.log();
+  if (useOrchestrator) {
+    // FRA-85: InfrastructureArm ya recolectó los datos si el checklist lo habilitó
+    const { context } = orchestratorResult;
+    if (context.infrastructure) {
+      // Camino con infraestructura
+      deployParams = {
+        serverIp: context.infrastructure.serverIp,
+        sshUser: context.infrastructure.sshUser,
+        authMethod: context.infrastructure.authMethod,
+        sshKeyPath: context.infrastructure.sshKeyPath,
+        sshPassword: context.infrastructure.sshPassword,
+        domain: context.infrastructure.domain,
+        email: context.infrastructure.email,
+        dnsProvider: context.infrastructure.dnsProvider,
+        dnsApiToken: context.infrastructure.dnsApiToken,
+        productionBranch: 'main',
+      };
+    } else {
+      // Camino local-only: valores dummy para mantener la estructura de NewWizardParams
+      deployParams = {
+        serverIp: '',
+        sshUser: 'root',
+        authMethod: 'key' as const,
+        domain: '',
+        email: '',
+        dnsProvider: 'manual' as const,
+        productionBranch: 'main',
+      };
     }
+  } else {
+    // Flujo legacy (solo tests): prompts directos
+    console.log('\n🏗️  Infraestructura y deploy\n');
+    console.log('Valores que no pueden tener default (servidor, DNS)\n');
+    console.log('SSH — limitaciones conocidas:');
+    for (const gap of SSH_AUTH_GAPS) {
+      console.log(`   • ${gap}`);
+    }
+    console.log();
 
     deployParams = await promptDeployParams(false, undefined, {
       skipGitRepository: true,
     });
-  } else {
-    // Valores dummy/defaults si no hay infra
-    deployParams = {
-      serverIp: '',
-      sshUser: 'root',
-      authMethod: 'key' as const,
-      domain: '',
-      email: '',
-      dnsProvider: 'manual' as const,
-      productionBranch: 'main',
-    };
   }
 
   // GitHub: si checklist lo habilitó
@@ -430,18 +452,45 @@ export async function promptNewWizard(
   const githubVisibility: 'private' | 'public' =
     githubVisibilityRaw === 'public' ? 'public' : 'private';
 
-  // Secrets del workflow
-  console.log('\nSecrets del workflow\n');
-  console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
-  const { dbPassword, dbPasswordGenerated } = await promptDbPassword();
+  // FRA-85 AC-8: contraseña de DB solo cuando hay datos de infraestructura
+  let dbPassword = '';
+  let dbPasswordGenerated = false;
+  let chainDeploy = false;
 
-  const chainDeploy =
-    options.deploy === true
-      ? true
-      : await confirm({
-          message: '¿Ejecutar fractal deploy ahora con estos valores?',
-          default: false,
-        });
+  if (useOrchestrator) {
+    const hasInfrastructure = orchestratorResult?.context.infrastructure;
+    if (hasInfrastructure) {
+      // Secrets del workflow solo cuando hay deploy
+      console.log('\nSecrets del workflow\n');
+      console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
+      const dbPasswordResult = await promptDbPassword();
+      dbPassword = dbPasswordResult.dbPassword;
+      dbPasswordGenerated = dbPasswordResult.dbPasswordGenerated;
+
+      chainDeploy =
+        options.deploy === true
+          ? true
+          : await confirm({
+              message: '¿Ejecutar fractal deploy ahora con estos valores?',
+              default: false,
+            });
+    }
+  } else {
+    // Flujo legacy: siempre pide contraseña
+    console.log('\nSecrets del workflow\n');
+    console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
+    const dbPasswordResult = await promptDbPassword();
+    dbPassword = dbPasswordResult.dbPassword;
+    dbPasswordGenerated = dbPasswordResult.dbPasswordGenerated;
+
+    chainDeploy =
+      options.deploy === true
+        ? true
+        : await confirm({
+            message: '¿Ejecutar fractal deploy ahora con estos valores?',
+            default: false,
+          });
+  }
 
   return {
     projectName: finalProjectName,

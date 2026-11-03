@@ -173,9 +173,14 @@ export async function newCommand(
   console.log(`   Directorio: ${chalk.dim(params.targetDir)}`);
   console.log(`   Topología: ${chalk.bold(params.topology)}`);
   if (wizard) {
-    console.log(`   Servidor: ${chalk.bold(`${wizard.sshUser}@${wizard.serverIp}`)}`);
-    console.log(`   Dominio: ${chalk.bold(wizard.domain)}`);
-    console.log(`   DNS: ${chalk.bold(wizard.dnsProvider)}`);
+    // FRA-85: solo mostrar datos de infra si el usuario los proveyó
+    if (wizard.serverIp && wizard.domain) {
+      console.log(`   Servidor: ${chalk.bold(`${wizard.sshUser}@${wizard.serverIp}`)}`);
+      console.log(`   Dominio: ${chalk.bold(wizard.domain)}`);
+      console.log(`   DNS: ${chalk.bold(wizard.dnsProvider)}`);
+    } else {
+      console.log(`   Deploy: ${chalk.dim('local-only (sin servidor)')}`);
+    }
     console.log(`   GitHub: ${wizard.githubToken ? chalk.bold('crear repo remoto') : chalk.dim('omitido')}`);
   }
 
@@ -497,6 +502,21 @@ function printHandoff(
 ): void {
   console.log(chalk.dim('\nPróximos pasos:'));
 
+  // FRA-85: detectar camino local-only (sin datos de infraestructura)
+  const hasInfrastructure = wizard?.serverIp && wizard.domain;
+
+  if (!hasInfrastructure) {
+    // Camino local-only (FRA-85, AC-3, AC-11)
+    console.log(chalk.dim(`  cd ${params.projectName}`));
+    console.log(chalk.dim('  # Configurar dependencias y correr el servidor de desarrollo'));
+    console.log(chalk.dim('  # Ver README.md para instrucciones específicas del framework'));
+    console.log();
+    console.log(chalk.yellow('💡 Para desplegar más adelante:'));
+    console.log(chalk.dim('  fractal deploy'));
+    return;
+  }
+
+  // Camino con infraestructura
   if (params.topology === 'multirepo') {
     console.log(chalk.dim(`  cd ${params.projectName}-api`));
     console.log(chalk.dim(`  fractal deploy`));
@@ -518,7 +538,8 @@ function printHandoff(
     }
   }
 
-  if (wizard) {
+  // FRA-85: información adicional solo cuando hay infraestructura
+  if (wizard && hasInfrastructure) {
     console.log(chalk.dim('\n  El .env local NO se sube al VPS (FRA-76): DB_PASSWORD vive en /home/deploy/.env.'));
     if (wizard.dbPasswordGenerated) {
       console.log(chalk.dim('  Se generó una DB_PASSWORD; quedó como secret de GitHub (no se commitea).'));
@@ -572,6 +593,17 @@ async function chainToDeploy(
   params: ValidatedNewParams,
   wizard: NewWizardParams
 ): Promise<void> {
+  // FRA-85: no encadenar deploy si no hay datos de infraestructura
+  if (!wizard.serverIp || !wizard.domain) {
+    console.log(
+      chalk.yellow(
+        '\n⚠️  No se encadena fractal deploy: proyecto configurado como local-only.'
+      )
+    );
+    console.log(chalk.dim('   Ejecutá fractal deploy cuando tengas un servidor disponible.'));
+    return;
+  }
+
   if (params.topology === 'multirepo') {
     console.log(
       chalk.yellow(
