@@ -22,14 +22,13 @@ import {
   SSH_AUTH_GAPS,
 } from '../utils/new-wizard.js';
 import {
-  createGitHubRepository,
-  GitHubApiError,
-  pushRepositoryToGitHub,
   readPrivateKeyForSecret,
   scanKnownHosts,
   setGitHubActionsSecrets,
   type CreatedGitHubRepo,
 } from '../utils/github-repo.js';
+import { GitHubArm } from '../wizard/arms/github-arm.js';
+import type { WizardContext } from '../types/wizard-arm.js';
 
 /**
  * Comando `fractal new`.
@@ -190,13 +189,15 @@ export async function newCommand(
   let knownHosts: string | undefined;
   const secretsSet: string[] = [];
   const secretsPrinted: string[] = [];
+  let pushWarning: { repo: string; error: string } | undefined;
 
+  // FRA-86: GitHub es brazo independiente, habilitado por su propio token
   if (wizard?.githubToken) {
     const githubOutcome = await provisionGitHub(params, wizard, gitResult.repositories);
     createdRepos = githubOutcome.repos;
-    knownHosts = githubOutcome.knownHosts;
     secretsSet.push(...githubOutcome.secretsSet);
     secretsPrinted.push(...githubOutcome.secretsPrinted);
+    pushWarning = githubOutcome.pushWarning;
 
     if (createdRepos[0]) {
       wizard.gitRepository = createdRepos[0].cloneUrl;
@@ -206,7 +207,15 @@ export async function newCommand(
     console.log(chalk.dim('   Conectá origin a mano antes del pipeline de CI/CD.'));
   }
 
-  printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted, knownHosts);
+  // FRA-86: secrets de infraestructura solo si hay servidor
+  if (wizard?.serverIp) {
+    const infraOutcome = await provisionInfrastructureSecrets(wizard, createdRepos);
+    knownHosts = infraOutcome.knownHosts;
+    secretsSet.push(...infraOutcome.secretsSet);
+    secretsPrinted.push(...infraOutcome.secretsPrinted);
+  }
+
+  printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted, knownHosts, pushWarning);
 
   if (wizard?.chainDeploy) {
     await chainToDeploy(params, wizard);
@@ -328,78 +337,105 @@ async function generateProject(
   return { repositories: gitResult.repositories };
 }
 
+/**
+ * FRA-86: brazo GitHub independiente (crear repos + secrets de GitHub).
+ * No toca infraestructura: solo DOCKER_REGISTRY_USER/TOKEN.
+ */
 async function provisionGitHub(
   params: ValidatedNewParams,
   wizard: NewWizardParams,
   localRepos: string[]
 ): Promise<{
   repos: CreatedGitHubRepo[];
+  secretsSet: string[];
+  secretsPrinted: string[];
+  pushWarning?: { repo: string; error: string };
+}> {
+  const githubArm = new GitHubArm({ localRepositories: localRepos });
+
+  const context: WizardContext = {
+    topology: params.topology,
+    github: {
+      token: wizard.githubToken!,
+      owner: wizard.githubOwner,
+      repo: wizard.githubRepo,
+      visibility: wizard.githubVisibility,
+      productionBranch: wizard.productionBranch,
+    },
+  };
+
+  console.log(chalk.blue('\n🐙 Creando repositorio(s) en GitHub...'));
+
+  const result = await githubArm.execute(context);
+
+  if (!result.success) {
+    console.error(chalk.red(`\n❌ ${result.error}`));
+    console.log(chalk.dim('   El proyecto local ya está generado; podés crear el remoto a mano.'));
+    return { repos: [], secretsSet: [], secretsPrinted: [] };
+  }
+
+  const githubOutcome = result.context.githubOutcome!;
+
+  // Mostrar repos creados
+  for (const repo of githubOutcome.repos) {
+    console.log(chalk.green(`   ✓ ${repo.owner}/${repo.name}`));
+    console.log(chalk.dim(`     ${repo.htmlUrl}`));
+  }
+
+  // Mostrar push exitoso o warning
+  if (githubOutcome.pushWarning) {
+    const { repo, error } = githubOutcome.pushWarning;
+    console.error(chalk.yellow(`   ⚠️  Repo creado pero el push falló: ${error}`));
+    console.error(chalk.yellow(`   ⚠️  El remoto ${repo} quedó vacío (sin código).`));
+    console.log(chalk.dim('      Recuperá el push con:'));
+    const localRepo = localRepos.find((r) => r.includes(repo));
+    if (localRepo) {
+      console.log(chalk.dim(`        cd ${localRepo}`));
+      console.log(chalk.dim(`        git push -u origin ${wizard.productionBranch}`));
+    }
+  } else {
+    console.log(chalk.green(`   ✓ Push inicial a ${wizard.productionBranch}`));
+  }
+
+  // Mostrar secrets de GitHub seteados
+  if (githubOutcome.secretsSet && githubOutcome.secretsSet.length > 0) {
+    console.log(chalk.blue('\n🔐 Secrets de GitHub seteados:'));
+    for (const name of githubOutcome.secretsSet) {
+      console.log(chalk.green(`   ✓ ${name}`));
+    }
+  }
+
+  if (githubOutcome.secretsFailed && githubOutcome.secretsFailed.length > 0) {
+    for (const fail of githubOutcome.secretsFailed) {
+      console.log(chalk.yellow(`   ⚠️  ${fail.name} no se pudo setear: ${fail.error}`));
+    }
+  }
+
+  return {
+    repos: githubOutcome.repos,
+    secretsSet: githubOutcome.secretsSet || [],
+    secretsPrinted: githubOutcome.secretsSet || [],
+    pushWarning: githubOutcome.pushWarning,
+  };
+}
+
+/**
+ * FRA-86: secrets de infraestructura (SSH, DB) solo si hay servidor.
+ * Separado del brazo GitHub para que GitHub funcione sin infraestructura (AC-5).
+ */
+async function provisionInfrastructureSecrets(
+  wizard: NewWizardParams,
+  repos: CreatedGitHubRepo[]
+): Promise<{
   knownHosts?: string;
   secretsSet: string[];
   secretsPrinted: string[];
 }> {
-  const token = wizard.githubToken!;
-  const secretsSet: string[] = [];
-  const secretsPrinted: string[] = [];
-  const repos: CreatedGitHubRepo[] = [];
-
-  console.log(chalk.blue('\n🐙 Creando repositorio(s) en GitHub...'));
-
-  const repoSpecs =
-    params.topology === 'multirepo'
-      ? [
-          { name: `${wizard.githubRepo}-api`, dir: localRepos.find((r) => r.endsWith('-api')) },
-          { name: `${wizard.githubRepo}-web`, dir: localRepos.find((r) => r.endsWith('-web')) },
-        ]
-      : [{ name: wizard.githubRepo, dir: localRepos[0] }];
-
-  try {
-    for (const spec of repoSpecs) {
-      const created = await createGitHubRepository(token, {
-        name: spec.name,
-        owner: wizard.githubOwner,
-        visibility: wizard.githubVisibility,
-      });
-      repos.push(created);
-      console.log(chalk.green(`   ✓ ${created.owner}/${created.name}`));
-      console.log(chalk.dim(`     ${created.htmlUrl}`));
-
-      if (spec.dir) {
-        try {
-          pushRepositoryToGitHub(spec.dir, created.cloneUrl, token, wizard.productionBranch);
-          console.log(chalk.green(`   ✓ Push inicial a ${wizard.productionBranch}`));
-        } catch (error) {
-          console.error(
-            chalk.yellow(
-              `   ⚠️  Repo creado pero el push falló: ${
-                error instanceof Error ? error.message : String(error)
-              }`
-            )
-          );
-          console.error(
-            chalk.yellow(
-              `   ⚠️  El remoto ${created.owner}/${created.name} quedó vacío (sin código).`
-            )
-          );
-          console.log(chalk.dim('      Recuperá el push con:'));
-          console.log(chalk.dim(`        cd ${spec.dir}`));
-          console.log(chalk.dim(`        git push -u origin ${wizard.productionBranch}`));
-        }
-      }
-    }
-  } catch (error) {
-    const message =
-      error instanceof GitHubApiError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : String(error);
-    console.error(chalk.red(`\n❌ Error al crear el repo en GitHub: ${message}`));
-    console.log(chalk.dim('   El proyecto local ya está generado; podés crear el remoto a mano.'));
-    return { repos, secretsSet, secretsPrinted };
+  if (repos.length === 0) {
+    return { secretsSet: [], secretsPrinted: [] };
   }
 
-  console.log(chalk.blue('\n🔐 Secrets del workflow:'));
+  console.log(chalk.blue('\n🔐 Secrets de infraestructura:'));
   console.log(chalk.dim('   SSH_USER del pipeline es `deploy` (usuario post-hardening), no el de provisioning.'));
   for (const gap of SSH_AUTH_GAPS) {
     console.log(chalk.dim(`   • ${gap}`));
@@ -415,10 +451,11 @@ async function provisionGitHub(
     console.log(chalk.dim(`      Obtené el valor con: ssh-keyscan -t ed25519,rsa,ecdsa ${wizard.serverIp}`));
   }
 
-  const secretValues = await buildSecretValues(wizard, knownHosts);
+  const secretValues = await buildInfrastructureSecretValues(wizard, knownHosts);
+  const secretsSet: string[] = [];
 
   for (const repo of repos) {
-    const result = await setGitHubActionsSecrets(token, repo, secretValues);
+    const result = await setGitHubActionsSecrets(wizard.githubToken!, repo, secretValues);
     secretsSet.push(...result.set);
     for (const name of result.set) {
       console.log(chalk.green(`   ✓ ${name} seteado en ${repo.owner}/${repo.name}`));
@@ -428,6 +465,7 @@ async function provisionGitHub(
     }
   }
 
+  const secretsPrinted: string[] = [];
   for (const secret of secretValues) {
     if (secret.name === 'SSH_KNOWN_HOSTS' && knownHosts) {
       console.log(chalk.white(`   SSH_KNOWN_HOSTS`));
@@ -440,18 +478,20 @@ async function provisionGitHub(
     secretsPrinted.push('SSH_KNOWN_HOSTS');
   }
 
-  return { repos, knownHosts, secretsSet, secretsPrinted };
+  return { knownHosts, secretsSet, secretsPrinted };
 }
 
-async function buildSecretValues(
+/**
+ * FRA-86: construir secrets de infraestructura (SSH, DB).
+ * NO incluye DOCKER_REGISTRY_* (esos son del brazo GitHub).
+ */
+async function buildInfrastructureSecretValues(
   wizard: NewWizardParams,
   knownHosts?: string
 ): Promise<Array<{ name: string; value: string }>> {
   const secrets: Array<{ name: string; value: string }> = [
     { name: 'SSH_HOST', value: wizard.serverIp },
     { name: 'SSH_USER', value: 'deploy' },
-    { name: 'DOCKER_REGISTRY_USER', value: wizard.githubOwner || '' },
-    { name: 'DOCKER_REGISTRY_TOKEN', value: wizard.githubToken || '' },
     { name: 'DB_PASSWORD', value: wizard.dbPassword },
   ];
 
@@ -474,21 +514,6 @@ async function buildSecretValues(
     secrets.push({ name: 'SSH_KNOWN_HOSTS', value: knownHosts });
   }
 
-  // DOCKER_REGISTRY_USER: si no se pasó owner, GitHub lo infiere al setear
-  // vacío. Mejor dejar el login para setGitHubActionsSecrets callers.
-  if (!wizard.githubOwner && wizard.githubToken) {
-    try {
-      const { getAuthenticatedUser } = await import('../utils/github-repo.js');
-      const user = await getAuthenticatedUser(wizard.githubToken);
-      const registry = secrets.find((s) => s.name === 'DOCKER_REGISTRY_USER');
-      if (registry) {
-        registry.value = user.login;
-      }
-    } catch {
-      // se setea vacío y GitHub lo rechazará; el hand-off lo menciona
-    }
-  }
-
   return secrets.filter((secret) => secret.value);
 }
 
@@ -498,7 +523,8 @@ export function printHandoff(
   createdRepos: CreatedGitHubRepo[],
   secretsSet: string[],
   _secretsPrinted: string[],
-  knownHosts?: string
+  knownHosts?: string,
+  _pushWarning?: { repo: string; error: string }
 ): void {
   console.log(chalk.dim('\nPróximos pasos:'));
 

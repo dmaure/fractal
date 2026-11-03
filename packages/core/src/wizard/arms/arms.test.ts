@@ -150,7 +150,7 @@ describe('InfrastructureArm', () => {
 
 describe('GitHubArm', () => {
   it('cumple el contrato WizardArm', () => {
-    const arm = new GitHubArm();
+    const arm = new GitHubArm({ localRepositories: [] });
 
     expect(arm.id).toBe('github');
     expect(arm.name).toBe('GitHub');
@@ -161,18 +161,19 @@ describe('GitHubArm', () => {
   });
 
   it('está deshabilitado por defecto (placeholder)', () => {
-    const arm = new GitHubArm();
+    const arm = new GitHubArm({ localRepositories: [] });
 
     expect(arm.isEnabled({})).toBe(false);
   });
 
-  it('ejecuta sin error (placeholder)', async () => {
-    const arm = new GitHubArm();
+  it('falla si no se provee configuración de GitHub', async () => {
+    const arm = new GitHubArm({ localRepositories: [] });
     const context: WizardContext = {};
 
     const result = await arm.execute(context);
 
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('no se proveyó token');
   });
 });
 
@@ -223,7 +224,7 @@ describe('cinco brazos del wizard v2', () => {
     const code = new CodeArm([]);
     const domain = new DomainArm();
     const infrastructure = new InfrastructureArm();
-    const github = new GitHubArm();
+    const github = new GitHubArm({ localRepositories: [] });
     const database = new DatabaseArm();
 
     const ids = [code.id, domain.id, infrastructure.id, github.id, database.id];

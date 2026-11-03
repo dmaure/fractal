@@ -117,7 +117,8 @@ describe('loadNewWizardFromEnvAndFlags', () => {
       expect(message).toContain('FRACTAL_NEW_SERVER_IP');
       expect(message).toContain('FRACTAL_NEW_DOMAIN');
       expect(message).toContain('FRACTAL_NEW_EMAIL');
-      expect(message).toContain('FRACTAL_NEW_GITHUB_TOKEN');
+      // FRA-86: FRACTAL_NEW_GITHUB_TOKEN es opcional, no requerido
+      expect(message).not.toContain('FRACTAL_NEW_GITHUB_TOKEN');
       expect(message).toContain('FRACTAL_NEW_SSH_KEY_PATH');
     }
   });
