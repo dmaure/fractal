@@ -272,6 +272,28 @@ async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGener
   return { dbPassword, dbPasswordGenerated: false };
 }
 
+async function promptSecretsAndDeploy(
+  options: NewCommandOptions
+): Promise<{ dbPassword: string; dbPasswordGenerated: boolean; chainDeploy: boolean }> {
+  console.log('\nSecrets del workflow\n');
+  console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
+  const dbPasswordResult = await promptDbPassword();
+
+  const chainDeploy =
+    options.deploy === true
+      ? true
+      : await confirm({
+          message: '¿Ejecutar fractal deploy ahora con estos valores?',
+          default: false,
+        });
+
+  return {
+    dbPassword: dbPasswordResult.dbPassword,
+    dbPasswordGenerated: dbPasswordResult.dbPasswordGenerated,
+    chainDeploy,
+  };
+}
+
 /**
  * Wizard interactivo: orden code-first (FRA-84, ADR-0016).
  * Usa el orquestador con ChecklistArm y CodeArm para código,
@@ -460,36 +482,17 @@ export async function promptNewWizard(
   if (useOrchestrator) {
     const hasInfrastructure = orchestratorResult?.context.infrastructure;
     if (hasInfrastructure) {
-      // Secrets del workflow solo cuando hay deploy
-      console.log('\nSecrets del workflow\n');
-      console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
-      const dbPasswordResult = await promptDbPassword();
-      dbPassword = dbPasswordResult.dbPassword;
-      dbPasswordGenerated = dbPasswordResult.dbPasswordGenerated;
-
-      chainDeploy =
-        options.deploy === true
-          ? true
-          : await confirm({
-              message: '¿Ejecutar fractal deploy ahora con estos valores?',
-              default: false,
-            });
+      const secretsResult = await promptSecretsAndDeploy(options);
+      dbPassword = secretsResult.dbPassword;
+      dbPasswordGenerated = secretsResult.dbPasswordGenerated;
+      chainDeploy = secretsResult.chainDeploy;
     }
   } else {
-    // Flujo legacy: siempre pide contraseña
-    console.log('\nSecrets del workflow\n');
-    console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
-    const dbPasswordResult = await promptDbPassword();
-    dbPassword = dbPasswordResult.dbPassword;
-    dbPasswordGenerated = dbPasswordResult.dbPasswordGenerated;
-
-    chainDeploy =
-      options.deploy === true
-        ? true
-        : await confirm({
-            message: '¿Ejecutar fractal deploy ahora con estos valores?',
-            default: false,
-          });
+    // Flujo legacy: siempre pide contraseña porque siempre recolecta infraestructura
+    const secretsResult = await promptSecretsAndDeploy(options);
+    dbPassword = secretsResult.dbPassword;
+    dbPasswordGenerated = secretsResult.dbPasswordGenerated;
+    chainDeploy = secretsResult.chainDeploy;
   }
 
   return {
