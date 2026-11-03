@@ -83,8 +83,8 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
 1. **Valida el directorio destino** (`<cwd>/<nombre>`). Procede si el directorio
    no existe, está vacío, o contiene únicamente un `.git` sin historia. Si
    existe y tiene contenido, exige `--force`.
-2. **Wizard code-first** (FRA-83, FRA-84, wizard v2): orquesta el checklist y
-   el brazo Código:
+2. **Wizard code-first** (FRA-83, FRA-84, FRA-85, wizard v2): orquesta el
+   checklist y los brazos Código e Infraestructura:
    
    **a. Checklist inicial**: pregunta primero qué datos tiene el usuario:
    - ¿Tenés un servidor para desplegar? (sí / no / lo agrego después)
@@ -92,33 +92,39 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
    - ¿Tenés un token de GitHub? (sí / no)
    
    Las respuestas habilitan o deshabilitan las secciones posteriores:
-   - **Servidor "no" o "lo agrego después"** → saltea toda la sección de infraestructura
+   - **Servidor "no" o "lo agrego después"** → saltea toda la sección de infraestructura (FRA-85)
    - **GitHub token "no"** → no crea repositorio remoto
    
    **b. Brazo Código**: recolecta los datos del código en orden code-first
    (nombre, framework, topología, base de datos, frontend), **antes** que
    infraestructura (ADR-0016 §6).
    
+   **c. Brazo Infraestructura** (FRA-85): recolecta IP, SSH, dominio, email SSL,
+   DNS, contraseña de base de datos. Se ejecuta **al final** y solo si el
+   checklist lo habilitó (respuesta "sí" a servidor). Si se salta, el proyecto
+   se genera como **local-only** sin datos de deploy.
+   
    En modo no-interactivo, las respuestas se derivan de los datos en el contexto
    (si pasaste `--server-ip`, se asume que tenés servidor).
    
    Ver [Wizard](#wizard-code-first) para detalles.
-3. **Infraestructura** (si habilitada por el checklist): recolecta IP, SSH,
-   dominio, email SSL, DNS, contraseña de base de datos.
-4. **GitHub** (si habilitado por el checklist): token, owner, repo, visibilidad.
-5. **Resuelve el adapter** instalado por convención (`@fractal/adapter-*` con
+3. **GitHub** (si habilitado por el checklist): token, owner, repo, visibilidad.
+4. **Resuelve el adapter** instalado por convención (`@fractal/adapter-*` con
    metadata `fractal` válida en su `package.json`). En v0 debe haber
    exactamente uno.
-6. **Obtiene el contrato** del adapter (acción `get-contract` del bridge).
-7. **Verifica los requisitos de runtime** (PHP/Composer y sus versiones
+5. **Obtiene el contrato** del adapter (acción `get-contract` del bridge).
+6. **Verifica los requisitos de runtime** (PHP/Composer y sus versiones
    mínimas) leídos del contrato.
-8. **Genera la estructura** del proyecto (acción `create-project` del bridge).
-9. **Inicializa git** según la topología y, en multirepo, genera los
+7. **Genera la estructura** del proyecto (acción `create-project` del bridge).
+8. **Inicializa git** según la topología y, en multirepo, genera los
    manifiestos `fractal.project.yml` (excluidos de git).
-10. **Con token de GitHub:** crea el repo remoto, pushea el commit inicial y
+9. **Con token de GitHub:** crea el repo remoto, pushea el commit inicial y
     setea (o imprime) los secrets del workflow, incluyendo `SSH_KNOWN_HOSTS`.
-11. **Hand-off** a `fractal deploy` (comando siguiente + `export FRACTAL_DEPLOY_*`
-    sin secrets), o encadena el deploy si pasaste `--deploy`.
+10. **Hand-off** según el camino (FRA-85):
+    - **Local-only** (sin datos de servidor): muestra `cd <proyecto>` y comandos
+      para correr en local, sin mencionar `fractal deploy`
+    - **Con infraestructura**: muestra `cd <proyecto>` + `fractal deploy` (o
+      encadena el deploy si pasaste `--deploy`)
 
 ---
 
@@ -151,10 +157,17 @@ M4, otras bases de datos y frontends).
 Todos los defaults son navegables con Enter (Art. IV): responder Enter a cada
 prompt produce un proyecto funcional (monolito Laravel + PostgreSQL + React).
 
-### Sección 2: Infraestructura (opcional)
+### Sección 2: Infraestructura (opcional, FRA-85)
 
-Si el checklist habilitó infraestructura (respondiste "sí" a servidor), el
-wizard pregunta los valores que **no** admiten un default seguro (user-specific,
+**Camino local-only:** Si respondiste "no" o "lo agrego después" al checklist
+de servidor, el brazo de infraestructura se **saltea completamente**. El proyecto
+se genera sin datos de deploy, listo para correr en local. El hand-off final
+solo muestra cómo arrancar el servidor de desarrollo, sin mencionar `fractal
+deploy`. Más adelante, cuando tengas un servidor, podés desplegar con
+`fractal deploy`.
+
+**Camino con infraestructura:** Si respondiste "sí" a servidor, el wizard
+pregunta los valores que **no** admiten un default seguro (user-specific,
 FRA-77):
 
 - **VPS:** IP, usuario SSH, método de autenticación (clave o contraseña), ruta
@@ -162,6 +175,8 @@ FRA-77):
 - **Dominio y SSL:** dominio, email para notificaciones de Let's Encrypt.
 - **DNS:** proveedor (Cloudflare automatizado, o manual) y token de API si
   elegiste Cloudflare.
+- **Contraseña de base de datos** (AC-8): se pregunta o se genera solo cuando
+  hay datos de infraestructura. No se pide en el camino local-only.
 
 Los prompts y validaciones de IP, SSH, dominio, email y DNS son los mismos
 que `fractal deploy` (`packages/core/src/utils/deploy-prompts.ts`). Route53
