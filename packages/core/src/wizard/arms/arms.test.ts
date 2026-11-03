@@ -127,9 +127,20 @@ describe('InfrastructureArm', () => {
     expect(arm.isEnabled({})).toBe(false);
   });
 
-  it('ejecuta sin error (placeholder)', async () => {
+  it('ejecuta sin error en modo non-interactive con datos de infra', async () => {
     const arm = new InfrastructureArm();
-    const context: WizardContext = {};
+    const context: WizardContext = {
+      mode: 'non-interactive',
+      infrastructure: {
+        serverIp: '1.2.3.4',
+        sshUser: 'root',
+        authMethod: 'key',
+        sshKeyPath: '/path/to/key',
+        domain: 'example.com',
+        email: 'admin@example.com',
+        dnsProvider: 'manual',
+      },
+    };
 
     const result = await arm.execute(context);
 
