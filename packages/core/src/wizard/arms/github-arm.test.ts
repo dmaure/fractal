@@ -336,16 +336,18 @@ describe('GitHubArm', () => {
       expect(result.error).toContain('ya existe o el nombre es inválido');
     });
 
-    it('continúa si el push falla pero el repo fue creado', async () => {
+    it('continúa si el push falla pero el repo fue creado, y setea secrets', async () => {
       const {
         createGitHubRepository,
         pushRepositoryToGitHub,
         setGitHubActionsSecrets,
+        getAuthenticatedUser,
       } = await import('../../utils/github-repo.js');
 
       const mockCreate = vi.mocked(createGitHubRepository);
       const mockPush = vi.mocked(pushRepositoryToGitHub);
       const mockSetSecrets = vi.mocked(setGitHubActionsSecrets);
+      const mockGetUser = vi.mocked(getAuthenticatedUser);
 
       mockCreate.mockResolvedValueOnce({
         owner: 'testuser',
@@ -354,8 +356,15 @@ describe('GitHubArm', () => {
         cloneUrl: 'https://github.com/testuser/test-project.git',
       });
 
+      mockGetUser.mockResolvedValueOnce({ login: 'testuser' });
+
       mockPush.mockImplementationOnce(() => {
         throw new Error('Connection timeout');
+      });
+
+      mockSetSecrets.mockResolvedValueOnce({
+        set: ['DOCKER_REGISTRY_USER', 'DOCKER_REGISTRY_TOKEN'],
+        failed: [],
       });
 
       const context: WizardContext = {
@@ -374,13 +383,118 @@ describe('GitHubArm', () => {
       // El resultado debe ser exitoso aunque el push haya fallado
       expect(result.success).toBe(true);
       expect(result.context.githubOutcome?.repos).toHaveLength(1);
-      expect(result.context.githubOutcome?.pushWarning).toEqual({
+      expect(result.context.githubOutcome?.pushWarnings).toEqual([{
         repo: 'test-project',
         error: 'Connection timeout',
+      }]);
+
+      // FRA-86 ronda 2: debe setear secrets aunque el push haya fallado
+      expect(mockSetSecrets).toHaveBeenCalledWith(
+        'ghp_test',
+        expect.objectContaining({ owner: 'testuser', name: 'test-project' }),
+        expect.arrayContaining([
+          { name: 'DOCKER_REGISTRY_USER', value: 'testuser' },
+          { name: 'DOCKER_REGISTRY_TOKEN', value: 'ghp_test' },
+        ])
+      );
+
+      expect(result.context.githubOutcome?.secretsSet).toEqual([
+        'DOCKER_REGISTRY_USER',
+        'DOCKER_REGISTRY_TOKEN',
+      ]);
+    });
+
+    it('crea ambos repos en multirepo aunque el push del primero falle', async () => {
+      const arm = new GitHubArm({
+        localRepositories: ['/tmp/test-project-api', '/tmp/test-project-web'],
       });
 
-      // No debe intentar setear secrets si el push falló
-      expect(mockSetSecrets).not.toHaveBeenCalled();
+      const {
+        createGitHubRepository,
+        pushRepositoryToGitHub,
+        setGitHubActionsSecrets,
+        getAuthenticatedUser,
+      } = await import('../../utils/github-repo.js');
+
+      const mockCreate = vi.mocked(createGitHubRepository);
+      const mockPush = vi.mocked(pushRepositoryToGitHub);
+      const mockSetSecrets = vi.mocked(setGitHubActionsSecrets);
+      const mockGetUser = vi.mocked(getAuthenticatedUser);
+
+      mockCreate
+        .mockResolvedValueOnce({
+          owner: 'testuser',
+          name: 'test-project-api',
+          htmlUrl: 'https://github.com/testuser/test-project-api',
+          cloneUrl: 'https://github.com/testuser/test-project-api.git',
+        })
+        .mockResolvedValueOnce({
+          owner: 'testuser',
+          name: 'test-project-web',
+          htmlUrl: 'https://github.com/testuser/test-project-web',
+          cloneUrl: 'https://github.com/testuser/test-project-web.git',
+        });
+
+      mockGetUser.mockResolvedValue({ login: 'testuser' });
+
+      // Primer push falla, segundo push exitoso
+      mockPush
+        .mockImplementationOnce(() => {
+          throw new Error('Push failed for -api');
+        })
+        .mockImplementationOnce(() => {
+          // -web push exitoso
+        });
+
+      mockSetSecrets.mockResolvedValue({
+        set: ['DOCKER_REGISTRY_USER', 'DOCKER_REGISTRY_TOKEN'],
+        failed: [],
+      });
+
+      const context: WizardContext = {
+        topology: 'multirepo',
+        github: {
+          token: 'ghp_test',
+          owner: 'testuser',
+          repo: 'test-project',
+          visibility: 'private',
+          productionBranch: 'main',
+        },
+      };
+
+      const result = await arm.execute(context);
+
+      // FRA-86 ronda 2: debe crear ambos repos aunque el primero falle en el push
+      expect(result.success).toBe(true);
+      expect(result.context.githubOutcome?.repos).toHaveLength(2);
+      expect(result.context.githubOutcome?.repos[0].name).toBe('test-project-api');
+      expect(result.context.githubOutcome?.repos[1].name).toBe('test-project-web');
+
+      // Debe registrar el warning del primer repo
+      expect(result.context.githubOutcome?.pushWarnings).toEqual([{
+        repo: 'test-project-api',
+        error: 'Push failed for -api',
+      }]);
+
+      // FRA-86 ronda 2: debe setear secrets en AMBOS repos aunque un push haya fallado
+      expect(mockSetSecrets).toHaveBeenCalledTimes(2);
+      expect(mockSetSecrets).toHaveBeenNthCalledWith(1, 'ghp_test',
+        expect.objectContaining({ name: 'test-project-api' }),
+        expect.arrayContaining([
+          { name: 'DOCKER_REGISTRY_USER', value: 'testuser' },
+          { name: 'DOCKER_REGISTRY_TOKEN', value: 'ghp_test' },
+        ])
+      );
+      expect(mockSetSecrets).toHaveBeenNthCalledWith(2, 'ghp_test',
+        expect.objectContaining({ name: 'test-project-web' }),
+        expect.arrayContaining([
+          { name: 'DOCKER_REGISTRY_USER', value: 'testuser' },
+          { name: 'DOCKER_REGISTRY_TOKEN', value: 'ghp_test' },
+        ])
+      );
+
+      // Secrets seteados 2 veces (una por repo), cada vez 2 secrets
+      expect(result.context.githubOutcome?.secretsSet).toHaveLength(4);
     });
   });
 
