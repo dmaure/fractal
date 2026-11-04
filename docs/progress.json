@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-11-02",
+  "actualizado": "2026-11-04",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -153,7 +153,7 @@
       "tareas": [
         { "id": "T1", "ticket": "FRA-82", "label": "Contrato de brazo + orquestador modular en core", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-83", "label": "Checklist inicial del wizard", "estado": "completado" },
-        { "id": "T3", "ticket": "FRA-84", "label": "Brazo Código: reorden code-first + selectores", "estado": "en_curso" },
+        { "id": "T3", "ticket": "FRA-84", "label": "Brazo Código: reorden code-first + selectores", "estado": "completado" },
         { "id": "T4", "ticket": "FRA-85", "label": "Brazo Infraestructura opcional + local-only + hand-off", "estado": "completado" },
         { "id": "T5", "ticket": "FRA-86", "label": "Brazo GitHub opcional e independiente", "estado": "completado" },
         { "id": "T6", "ticket": "FRA-87", "label": "Brazo Base de datos (condicional)", "estado": "pendiente" },
