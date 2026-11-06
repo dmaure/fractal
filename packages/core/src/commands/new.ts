@@ -494,8 +494,12 @@ async function buildInfrastructureSecretValues(
   const secrets: Array<{ name: string; value: string }> = [
     { name: 'SSH_HOST', value: wizard.serverIp },
     { name: 'SSH_USER', value: 'deploy' },
-    { name: 'DB_PASSWORD', value: wizard.dbPassword },
   ];
+
+  // FRA-87: DB_PASSWORD solo si el brazo DB corrió (hay deploy); sin secret huérfano
+  if (wizard.dbPassword) {
+    secrets.push({ name: 'DB_PASSWORD', value: wizard.dbPassword });
+  }
 
   if (wizard.sshKeyPath && wizard.authMethod === 'key') {
     const key = await readPrivateKeyForSecret(wizard.sshKeyPath);
