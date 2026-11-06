@@ -209,13 +209,13 @@ describe('DatabaseArm', () => {
     expect(arm.isEnabled(withInfra)).toBe(true);
   });
 
-  it('ejecuta sin error (placeholder)', async () => {
+  it('en no interactivo genera la contraseña si no se provee (FRA-87)', async () => {
     const arm = new DatabaseArm();
-    const context: WizardContext = {};
 
-    const result = await arm.execute(context);
+    const result = await arm.execute({ mode: 'non-interactive' });
 
     expect(result.success).toBe(true);
+    expect(result.context.databasePassword?.passwordGenerated).toBe(true);
   });
 });
 

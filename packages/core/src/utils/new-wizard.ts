@@ -1,9 +1,9 @@
 import { confirm, input, password, select } from '@inquirer/prompts';
-import { randomBytes } from 'node:crypto';
 import type { DnsProvider, SshAuthMethod } from '../types/deploy-command.js';
 import type { NewCommandOptions, NewWizardParams } from '../types/new-command.js';
 import { DEFAULT_TOPOLOGY, isValidTopology, type ProjectTopology } from '../types/topology.js';
 import { promptDeployParams } from './deploy-prompts.js';
+import { generateDbPassword, promptDbPassword, resolveDbPasswordFromFlagsOrEnv } from './db-password.js';
 import {
   flagOrEnv,
   isTruthyEnv,
@@ -81,9 +81,7 @@ export function resolveWizardMode(options: NewCommandOptions, isTty = process.st
   return 'skip';
 }
 
-export function generateDbPassword(): string {
-  return randomBytes(24).toString('hex');
-}
+export { generateDbPassword };
 
 export function resolveProjectName(
   positionalName: string | undefined,
@@ -236,62 +234,14 @@ export async function promptFrontend(): Promise<string> {
   });
 }
 
-async function promptDbPassword(): Promise<{ dbPassword: string; dbPasswordGenerated: boolean }> {
-  const mode = await select<'generate' | 'ask'>({
-    message: 'Contraseña de la base de datos de producción:',
-    choices: [
-      {
-        value: 'generate',
-        name: 'Generar una contraseña segura ahora',
-        description: '48 caracteres hex (equivalente a openssl rand -hex 24)',
-      },
-      {
-        value: 'ask',
-        name: 'Ingresar una contraseña',
-        description: 'No se escribe en el .env local (FRA-76)',
-      },
-    ],
-    default: 'generate',
-  });
-
-  if (mode === 'generate') {
-    const dbPassword = generateDbPassword();
-    console.log('   Contraseña generada (guardala: no se vuelve a mostrar ni se commitea).');
-    return { dbPassword, dbPasswordGenerated: true };
+async function promptChainDeploy(options: NewCommandOptions): Promise<boolean> {
+  if (options.deploy === true) {
+    return true;
   }
-
-  const dbPassword = await password({
-    message: 'Contraseña de la base de datos:',
-    mask: '*',
-    validate: (value) => {
-      if (!value) return 'La contraseña es requerida';
-      if (/[\r\n]/.test(value)) return 'La contraseña no puede contener saltos de línea';
-      return true;
-    },
+  return confirm({
+    message: '¿Ejecutar fractal deploy ahora con estos valores?',
+    default: false,
   });
-  return { dbPassword, dbPasswordGenerated: false };
-}
-
-async function promptSecretsAndDeploy(
-  options: NewCommandOptions
-): Promise<{ dbPassword: string; dbPasswordGenerated: boolean; chainDeploy: boolean }> {
-  console.log('\nSecrets del workflow\n');
-  console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
-  const dbPasswordResult = await promptDbPassword();
-
-  const chainDeploy =
-    options.deploy === true
-      ? true
-      : await confirm({
-          message: '¿Ejecutar fractal deploy ahora con estos valores?',
-          default: false,
-        });
-
-  return {
-    dbPassword: dbPasswordResult.dbPassword,
-    dbPasswordGenerated: dbPasswordResult.dbPasswordGenerated,
-    chainDeploy,
-  };
 }
 
 /**
@@ -322,20 +272,22 @@ export async function promptNewWizard(
   let orchestratorResult: any = null; // FRA-85: necesitamos acceder al context más tarde
 
   if (useOrchestrator) {
-    // Flujo real: orquestador con ChecklistArm, CodeArm e InfrastructureArm
-    // (FRA-82, FRA-83, FRA-84, FRA-85)
+    // Flujo real: orquestador con ChecklistArm, CodeArm, InfrastructureArm y
+    // DatabaseArm (FRA-82, FRA-83, FRA-84, FRA-85, FRA-87)
     // La topología se pregunta DENTRO del CodeArm (AC-2: código primero)
     const { ChecklistArm } = await import('../wizard/arms/checklist-arm.js');
     const { CodeArm } = await import('../wizard/arms/code-arm.js');
     const { InfrastructureArm } = await import('../wizard/arms/infrastructure-arm.js');
+    const { DatabaseArm } = await import('../wizard/arms/database-arm.js');
     const { orchestrateWizard } = await import('../wizard/orchestrator.js');
 
     const checklist = new ChecklistArm();
     const codeArm = new CodeArm(frameworkOptions, defaultFramework);
     const infraArm = new InfrastructureArm();
+    const databaseArm = new DatabaseArm(options);
 
     orchestratorResult = await orchestrateWizard({
-      arms: [checklist, codeArm, infraArm],
+      arms: [checklist, codeArm, infraArm, databaseArm],
       initialContext: {
         mode: 'interactive',
         projectName: resolvedName,
@@ -474,25 +426,27 @@ export async function promptNewWizard(
   const githubVisibility: 'private' | 'public' =
     githubVisibilityRaw === 'public' ? 'public' : 'private';
 
-  // FRA-85 AC-8: contraseña de DB solo cuando hay datos de infraestructura
+  // FRA-87: la contraseña de DB la recolecta el DatabaseArm, que solo corre
+  // con deploy (FRA-85 AC-8). Sin deploy no hay DB_PASSWORD ni secret huérfano.
   let dbPassword = '';
   let dbPasswordGenerated = false;
   let chainDeploy = false;
 
   if (useOrchestrator) {
-    const hasInfrastructure = orchestratorResult?.context.infrastructure;
-    if (hasInfrastructure) {
-      const secretsResult = await promptSecretsAndDeploy(options);
-      dbPassword = secretsResult.dbPassword;
-      dbPasswordGenerated = secretsResult.dbPasswordGenerated;
-      chainDeploy = secretsResult.chainDeploy;
+    const { context } = orchestratorResult;
+    if (context.databasePassword) {
+      dbPassword = context.databasePassword.password;
+      dbPasswordGenerated = context.databasePassword.passwordGenerated;
+    }
+    if (context.infrastructure) {
+      chainDeploy = await promptChainDeploy(options);
     }
   } else {
     // Flujo legacy: siempre pide contraseña porque siempre recolecta infraestructura
-    const secretsResult = await promptSecretsAndDeploy(options);
-    dbPassword = secretsResult.dbPassword;
-    dbPasswordGenerated = secretsResult.dbPasswordGenerated;
-    chainDeploy = secretsResult.chainDeploy;
+    console.log('\nSecrets del workflow\n');
+    console.log('   No se escribe un .env local: un .env subido pisaría /home/deploy/.env (FRA-76).');
+    ({ dbPassword, dbPasswordGenerated } = await promptDbPassword());
+    chainDeploy = await promptChainDeploy(options);
   }
 
   return {
@@ -661,27 +615,14 @@ export function loadNewWizardFromEnvAndFlags(
   const githubVisibility: 'private' | 'public' =
     githubVisibilityRaw === 'public' ? 'public' : 'private';
 
-  const providedDbPassword = flagOrEnv(
-    options.dbPassword,
-    'FRACTAL_NEW_DB_PASSWORD',
-    'FRACTAL_DEPLOY_DB_PASSWORD'
-  );
-  const generate =
-    options.generateDbPassword === true ||
-    (options.generateDbPassword !== false && !providedDbPassword);
-  let dbPassword = providedDbPassword;
-  let dbPasswordGenerated = false;
-  if (!dbPassword && generate) {
-    dbPassword = generateDbPassword();
-    dbPasswordGenerated = true;
+  // Brazo DB (FRA-87): el no interactivo siempre tiene deploy, así que la
+  // contraseña se resuelve de flags/env o se genera.
+  const dbPasswordResolution = resolveDbPasswordFromFlagsOrEnv(options);
+  if (dbPasswordResolution.error) {
+    errors.push(dbPasswordResolution.error);
   }
-  if (!dbPassword) {
-    errors.push(
-      'FRACTAL_NEW_DB_PASSWORD (o --db-password) es requerida si desactivás --generate-db-password'
-    );
-  } else if (/[\r\n]/.test(dbPassword)) {
-    errors.push('la contraseña de la base no puede contener saltos de línea');
-  }
+  const dbPassword = dbPasswordResolution.result?.dbPassword;
+  const dbPasswordGenerated = dbPasswordResolution.result?.dbPasswordGenerated ?? false;
 
   const chainDeploy =
     options.deploy === true || isTruthyEnv(readTrimmedEnv('FRACTAL_NEW_DEPLOY'));

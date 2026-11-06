@@ -493,10 +493,7 @@ describe('promptNewWizard (rama orquestador real, FRA-84)', () => {
       if (msg.includes('topología')) return Promise.resolve('monolith');
       if (msg.includes('Base de datos')) return Promise.resolve('postgresql');
       if (msg.includes('Framework del frontend')) return Promise.resolve('react-vite');
-      // Secrets del workflow (se corre siempre).
-      if (msg.includes('Contraseña de la base de datos de producción')) {
-        return Promise.resolve('generate');
-      }
+      // Sin servidor el DatabaseArm no corre (FRA-87): no hay prompt de contraseña.
       throw new Error(`select() inesperado: ${msg}`);
     }) as unknown as typeof select);
 
@@ -520,5 +517,11 @@ describe('promptNewWizard (rama orquestador real, FRA-84)', () => {
     );
 
     expect(params.projectName).toBe('mi-proyecto-real');
+    // FRA-87: local-only ⇒ ni se pide ni se genera DB_PASSWORD, ni se ofrece deploy
+    expect(params.dbPassword).toBe('');
+    expect(params.dbPasswordGenerated).toBe(false);
+    expect(params.chainDeploy).toBe(false);
+    expect(password).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
   });
 });

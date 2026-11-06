@@ -99,10 +99,15 @@ Al correr `fractal new mi-proyecto`, el comando ejecuta en orden:
    (nombre, framework, topología, base de datos, frontend), **antes** que
    infraestructura (ADR-0016 §6).
    
-   **c. Brazo Infraestructura** (FRA-85): recolecta IP, SSH, dominio, email SSL,
-   DNS, contraseña de base de datos. Se ejecuta **al final** y solo si el
-   checklist lo habilitó (respuesta "sí" a servidor). Si se salta, el proyecto
-   se genera como **local-only** sin datos de deploy.
+   **c. Brazo Infraestructura** (FRA-85): recolecta IP, SSH, dominio, email SSL
+   y DNS. Se ejecuta **al final** y solo si el checklist lo habilitó (respuesta
+   "sí" a servidor). Si se salta, el proyecto se genera como **local-only** sin
+   datos de deploy.
+
+   **d. Brazo Base de datos** (FRA-87): pide la contraseña de producción con
+   política generate-or-ask. Es **condicional**: solo corre si el brazo
+   Infraestructura dejó datos de deploy. En local-only no se pide ni se genera
+   contraseña, y no queda ningún secret de DB sin uso.
    
    En modo no-interactivo, las respuestas se derivan de los datos en el contexto
    (si pasaste `--server-ip`, se asume que tenés servidor).
@@ -175,8 +180,9 @@ FRA-77):
 - **Dominio y SSL:** dominio, email para notificaciones de Let's Encrypt.
 - **DNS:** proveedor (Cloudflare automatizado, o manual) y token de API si
   elegiste Cloudflare.
-- **Contraseña de base de datos** (AC-8): se pregunta o se genera solo cuando
-  hay datos de infraestructura. No se pide en el camino local-only.
+- **Contraseña de base de datos** (brazo Base de datos, FRA-87): se pregunta o
+  se genera solo cuando hay datos de infraestructura. No se pide en el camino
+  local-only. Ver [Contraseña de la base](#contraseña-de-la-base-fra-76-fra-87).
 
 Los prompts y validaciones de IP, SSH, dominio, email y DNS son los mismos
 que `fractal deploy` (`packages/core/src/utils/deploy-prompts.ts`). Route53
@@ -232,9 +238,19 @@ El wizard **no** soporta:
 - **ssh-agent.** No se consulta el agent. La clave privada tiene que ser un
   archivo en disco (`--ssh-key-path` / `FRACTAL_NEW_SSH_KEY_PATH`).
 
-### Contraseña de la base (FRA-76)
+### Contraseña de la base (FRA-76, FRA-87)
 
-Se pregunta o se genera (`openssl rand -hex 24` equivalente). **No** se
+La recolecta el **brazo Base de datos**, que solo corre cuando hay deploy
+(datos de infraestructura). Sin deploy no hay prompt, no se genera nada y
+`DB_PASSWORD` no se setea como secret: nada de secrets sin uso.
+
+Con deploy, la política es **generate-or-ask**: generar una contraseña segura
+ahora (48 caracteres hex, equivalente a `openssl rand -hex 24`) o ingresarla.
+En modo no interactivo, la precedencia es `--db-password` >
+`FRACTAL_NEW_DB_PASSWORD` > `FRACTAL_DEPLOY_DB_PASSWORD`; un valor provisto
+siempre gana, y sin valor se genera (`--generate-db-password` es el default).
+
+**No** se
 escribe un `.env` local del proyecto: un upload de `.env` pisaría
 `/home/deploy/.env` en el VPS. Si encadenás `fractal deploy`, esa contraseña
 se escribe en el servidor (base64 por SSH, no en claro en el argv). Si no,
