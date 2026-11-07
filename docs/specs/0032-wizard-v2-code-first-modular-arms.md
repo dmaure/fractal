@@ -1,8 +1,9 @@
 # SPEC-0032: Wizard v2 — code-first y brazos modulares
 
-**Estado:** En revisión
+**Estado:** Aprobado
 **Autor:** Claude
 **Fecha:** 2026-11-02
+**Fecha de aprobación:** 2026-11-07 (aprobado por Diego, PO)
 **ADR relacionado:** ADR-0016
 **Issue:** —
 
@@ -229,7 +230,7 @@ Restricciones conocidas, no diseño. El diseño va en el plan de implementación
 
 ## 9. Definition of Done
 
-- [ ] Spec aprobada por Diego (pasa de "En revisión" a "Aprobado")
+- [x] Spec aprobada por Diego (pasa de "En revisión" a "Aprobado")
 - [ ] Todos los criterios de aceptación (AC-1..AC-11) son verificables con test
   automatizado
 - [ ] Tickets de implementación creados (FRA-82..FRA-88)
