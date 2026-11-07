@@ -339,12 +339,28 @@ describe('newCommand', () => {
   });
 
   describe('wizard no interactivo (FRA-77)', () => {
-    it('falla con lista de variables si --non-interactive no tiene el set completo', async () => {
+    it('con señal de deploy (--deploy) pero set incompleto falla listando variables (FRA-77/FRA-88)', async () => {
+      // FRA-88: sin ninguna señal de infra el no-interactivo es local-only y no
+      // falla. Una señal de deploy (--deploy) activa el camino deploy, que exige
+      // el set completo y lista lo que falta.
+      for (const key of [
+        'FRACTAL_NEW_SERVER_IP',
+        'FRACTAL_DEPLOY_SERVER_IP',
+        'FRACTAL_NEW_DOMAIN',
+        'FRACTAL_DEPLOY_DOMAIN',
+        'FRACTAL_NEW_EMAIL',
+        'FRACTAL_DEPLOY_EMAIL',
+        'FRACTAL_NEW_SSH_KEY_PATH',
+        'FRACTAL_DEPLOY_SSH_KEY_PATH',
+      ]) {
+        delete process.env[key];
+      }
+
       const originalCwd = process.cwd();
       process.chdir(TEST_DIR);
 
       await expect(async () => {
-        await newCommand('missing-env', { topology: 'monolith', nonInteractive: true });
+        await newCommand('missing-env', { topology: 'monolith', nonInteractive: true, deploy: true });
       }).rejects.toThrow('process.exit called');
 
       process.chdir(originalCwd);
@@ -352,6 +368,53 @@ describe('newCommand', () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('FRACTAL_NEW_SERVER_IP')
       );
+    });
+
+    it('local-only: sin infra ni token genera el proyecto, no encadena deploy ni setea secrets (FRA-88)', async () => {
+      // Asegurar que no haya señales de infra ni token en el entorno del test.
+      for (const key of [
+        'FRACTAL_NEW_SERVER_IP',
+        'FRACTAL_DEPLOY_SERVER_IP',
+        'FRACTAL_NEW_DOMAIN',
+        'FRACTAL_DEPLOY_DOMAIN',
+        'FRACTAL_NEW_EMAIL',
+        'FRACTAL_DEPLOY_EMAIL',
+        'FRACTAL_NEW_SSH_KEY_PATH',
+        'FRACTAL_DEPLOY_SSH_KEY_PATH',
+        'FRACTAL_NEW_GITHUB_TOKEN',
+        'FRACTAL_NEW_DEPLOY',
+      ]) {
+        delete process.env[key];
+      }
+
+      const secretsSpy = vi.spyOn(githubRepo, 'setGitHubActionsSecrets');
+      const createRepoSpy = vi.spyOn(githubRepo, 'createGitHubRepository');
+
+      const originalCwd = process.cwd();
+      process.chdir(TEST_DIR);
+
+      await newCommand('local-app', { topology: 'monolith', nonInteractive: true });
+
+      process.chdir(originalCwd);
+
+      // Proyecto generado.
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('Proyecto creado exitosamente')
+      );
+      // Camino local-only (sin servidor).
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('local-only (sin servidor)')
+      );
+      // No se encadena deploy ni se muestra el hand-off de infra.
+      expect(console.log).not.toHaveBeenCalledWith(
+        expect.stringContaining('Encadenando a fractal deploy')
+      );
+      expect(console.log).not.toHaveBeenCalledWith(
+        expect.stringContaining('El .env local NO se sube')
+      );
+      // Sin token no se crea repo remoto ni se setea ningún secret (incl. DB).
+      expect(createRepoSpy).not.toHaveBeenCalled();
+      expect(secretsSpy).not.toHaveBeenCalled();
     });
 
     it('con el set completo crea el repo y setea SSH_KNOWN_HOSTS', async () => {

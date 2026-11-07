@@ -8,6 +8,9 @@ import {
   promptNewWizard,
   resolveWizardMode,
   resolveWizardRemoteUrl,
+  resolveFrameworkValue,
+  resolveDatabaseValue,
+  resolveFrontendValue,
   SSH_AUTH_GAPS,
   formatDeployEnvExports,
 } from './new-wizard.js';
@@ -23,6 +26,9 @@ vi.mock('@inquirer/prompts', () => ({
 const ENV_KEYS = [
   'FRACTAL_NEW_PROJECT_NAME',
   'FRACTAL_NEW_TOPOLOGY',
+  'FRACTAL_NEW_FRAMEWORK',
+  'FRACTAL_NEW_DATABASE',
+  'FRACTAL_NEW_FRONTEND',
   'FRACTAL_NEW_SERVER_IP',
   'FRACTAL_NEW_SSH_USER',
   'FRACTAL_NEW_AUTH_METHOD',
@@ -49,6 +55,7 @@ const ENV_KEYS = [
   'FRACTAL_DEPLOY_DNS_API_TOKEN',
   'FRACTAL_DEPLOY_DB_PASSWORD',
   'FRACTAL_DEPLOY_PRODUCTION_BRANCH',
+  'GITHUB_TOKEN',
 ];
 
 function clearEnv() {
@@ -107,10 +114,12 @@ describe('loadNewWizardFromEnvAndFlags', () => {
     return loadNewWizardFromEnvAndFlags(name, { topology: 'monolith', ...options });
   }
 
-  it('falla listando las variables requeridas que faltan', () => {
-    expect(() => load()).toThrow(NonInteractiveConfigError);
+  it('con señal de deploy pero set incompleto, lista las variables requeridas que faltan', () => {
+    // FRA-88: una señal de deploy (--deploy) activa el camino deploy; sin el set
+    // completo, falla listando los requeridos. (Sin ninguna señal sería local-only.)
+    expect(() => load({ deploy: true })).toThrow(NonInteractiveConfigError);
     try {
-      load();
+      load({ deploy: true });
     } catch (error) {
       expect(error).toBeInstanceOf(NonInteractiveConfigError);
       const message = (error as Error).message;
@@ -120,6 +129,21 @@ describe('loadNewWizardFromEnvAndFlags', () => {
       // FRA-86: FRACTAL_NEW_GITHUB_TOKEN es opcional, no requerido
       expect(message).not.toContain('FRACTAL_NEW_GITHUB_TOKEN');
       expect(message).toContain('FRACTAL_NEW_SSH_KEY_PATH');
+    }
+  });
+
+  it('una señal parcial de infra (solo --server-ip) activa deploy y exige el resto', () => {
+    // FRA-88: cualquier señal de infra dispara el set requerido completo.
+    expect(() => load({ serverIp: '192.0.2.10' })).toThrow(NonInteractiveConfigError);
+    try {
+      load({ serverIp: '192.0.2.10' });
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toContain('FRACTAL_NEW_DOMAIN');
+      expect(message).toContain('FRACTAL_NEW_EMAIL');
+      expect(message).toContain('FRACTAL_NEW_SSH_KEY_PATH');
+      // El server-ip provisto es válido: no debe aparecer como faltante.
+      expect(message).not.toContain('FRACTAL_NEW_SERVER_IP');
     }
   });
 
@@ -201,6 +225,9 @@ describe('loadNewWizardFromEnvAndFlags', () => {
     expect(fields).toEqual(expect.arrayContaining([
       'projectName',
       'topology',
+      'framework',
+      'database',
+      'frontend',
       'serverIp',
       'sshUser',
       'sshKeyPath',
@@ -215,6 +242,123 @@ describe('loadNewWizardFromEnvAndFlags', () => {
       expect(row.flag.length).toBeGreaterThan(1);
       expect(row.newEnv.startsWith('FRACTAL_NEW_')).toBe(true);
     }
+  });
+
+  it('NEW_ENV_MAPPING: framework/database/frontend son FRACTAL_NEW_* sin fallback DEPLOY', () => {
+    for (const field of ['framework', 'database', 'frontend']) {
+      const row = NEW_ENV_MAPPING.find((r) => r.field === field);
+      expect(row).toBeDefined();
+      expect(row!.newEnv).toBe(`FRACTAL_NEW_${field.toUpperCase()}`);
+      expect(row!.deployEnv).toBeUndefined();
+    }
+  });
+
+  // FRA-88 AC-9: paridad de los campos de código (framework/database/frontend).
+  const FRAMEWORK_OPTS = [
+    { value: 'default', name: 'Default', description: 'Framework de prueba' },
+  ];
+
+  it('resuelve framework/database/frontend del flag', () => {
+    const params = load({ framework: 'default', database: 'postgresql', frontend: 'react-vite' });
+    expect(params.framework).toBe('default');
+    expect(params.database).toBe('postgresql');
+    expect(params.frontend).toBe('react-vite');
+  });
+
+  it('resuelve framework/database/frontend de FRACTAL_NEW_*', () => {
+    process.env.FRACTAL_NEW_FRAMEWORK = 'default';
+    process.env.FRACTAL_NEW_DATABASE = 'postgresql';
+    process.env.FRACTAL_NEW_FRONTEND = 'react-vite';
+    const params = loadNewWizardFromEnvAndFlags('demo', { topology: 'monolith' }, FRAMEWORK_OPTS, 'default');
+    expect(params.framework).toBe('default');
+    expect(params.database).toBe('postgresql');
+    expect(params.frontend).toBe('react-vite');
+  });
+
+  it('el flag gana sobre FRACTAL_NEW_* en los campos de código', () => {
+    process.env.FRACTAL_NEW_DATABASE = 'postgresql';
+    // flag inválido debe ganar y por lo tanto fallar la validación
+    expect(() => load({ database: 'mysql' })).toThrow(/base de datos inválida/);
+  });
+
+  it('database default es postgresql cuando no se provee', () => {
+    const params = load();
+    expect(params.database).toBe('postgresql');
+    expect(params.frontend).toBe('react-vite');
+  });
+
+  it('database inválida → NonInteractiveConfigError listando opciones válidas', () => {
+    expect(() => load({ database: 'mongodb' })).toThrow(NonInteractiveConfigError);
+    try {
+      load({ database: 'mongodb' });
+    } catch (error) {
+      expect((error as Error).message).toContain('base de datos inválida');
+      expect((error as Error).message).toContain('postgresql');
+    }
+  });
+
+  it('frontend inválido → NonInteractiveConfigError listando opciones válidas', () => {
+    expect(() => load({ frontend: 'angular' })).toThrow(NonInteractiveConfigError);
+    try {
+      load({ frontend: 'angular' });
+    } catch (error) {
+      expect((error as Error).message).toContain('frontend inválido');
+      expect((error as Error).message).toContain('react-vite');
+    }
+  });
+
+  it('framework inválido (con opciones del adapter) → error', () => {
+    expect(() =>
+      loadNewWizardFromEnvAndFlags('demo', { topology: 'monolith', framework: 'rails' }, FRAMEWORK_OPTS, 'default')
+    ).toThrow(/framework inválido/);
+  });
+
+  it('framework se acepta sin validar si no hay opciones del adapter', () => {
+    const params = loadNewWizardFromEnvAndFlags('demo', { topology: 'monolith', framework: 'cualquiera' }, [], undefined);
+    expect(params.framework).toBe('cualquiera');
+  });
+
+  it('resolveFrameworkValue: ausente cae al default', () => {
+    expect(resolveFrameworkValue({}, FRAMEWORK_OPTS, 'default')).toEqual({ value: 'default' });
+  });
+
+  it('resolveDatabaseValue / resolveFrontendValue: defaults y errores', () => {
+    expect(resolveDatabaseValue({})).toEqual({ value: 'postgresql' });
+    expect(resolveFrontendValue({})).toEqual({ value: 'react-vite' });
+    expect(resolveDatabaseValue({ database: 'nope' }).error).toMatch(/base de datos inválida/);
+    expect(resolveFrontendValue({ frontend: 'nope' }).error).toMatch(/frontend inválido/);
+  });
+
+  // FRA-88 AC-9/AC-8: camino local-only no interactivo.
+  it('local-only: solo con nombre, sin infra, no lanza y deja serverIp/dbPassword vacíos', () => {
+    const params = load();
+    expect(params.serverIp).toBe('');
+    expect(params.dbPassword).toBe('');
+    expect(params.dbPasswordGenerated).toBe(false);
+    expect(params.chainDeploy).toBe(false);
+    expect(params.domain).toBe('');
+    expect(params.email).toBe('');
+    expect(params.githubToken).toBeUndefined();
+  });
+
+  // FRA-88 AC-5: el token NUNCA se lee de GITHUB_TOKEN.
+  it('no lee GITHUB_TOKEN del entorno (regresión AC-5)', () => {
+    process.env.GITHUB_TOKEN = 'ghp_ci_token';
+    const params = load();
+    expect(params.githubToken).toBeUndefined();
+
+    process.env.FRACTAL_NEW_GITHUB_TOKEN = 'ghp_real';
+    const params2 = load();
+    expect(params2.githubToken).toBe('ghp_real');
+  });
+
+  it('GitHub-only local-only: token sin infra ⇒ local-only con token retenido', () => {
+    process.env.FRACTAL_NEW_GITHUB_TOKEN = 'ghp_only';
+    const params = load();
+    expect(params.serverIp).toBe('');
+    expect(params.githubToken).toBe('ghp_only');
+    expect(params.dbPassword).toBe('');
+    expect(params.chainDeploy).toBe(false);
   });
 });
 
