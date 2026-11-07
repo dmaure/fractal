@@ -370,6 +370,44 @@ describe('newCommand', () => {
       );
     });
 
+    it('local-only: --auth-method inválido falla (exit != 0) aunque no haya infra (FRA-90)', async () => {
+      // FRA-90: el valor explícito de --auth-method se valida siempre, también en
+      // el camino local-only (antes se descartaba silenciosamente y salía 0).
+      for (const key of [
+        'FRACTAL_NEW_SERVER_IP',
+        'FRACTAL_DEPLOY_SERVER_IP',
+        'FRACTAL_NEW_DOMAIN',
+        'FRACTAL_DEPLOY_DOMAIN',
+        'FRACTAL_NEW_EMAIL',
+        'FRACTAL_DEPLOY_EMAIL',
+        'FRACTAL_NEW_SSH_KEY_PATH',
+        'FRACTAL_DEPLOY_SSH_KEY_PATH',
+        'FRACTAL_NEW_AUTH_METHOD',
+        'FRACTAL_DEPLOY_AUTH_METHOD',
+      ]) {
+        delete process.env[key];
+      }
+
+      const originalCwd = process.cwd();
+      process.chdir(TEST_DIR);
+
+      await expect(async () => {
+        // El valor inválido llega como string crudo desde el CLI; el cast simula
+        // esa entrada sin que el tipado narrow (SshAuthMethod) la oculte.
+        await newCommand('bad-auth', {
+          topology: 'monolith',
+          nonInteractive: true,
+          authMethod: 'invalid',
+        } as unknown as NewCommandOptions);
+      }).rejects.toThrow('process.exit called');
+
+      process.chdir(originalCwd);
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('auth method inválido')
+      );
+    });
+
     it('local-only: sin infra ni token genera el proyecto, no encadena deploy ni setea secrets (FRA-88)', async () => {
       // Asegurar que no haya señales de infra ni token en el entorno del test.
       for (const key of [
