@@ -32,6 +32,9 @@ export const SSH_AUTH_GAPS = [
 export const NEW_ENV_MAPPING = [
   { field: 'projectName', flag: '--name', newEnv: 'FRACTAL_NEW_PROJECT_NAME', deployEnv: undefined },
   { field: 'topology', flag: '--topology / -t', newEnv: 'FRACTAL_NEW_TOPOLOGY', deployEnv: undefined },
+  { field: 'framework', flag: '--framework', newEnv: 'FRACTAL_NEW_FRAMEWORK', deployEnv: undefined },
+  { field: 'database', flag: '--database', newEnv: 'FRACTAL_NEW_DATABASE', deployEnv: undefined },
+  { field: 'frontend', flag: '--frontend', newEnv: 'FRACTAL_NEW_FRONTEND', deployEnv: undefined },
   { field: 'serverIp', flag: '--server-ip', newEnv: 'FRACTAL_NEW_SERVER_IP', deployEnv: 'FRACTAL_DEPLOY_SERVER_IP' },
   { field: 'sshUser', flag: '--ssh-user', newEnv: 'FRACTAL_NEW_SSH_USER', deployEnv: 'FRACTAL_DEPLOY_SSH_USER' },
   { field: 'authMethod', flag: '--auth-method', newEnv: 'FRACTAL_NEW_AUTH_METHOD', deployEnv: 'FRACTAL_DEPLOY_AUTH_METHOD' },
@@ -232,6 +235,75 @@ export async function promptFrontend(): Promise<string> {
     })),
     default: DEFAULT_WIZARD_FRONTEND,
   });
+}
+
+/**
+ * Resuelve el framework del modo no interactivo (FRA-88, AC-9).
+ * Precedencia flag > FRACTAL_NEW_FRAMEWORK (sin fallback DEPLOY: es un campo de código).
+ * El valor es opaco (Art. II): solo se valida contra las opciones del adapter si
+ * hay opciones para validar.
+ */
+export function resolveFrameworkValue(
+  options: NewCommandOptions,
+  frameworkOptions: WizardFrameworkOption[] = [],
+  defaultFramework?: string
+): { value?: string; error?: string } {
+  const provided = flagOrEnv(options.framework, 'FRACTAL_NEW_FRAMEWORK');
+  if (!provided) {
+    return { value: defaultFramework };
+  }
+  if (frameworkOptions.length > 0) {
+    const valid = frameworkOptions.some((opt) => opt.value === provided);
+    if (!valid) {
+      const valores = frameworkOptions.map((opt) => opt.value).join(', ');
+      return { error: `framework inválido: "${provided}" (opciones válidas: ${valores})` };
+    }
+  }
+  return { value: provided };
+}
+
+/**
+ * Resuelve la base de datos del modo no interactivo (FRA-88, AC-9).
+ * Precedencia flag > FRACTAL_NEW_DATABASE (sin fallback DEPLOY: campo de código).
+ */
+export function resolveDatabaseValue(
+  options: NewCommandOptions
+): { value: string; error?: string } {
+  const provided = flagOrEnv(options.database, 'FRACTAL_NEW_DATABASE');
+  if (!provided) {
+    return { value: DEFAULT_WIZARD_DATABASE };
+  }
+  const valid = WIZARD_DATABASE_OPTIONS.some((opt) => opt.value === provided);
+  if (!valid) {
+    const valores = WIZARD_DATABASE_OPTIONS.map((opt) => opt.value).join(', ');
+    return {
+      value: DEFAULT_WIZARD_DATABASE,
+      error: `base de datos inválida: "${provided}" (opciones válidas: ${valores})`,
+    };
+  }
+  return { value: provided };
+}
+
+/**
+ * Resuelve el frontend del modo no interactivo (FRA-88, AC-9).
+ * Precedencia flag > FRACTAL_NEW_FRONTEND (sin fallback DEPLOY: campo de código).
+ */
+export function resolveFrontendValue(
+  options: NewCommandOptions
+): { value: string; error?: string } {
+  const provided = flagOrEnv(options.frontend, 'FRACTAL_NEW_FRONTEND');
+  if (!provided) {
+    return { value: DEFAULT_WIZARD_FRONTEND };
+  }
+  const valid = WIZARD_FRONTEND_OPTIONS.some((opt) => opt.value === provided);
+  if (!valid) {
+    const valores = WIZARD_FRONTEND_OPTIONS.map((opt) => opt.value).join(', ');
+    return {
+      value: DEFAULT_WIZARD_FRONTEND,
+      error: `frontend inválido: "${provided}" (opciones válidas: ${valores})`,
+    };
+  }
+  return { value: provided };
 }
 
 async function promptChainDeploy(options: NewCommandOptions): Promise<boolean> {
@@ -491,8 +563,17 @@ function requireValue(
 }
 
 /**
- * Modo no interactivo: el mismo set del wizard, por flag y/o env.
- * Falla con la lista completa de variables/flags faltantes o inválidas.
+ * Modo no interactivo: el mismo set del wizard, por flag y/o env (FRA-88, AC-9).
+ *
+ * Soporta DOS caminos, derivados de las señales presentes (como el checklist
+ * interactivo):
+ * - **local-only**: sin señales de infraestructura ⇒ no se exige servidor/DNS,
+ *   no se genera DB_PASSWORD ni secrets (AC-8), hand-off sin deploy.
+ * - **deploy**: cualquier señal de infra (IP, dominio, email, SSH, token DNS,
+ *   o `--deploy`/FRACTAL_NEW_DEPLOY) activa el set requerido completo.
+ *
+ * GitHub es independiente de la infraestructura (AC-5) y funciona en ambos
+ * caminos. Falla con la lista completa de variables/flags faltantes o inválidas.
  */
 export function loadNewWizardFromEnvAndFlags(
   projectName: string | undefined,
@@ -518,91 +599,140 @@ export function loadNewWizardFromEnvAndFlags(
     }
   }
 
-  const serverIp = flagOrEnv(options.serverIp, 'FRACTAL_NEW_SERVER_IP', 'FRACTAL_DEPLOY_SERVER_IP');
-  if (!serverIp) {
-    errors.push('FRACTAL_NEW_SERVER_IP (o FRACTAL_DEPLOY_SERVER_IP / --server-ip) es requerida');
-  } else if (validateIpv4(serverIp) !== true) {
-    errors.push(`IP inválida: "${serverIp}" (formato IPv4 esperado)`);
+  // Campos de código (flag > FRACTAL_NEW_*; sin fallback DEPLOY). Valores opacos (Art. II).
+  const frameworkResolution = resolveFrameworkValue(options, frameworkOptions, defaultFramework);
+  if (frameworkResolution.error) {
+    errors.push(frameworkResolution.error);
+  }
+  const databaseResolution = resolveDatabaseValue(options);
+  if (databaseResolution.error) {
+    errors.push(databaseResolution.error);
+  }
+  const frontendResolution = resolveFrontendValue(options);
+  if (frontendResolution.error) {
+    errors.push(frontendResolution.error);
   }
 
-  const sshUser =
-    flagOrEnv(options.sshUser, 'FRACTAL_NEW_SSH_USER', 'FRACTAL_DEPLOY_SSH_USER') ?? 'root';
+  // Señales de infraestructura/deploy (flag > FRACTAL_NEW_* > FRACTAL_DEPLOY_*).
+  const serverIpSignal = flagOrEnv(options.serverIp, 'FRACTAL_NEW_SERVER_IP', 'FRACTAL_DEPLOY_SERVER_IP');
+  const domainSignal = flagOrEnv(options.domain, 'FRACTAL_NEW_DOMAIN', 'FRACTAL_DEPLOY_DOMAIN');
+  const emailSignal = flagOrEnv(options.email, 'FRACTAL_NEW_EMAIL', 'FRACTAL_DEPLOY_EMAIL');
+  const sshKeyPathSignal = flagOrEnv(options.sshKeyPath, 'FRACTAL_NEW_SSH_KEY_PATH', 'FRACTAL_DEPLOY_SSH_KEY_PATH');
+  const sshPasswordSignal = flagOrEnv(options.sshPassword, 'FRACTAL_NEW_SSH_PASSWORD', 'FRACTAL_DEPLOY_SSH_PASSWORD');
+  const dnsApiTokenSignal = flagOrEnv(options.dnsApiToken, 'FRACTAL_NEW_DNS_API_TOKEN', 'FRACTAL_DEPLOY_DNS_API_TOKEN');
+  const chainDeploySignal =
+    options.deploy === true || isTruthyEnv(readTrimmedEnv('FRACTAL_NEW_DEPLOY'));
 
-  const authMethodRaw =
-    flagOrEnv(options.authMethod, 'FRACTAL_NEW_AUTH_METHOD', 'FRACTAL_DEPLOY_AUTH_METHOD') ?? 'key';
-  if (authMethodRaw !== 'key' && authMethodRaw !== 'password') {
-    errors.push(`auth method inválido: "${authMethodRaw}" (valores: key | password)`);
-  }
-  const authMethod = authMethodRaw as SshAuthMethod;
+  const wantsDeploy = Boolean(
+    serverIpSignal ||
+      domainSignal ||
+      emailSignal ||
+      sshKeyPathSignal ||
+      sshPasswordSignal ||
+      dnsApiTokenSignal ||
+      chainDeploySignal
+  );
 
+  // Valores de infraestructura: default local-only; se validan solo con deploy.
+  let serverIp = '';
+  let sshUser = 'root';
+  let authMethod: SshAuthMethod = 'key';
   let sshKeyPath: string | undefined;
   let sshPassword: string | undefined;
-  if (authMethod === 'key') {
-    sshKeyPath = flagOrEnv(
-      options.sshKeyPath,
-      'FRACTAL_NEW_SSH_KEY_PATH',
-      'FRACTAL_DEPLOY_SSH_KEY_PATH'
-    );
-    if (!sshKeyPath) {
-      errors.push('FRACTAL_NEW_SSH_KEY_PATH (o FRACTAL_DEPLOY_SSH_KEY_PATH / --ssh-key-path) es requerida con AUTH_METHOD=key');
-    }
-  } else if (authMethod === 'password') {
-    sshPassword = flagOrEnv(
-      options.sshPassword,
-      'FRACTAL_NEW_SSH_PASSWORD',
-      'FRACTAL_DEPLOY_SSH_PASSWORD'
-    );
-    if (!sshPassword) {
-      errors.push('FRACTAL_NEW_SSH_PASSWORD (o FRACTAL_DEPLOY_SSH_PASSWORD / --ssh-password) es requerida con AUTH_METHOD=password');
-    }
-  }
-
-  const domain = flagOrEnv(options.domain, 'FRACTAL_NEW_DOMAIN', 'FRACTAL_DEPLOY_DOMAIN');
-  if (!domain) {
-    errors.push('FRACTAL_NEW_DOMAIN (o FRACTAL_DEPLOY_DOMAIN / --domain) es requerida');
-  } else if (validateDomain(domain) !== true) {
-    errors.push(`dominio inválido: "${domain}"`);
-  }
-
-  const email = flagOrEnv(options.email, 'FRACTAL_NEW_EMAIL', 'FRACTAL_DEPLOY_EMAIL');
-  if (!email) {
-    errors.push('FRACTAL_NEW_EMAIL (o FRACTAL_DEPLOY_EMAIL / --email) es requerida');
-  } else if (validateEmail(email) !== true) {
-    errors.push(`email inválido: "${email}"`);
-  }
-
-  const dnsProviderRaw =
-    flagOrEnv(
-      options.dnsProvider,
-      'FRACTAL_NEW_DNS_PROVIDER',
-      'FRACTAL_DEPLOY_DNS_PROVIDER'
-    ) ?? 'manual';
-  if (
-    dnsProviderRaw !== 'cloudflare' &&
-    dnsProviderRaw !== 'route53' &&
-    dnsProviderRaw !== 'manual'
-  ) {
-    errors.push(
-      `DNS provider inválido: "${dnsProviderRaw}" (valores: cloudflare | route53 | manual)`
-    );
-  }
-  const dnsProvider = dnsProviderRaw as DnsProvider;
-
+  let domain = '';
+  let email = '';
+  let dnsProvider: DnsProvider = 'manual';
   let dnsApiToken: string | undefined;
-  if (dnsProvider === 'cloudflare' || dnsProvider === 'route53') {
-    dnsApiToken = flagOrEnv(
-      options.dnsApiToken,
-      'FRACTAL_NEW_DNS_API_TOKEN',
-      'FRACTAL_DEPLOY_DNS_API_TOKEN'
-    );
-    if (!dnsApiToken) {
+  let dbPassword = '';
+  let dbPasswordGenerated = false;
+  let chainDeploy = false;
+
+  if (wantsDeploy) {
+    serverIp = serverIpSignal ?? '';
+    if (!serverIpSignal) {
+      errors.push('FRACTAL_NEW_SERVER_IP (o FRACTAL_DEPLOY_SERVER_IP / --server-ip) es requerida');
+    } else if (validateIpv4(serverIpSignal) !== true) {
+      errors.push(`IP inválida: "${serverIpSignal}" (formato IPv4 esperado)`);
+    }
+
+    sshUser =
+      flagOrEnv(options.sshUser, 'FRACTAL_NEW_SSH_USER', 'FRACTAL_DEPLOY_SSH_USER') ?? 'root';
+
+    const authMethodRaw =
+      flagOrEnv(options.authMethod, 'FRACTAL_NEW_AUTH_METHOD', 'FRACTAL_DEPLOY_AUTH_METHOD') ?? 'key';
+    if (authMethodRaw !== 'key' && authMethodRaw !== 'password') {
+      errors.push(`auth method inválido: "${authMethodRaw}" (valores: key | password)`);
+    }
+    authMethod = authMethodRaw as SshAuthMethod;
+
+    if (authMethod === 'key') {
+      sshKeyPath = sshKeyPathSignal;
+      if (!sshKeyPath) {
+        errors.push('FRACTAL_NEW_SSH_KEY_PATH (o FRACTAL_DEPLOY_SSH_KEY_PATH / --ssh-key-path) es requerida con AUTH_METHOD=key');
+      }
+    } else if (authMethod === 'password') {
+      sshPassword = sshPasswordSignal;
+      if (!sshPassword) {
+        errors.push('FRACTAL_NEW_SSH_PASSWORD (o FRACTAL_DEPLOY_SSH_PASSWORD / --ssh-password) es requerida con AUTH_METHOD=password');
+      }
+    }
+
+    if (!domainSignal) {
+      errors.push('FRACTAL_NEW_DOMAIN (o FRACTAL_DEPLOY_DOMAIN / --domain) es requerida');
+    } else if (validateDomain(domainSignal) !== true) {
+      errors.push(`dominio inválido: "${domainSignal}"`);
+    } else {
+      domain = domainSignal.toLowerCase();
+    }
+
+    if (!emailSignal) {
+      errors.push('FRACTAL_NEW_EMAIL (o FRACTAL_DEPLOY_EMAIL / --email) es requerida');
+    } else if (validateEmail(emailSignal) !== true) {
+      errors.push(`email inválido: "${emailSignal}"`);
+    } else {
+      email = emailSignal.toLowerCase();
+    }
+
+    const dnsProviderRaw =
+      flagOrEnv(
+        options.dnsProvider,
+        'FRACTAL_NEW_DNS_PROVIDER',
+        'FRACTAL_DEPLOY_DNS_PROVIDER'
+      ) ?? 'manual';
+    if (
+      dnsProviderRaw !== 'cloudflare' &&
+      dnsProviderRaw !== 'route53' &&
+      dnsProviderRaw !== 'manual'
+    ) {
       errors.push(
-        `FRACTAL_NEW_DNS_API_TOKEN (o FRACTAL_DEPLOY_DNS_API_TOKEN) es requerida con DNS_PROVIDER=${dnsProvider}`
+        `DNS provider inválido: "${dnsProviderRaw}" (valores: cloudflare | route53 | manual)`
       );
     }
-  }
+    dnsProvider = dnsProviderRaw as DnsProvider;
 
-  // GitHub es opcional (FRA-86, AC-2): sin token, no se crea repo remoto
+    if (dnsProvider === 'cloudflare' || dnsProvider === 'route53') {
+      dnsApiToken = dnsApiTokenSignal;
+      if (!dnsApiToken) {
+        errors.push(
+          `FRACTAL_NEW_DNS_API_TOKEN (o FRACTAL_DEPLOY_DNS_API_TOKEN) es requerida con DNS_PROVIDER=${dnsProvider}`
+        );
+      }
+    }
+
+    // Brazo DB (FRA-87, AC-8): la contraseña se resuelve de flags/env o se genera.
+    const dbPasswordResolution = resolveDbPasswordFromFlagsOrEnv(options);
+    if (dbPasswordResolution.error) {
+      errors.push(dbPasswordResolution.error);
+    }
+    dbPassword = dbPasswordResolution.result?.dbPassword ?? '';
+    dbPasswordGenerated = dbPasswordResolution.result?.dbPasswordGenerated ?? false;
+
+    chainDeploy = chainDeploySignal;
+  }
+  // Camino local-only: no se exige infra ni se genera DB_PASSWORD (AC-8).
+
+  // GitHub es independiente de la infraestructura (FRA-86, AC-5): funciona en
+  // ambos caminos. El token NUNCA se lee de GITHUB_TOKEN.
   const githubToken = flagOrEnv(options.githubToken, 'FRACTAL_NEW_GITHUB_TOKEN');
   const githubOwner = flagOrEnv(options.githubOwner, 'FRACTAL_NEW_GITHUB_OWNER');
   const githubRepo =
@@ -614,18 +744,6 @@ export function loadNewWizardFromEnvAndFlags(
   }
   const githubVisibility: 'private' | 'public' =
     githubVisibilityRaw === 'public' ? 'public' : 'private';
-
-  // Brazo DB (FRA-87): el no interactivo siempre tiene deploy, así que la
-  // contraseña se resuelve de flags/env o se genera.
-  const dbPasswordResolution = resolveDbPasswordFromFlagsOrEnv(options);
-  if (dbPasswordResolution.error) {
-    errors.push(dbPasswordResolution.error);
-  }
-  const dbPassword = dbPasswordResolution.result?.dbPassword;
-  const dbPasswordGenerated = dbPasswordResolution.result?.dbPasswordGenerated ?? false;
-
-  const chainDeploy =
-    options.deploy === true || isTruthyEnv(readTrimmedEnv('FRACTAL_NEW_DEPLOY'));
 
   const productionBranch =
     flagOrEnv(
@@ -641,17 +759,17 @@ export function loadNewWizardFromEnvAndFlags(
   return {
     projectName: resolvedName!,
     topology,
-    framework: defaultFramework,
-    database: DEFAULT_WIZARD_DATABASE,
-    frontend: DEFAULT_WIZARD_FRONTEND,
+    framework: frameworkResolution.value,
+    database: databaseResolution.value,
+    frontend: frontendResolution.value,
     force: options.force,
-    serverIp: serverIp!,
+    serverIp,
     sshUser,
     authMethod,
     sshPassword,
     sshKeyPath,
-    domain: domain!.toLowerCase(),
-    email: email!.toLowerCase(),
+    domain,
+    email,
     dnsProvider,
     dnsApiToken,
     productionBranch,
@@ -659,7 +777,7 @@ export function loadNewWizardFromEnvAndFlags(
     githubOwner,
     githubRepo,
     githubVisibility,
-    dbPassword: dbPassword!,
+    dbPassword,
     dbPasswordGenerated,
     chainDeploy,
   };

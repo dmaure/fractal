@@ -24,6 +24,13 @@ export interface NewCommandOptions {
   /** Nombre del proyecto (alternativa al argumento posicional) */
   name?: string;
 
+  /** Framework del backend (valor opaco, Art. II: el core no interpreta el valor). */
+  framework?: string;
+  /** Base de datos (valor opaco, Art. II). */
+  database?: string;
+  /** Framework del frontend (valor opaco, Art. II). */
+  frontend?: string;
+
   serverIp?: string;
   sshUser?: string;
   authMethod?: SshAuthMethod;

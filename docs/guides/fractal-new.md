@@ -32,6 +32,9 @@ fractal new [nombre-del-proyecto] [opciones]
 | `-f, --force` | Permite generar sobre un directorio que ya existe y **no** está vacío. |
 | `--non-interactive` | Sin prompts: lee flags y `FRACTAL_NEW_*` / `FRACTAL_DEPLOY_*`. Falla si falta un valor requerido. |
 | `--name <nombre>` | Alternativa al argumento posicional. |
+| `--framework <framework>` | Framework del backend (opción del adapter; default: la única disponible). |
+| `--database <database>` | Base de datos (default: `postgresql`). |
+| `--frontend <frontend>` | Framework del frontend (default: `react-vite`). |
 | `--server-ip`, `--ssh-user`, `--auth-method`, `--ssh-key-path`, `--ssh-password` | Datos del VPS. |
 | `--domain`, `--email`, `--dns-provider`, `--dns-api-token` | Dominio, Let's Encrypt y DNS. |
 | `--github-token`, `--github-owner`, `--github-repo`, `--github-visibility` | Crear el repo remoto y setear secrets. |
@@ -221,7 +224,7 @@ Con `--github-token` / `FRACTAL_NEW_GITHUB_TOKEN` el CLI:
    `APP_KEY` no se inventa acá: la genera el primer `fractal deploy` al armar
    el compose.
 
-**Importante (AC-4):** `FRACTAL_NEW_GITHUB_TOKEN` **NO** se lee de `GITHUB_TOKEN`.
+**Importante (AC-5):** `FRACTAL_NEW_GITHUB_TOKEN` **NO** se lee de `GITHUB_TOKEN`.
 Esta separación evita reutilizar por accidente el token del entorno de CI. Solo
 se lee de `--github-token` o `FRACTAL_NEW_GITHUB_TOKEN`.
 
@@ -259,6 +262,34 @@ posterior.
 
 ### Modo no interactivo
 
+El modo no interactivo (`--non-interactive`) es 100% sin TTY y tiene **paridad
+total** con el wizard v2: cada valor que recolecta un brazo es pasable por flag
+**y** por variable de entorno (FRA-88, AC-9). El checklist se **deriva** de las
+señales presentes, igual que las respuestas del checklist interactivo:
+
+- **Datos de servidor presentes** (`--server-ip`/`FRACTAL_NEW_SERVER_IP`,
+  dominio, email, clave/contraseña SSH, token DNS, o `--deploy`) ⇒ **camino
+  deploy**.
+- **`FRACTAL_NEW_GITHUB_TOKEN` presente** ⇒ se crea el repo en GitHub (brazo
+  independiente, AC-5).
+- Sin esas señales, esas secciones se **saltean**.
+
+Hay **dos caminos** posibles:
+
+**1. Local-only** (sin ninguna señal de infraestructura). No se exige ningún
+dato de servidor: se genera un proyecto local, **no** se genera ni setea
+`DB_PASSWORD` ni ningún secret (AC-8), y el hand-off final no encadena ni
+instruye un `fractal deploy` inmediato. Basta con el nombre:
+
+```bash
+fractal new demo --non-interactive \
+  --framework laravel --database postgresql --frontend react-vite
+```
+
+**2. Deploy** (cualquier señal de infraestructura dispara el set requerido
+completo). Si falta un valor requerido del camino deploy, el comando aborta
+listando exactamente qué falta:
+
 ```bash
 fractal new mi-app --topology monolith --non-interactive \
   --server-ip 203.0.113.10 \
@@ -268,13 +299,26 @@ fractal new mi-app --topology monolith --non-interactive \
   --github-token "$FRACTAL_NEW_GITHUB_TOKEN"
 ```
 
-Si falta una variable requerida, el comando aborta listando exactamente qué
-falta. Precedencia: **flag > `FRACTAL_NEW_*` > `FRACTAL_DEPLOY_*`**.
+**GitHub sin infraestructura** (AC-5): el token es independiente del servidor.
+Podés versionar el proyecto en GitHub sin dar datos de deploy (sigue siendo
+local-only, sin `DB_PASSWORD`):
+
+```bash
+fractal new demo --non-interactive \
+  --github-token "$FRACTAL_NEW_GITHUB_TOKEN"
+```
+
+Precedencia: **flag > `FRACTAL_NEW_*` > `FRACTAL_DEPLOY_*`**. Los campos de
+código (nombre, topología, framework, base de datos, frontend) usan solo
+**flag > `FRACTAL_NEW_*`** (sin fallback `FRACTAL_DEPLOY_*`).
 
 | Campo | Flag | `FRACTAL_NEW_*` | `FRACTAL_DEPLOY_*` (fallback) |
 |---|---|---|---|
 | Nombre | argumento / `--name` | `FRACTAL_NEW_PROJECT_NAME` | — |
 | Topología | `-t/--topology` | `FRACTAL_NEW_TOPOLOGY` | — |
+| Framework | `--framework` | `FRACTAL_NEW_FRAMEWORK` | — |
+| Base de datos (motor) | `--database` | `FRACTAL_NEW_DATABASE` | — |
+| Frontend | `--frontend` | `FRACTAL_NEW_FRONTEND` | — |
 | IP | `--server-ip` | `FRACTAL_NEW_SERVER_IP` | `FRACTAL_DEPLOY_SERVER_IP` |
 | Usuario SSH | `--ssh-user` | `FRACTAL_NEW_SSH_USER` | `FRACTAL_DEPLOY_SSH_USER` |
 | Auth SSH | `--auth-method` | `FRACTAL_NEW_AUTH_METHOD` | `FRACTAL_DEPLOY_AUTH_METHOD` |
@@ -293,7 +337,7 @@ falta. Precedencia: **flag > `FRACTAL_NEW_*` > `FRACTAL_DEPLOY_*`**.
 | Encadenar deploy | `--deploy` | `FRACTAL_NEW_DEPLOY` | — |
 
 `FRACTAL_NEW_GITHUB_TOKEN` es propio de `new` (crear repo + secrets). **No se
-lee `GITHUB_TOKEN`** a propósito (FRA-86, AC-4): en CI de este monorepo ese
+lee `GITHUB_TOKEN`** a propósito (FRA-86, AC-5): en CI de este monorepo ese
 token es el del repo de Fractal, no el del proyecto generado. Esta invariante
 está protegida con test de regresión.
 

@@ -33,6 +33,9 @@ program
     'Sin prompts: lee flags y FRACTAL_NEW_* / FRACTAL_DEPLOY_*'
   )
   .option('--name <name>', 'Nombre del proyecto (alternativa al argumento posicional)')
+  .option('--framework <framework>', 'Framework del backend (opción del adapter; default: la única disponible)')
+  .option('--database <database>', 'Base de datos (default: postgresql)')
+  .option('--frontend <frontend>', 'Framework del frontend (default: react-vite)')
   .option('--server-ip <ip>', 'IPv4 del VPS')
   .option('--ssh-user <user>', 'Usuario SSH de provisioning (default: root)')
   .option('--auth-method <method>', 'Autenticación SSH: key | password')
