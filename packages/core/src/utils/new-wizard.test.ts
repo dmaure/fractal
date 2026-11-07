@@ -307,6 +307,90 @@ describe('loadNewWizardFromEnvAndFlags', () => {
     }
   });
 
+  // FRA-90: auth-method/dns-provider NO son disparadores de deploy, pero su
+  // valor explícito inválido debe rechazarse SIEMPRE, incluso en local-only.
+  // Un valor inválido llega como string crudo desde el CLI/env; el cast simula
+  // esa entrada sin que el tipado narrow (SshAuthMethod/DnsProvider) la oculte.
+  const badAuth = { authMethod: 'invalid' } as unknown as NewCommandOptions;
+  const badDns = { dnsProvider: 'bad' } as unknown as NewCommandOptions;
+
+  it('auth-method inválido en local-only (sin infra) → NonInteractiveConfigError', () => {
+    expect(() => load(badAuth)).toThrow(NonInteractiveConfigError);
+    try {
+      load(badAuth);
+    } catch (error) {
+      expect(error).toBeInstanceOf(NonInteractiveConfigError);
+      expect((error as Error).message).toContain('auth method inválido');
+      expect((error as Error).message).toContain('key | password');
+    }
+  });
+
+  it('dns-provider inválido en local-only (sin infra) → NonInteractiveConfigError', () => {
+    expect(() => load(badDns)).toThrow(NonInteractiveConfigError);
+    try {
+      load(badDns);
+    } catch (error) {
+      expect(error).toBeInstanceOf(NonInteractiveConfigError);
+      expect((error as Error).message).toContain('DNS provider inválido');
+      expect((error as Error).message).toContain('cloudflare | route53 | manual');
+    }
+  });
+
+  it('auth-method inválido vía FRACTAL_NEW_AUTH_METHOD en local-only → error', () => {
+    process.env.FRACTAL_NEW_AUTH_METHOD = 'nope';
+    expect(() => load({})).toThrow(NonInteractiveConfigError);
+    try {
+      load({});
+    } catch (error) {
+      expect((error as Error).message).toContain('auth method inválido');
+    }
+  });
+
+  it('dns-provider inválido vía FRACTAL_NEW_DNS_PROVIDER en local-only → error', () => {
+    process.env.FRACTAL_NEW_DNS_PROVIDER = 'nope';
+    expect(() => load({})).toThrow(NonInteractiveConfigError);
+    try {
+      load({});
+    } catch (error) {
+      expect((error as Error).message).toContain('DNS provider inválido');
+    }
+  });
+
+  // FRA-90: local-only con valores VÁLIDOS sigue funcionando sin exigir servidor.
+  it('local-only con auth-method/dns-provider válidos no lanza y queda local-only', () => {
+    const params = load({ authMethod: 'key', dnsProvider: 'manual' });
+    expect(params.serverIp).toBe('');
+    expect(params.dbPassword).toBe('');
+    expect(params.dbPasswordGenerated).toBe(false);
+    expect(params.chainDeploy).toBe(false);
+    expect(params.authMethod).toBe('key');
+    expect(params.dnsProvider).toBe('manual');
+  });
+
+  // FRA-90: con infra completa, un auth-method inválido se sigue rechazando
+  // (y una sola vez: el error no se duplica).
+  it('auth-method inválido con infra completa se sigue rechazando (una sola vez)', () => {
+    Object.assign(process.env, COMPLETE_ENV);
+    expect(() => load(badAuth)).toThrow(NonInteractiveConfigError);
+    try {
+      load(badAuth);
+    } catch (error) {
+      const matches = (error as Error).message.match(/auth method inválido/g) ?? [];
+      expect(matches).toHaveLength(1);
+    }
+  });
+
+  it('dns-provider inválido con infra completa se sigue rechazando (una sola vez)', () => {
+    Object.assign(process.env, COMPLETE_ENV);
+    expect(() => load(badDns)).toThrow(NonInteractiveConfigError);
+    try {
+      load(badDns);
+    } catch (error) {
+      const matches = (error as Error).message.match(/DNS provider inválido/g) ?? [];
+      expect(matches).toHaveLength(1);
+    }
+  });
+
   it('framework inválido (con opciones del adapter) → error', () => {
     expect(() =>
       loadNewWizardFromEnvAndFlags('demo', { topology: 'monolith', framework: 'rails' }, FRAMEWORK_OPTS, 'default')

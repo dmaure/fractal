@@ -647,6 +647,34 @@ export function loadNewWizardFromEnvAndFlags(
   let dbPasswordGenerated = false;
   let chainDeploy = false;
 
+  // FRA-90: el valor explícito de auth-method/dns-provider se valida SIEMPRE,
+  // incluso en local-only (no son disparadores de deploy). Se resuelve una vez
+  // y se reutiliza en el brazo deploy para la asignación.
+  const authMethodRaw = flagOrEnv(
+    options.authMethod,
+    'FRACTAL_NEW_AUTH_METHOD',
+    'FRACTAL_DEPLOY_AUTH_METHOD'
+  );
+  if (authMethodRaw != null && authMethodRaw !== 'key' && authMethodRaw !== 'password') {
+    errors.push(`auth method inválido: "${authMethodRaw}" (valores: key | password)`);
+  }
+
+  const dnsProviderRaw = flagOrEnv(
+    options.dnsProvider,
+    'FRACTAL_NEW_DNS_PROVIDER',
+    'FRACTAL_DEPLOY_DNS_PROVIDER'
+  );
+  if (
+    dnsProviderRaw != null &&
+    dnsProviderRaw !== 'cloudflare' &&
+    dnsProviderRaw !== 'route53' &&
+    dnsProviderRaw !== 'manual'
+  ) {
+    errors.push(
+      `DNS provider inválido: "${dnsProviderRaw}" (valores: cloudflare | route53 | manual)`
+    );
+  }
+
   if (wantsDeploy) {
     serverIp = serverIpSignal ?? '';
     if (!serverIpSignal) {
@@ -658,12 +686,8 @@ export function loadNewWizardFromEnvAndFlags(
     sshUser =
       flagOrEnv(options.sshUser, 'FRACTAL_NEW_SSH_USER', 'FRACTAL_DEPLOY_SSH_USER') ?? 'root';
 
-    const authMethodRaw =
-      flagOrEnv(options.authMethod, 'FRACTAL_NEW_AUTH_METHOD', 'FRACTAL_DEPLOY_AUTH_METHOD') ?? 'key';
-    if (authMethodRaw !== 'key' && authMethodRaw !== 'password') {
-      errors.push(`auth method inválido: "${authMethodRaw}" (valores: key | password)`);
-    }
-    authMethod = authMethodRaw as SshAuthMethod;
+    // FRA-90: el valor ya se validó incondicionalmente arriba; aquí solo se asigna.
+    authMethod = (authMethodRaw ?? 'key') as SshAuthMethod;
 
     if (authMethod === 'key') {
       sshKeyPath = sshKeyPathSignal;
@@ -693,22 +717,8 @@ export function loadNewWizardFromEnvAndFlags(
       email = emailSignal.toLowerCase();
     }
 
-    const dnsProviderRaw =
-      flagOrEnv(
-        options.dnsProvider,
-        'FRACTAL_NEW_DNS_PROVIDER',
-        'FRACTAL_DEPLOY_DNS_PROVIDER'
-      ) ?? 'manual';
-    if (
-      dnsProviderRaw !== 'cloudflare' &&
-      dnsProviderRaw !== 'route53' &&
-      dnsProviderRaw !== 'manual'
-    ) {
-      errors.push(
-        `DNS provider inválido: "${dnsProviderRaw}" (valores: cloudflare | route53 | manual)`
-      );
-    }
-    dnsProvider = dnsProviderRaw as DnsProvider;
+    // FRA-90: el valor ya se validó incondicionalmente arriba; aquí solo se asigna.
+    dnsProvider = (dnsProviderRaw ?? 'manual') as DnsProvider;
 
     if (dnsProvider === 'cloudflare' || dnsProvider === 'route53') {
       dnsApiToken = dnsApiTokenSignal;
