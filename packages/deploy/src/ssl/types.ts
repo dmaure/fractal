@@ -10,7 +10,10 @@ import type { SshClient } from '../ssh/client.js';
  * Permite inyección de dependencias para testing.
  */
 export interface SslSshClient {
-  executeCommand(command: string): Promise<{
+  executeCommand(
+    command: string,
+    options?: { timeoutMs?: number }
+  ): Promise<{
     success: boolean;
     stdout: string;
     stderr: string;
@@ -36,7 +39,8 @@ export function isSslSshClient(obj: unknown): obj is SslSshClient {
  */
 export function adaptSshClient(client: SshClient): SslSshClient {
   return {
-    executeCommand: (command: string) => client.executeCommand(command),
+    executeCommand: (command: string, options?: { timeoutMs?: number }) =>
+      client.executeCommand(command, options),
   };
 }
 
