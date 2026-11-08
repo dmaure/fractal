@@ -623,6 +623,19 @@ http {
 }
 ",
   "demo/docker/nginx/ssl/.gitkeep": "",
+  "demo/index.html": "<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>demo</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/resources/js/app.tsx"></script>
+  </body>
+</html>
+",
   "demo/package.json": "{
   "name": "demo",
   "version": "0.0.0",
@@ -796,6 +809,26 @@ services.json
   "demo/storage/logs/.gitignore": "*
 !.gitignore
 ",
+  "demo/vite.config.ts": "import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  // En el monolito, public/ es el web root de Laravel (sirve public/index.php),
+  // no el directorio de assets estáticos de Vite. Se desactiva publicDir para
+  // que Vite no lo copie dentro del build ni lo trate como suyo.
+  publicDir: false,
+  build: {
+    // Los assets compilados viven en public/build (idiomático de Laravel,
+    // ya ignorado en .gitignore).
+    outDir: 'public/build',
+    emptyOutDir: true,
+  },
+  server: {
+    port: 3000,
+  },
+});
+",
 }
 `;
 
@@ -837,6 +870,7 @@ exports[`árbol generado por createProject (estructura + contenido) > monolith >
   "demo/docker/nginx/nginx.conf",
   "demo/docker/nginx/ssl/",
   "demo/docker/nginx/ssl/.gitkeep",
+  "demo/index.html",
   "demo/package.json",
   "demo/public/",
   "demo/public/index.php",
@@ -870,6 +904,7 @@ exports[`árbol generado por createProject (estructura + contenido) > monolith >
   "demo/storage/framework/views/.gitignore",
   "demo/storage/logs/",
   "demo/storage/logs/.gitignore",
+  "demo/vite.config.ts",
 ]
 `;
 
