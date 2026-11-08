@@ -53,6 +53,7 @@ export async function generateMonolith(
     await mkdir(projectPath, { recursive: true });
 
     await generateBaseStructure(projectPath, name);
+    await generateFrontendBuildConfig(projectPath, name);
     await generateBootstrapDirectory(projectPath);
     await generateConfigDirectory(projectPath);
     await generateAppDirectory(projectPath);
@@ -98,6 +99,32 @@ async function generateBaseStructure(
   const artisanPath = join(projectPath, 'artisan');
   await writeFile(artisanPath, generateArtisan());
   await chmod(artisanPath, 0o755);
+}
+
+/**
+ * Genera la configuración de build del frontend (Vite) en la raíz del proyecto.
+ *
+ * `package.json` del monolito expone `build: vite build`, que corre desde la
+ * raíz del proyecto (cwd = projectPath). Vite usa esa raíz como `root` por
+ * defecto y resuelve su módulo de entrada desde el `index.html` ahí ubicado.
+ * Sin ese `index.html`, `vite build` aborta con
+ * "Could not resolve entry module index.html" (FRA-91).
+ *
+ * El `index.html` apunta al entry del SPA en `resources/js/app.tsx` y el
+ * `vite.config.ts` compila JSX/TSX con @vitejs/plugin-react (ya declarado en
+ * las devDependencies del monolito) y emite los assets a `public/build`, el
+ * directorio idiomático de Laravel (ya ignorado en `.gitignore`).
+ *
+ * Esto NO afecta las rutas PHP `/` ni `/api/health`: la raíz la sirve la vista
+ * Blade self-contained (`resources/views/app.blade.php`) vía `routes/web.php`,
+ * independiente de los assets compilados por Vite.
+ */
+async function generateFrontendBuildConfig(
+  projectPath: string,
+  name: string
+): Promise<void> {
+  await writeFile(join(projectPath, 'index.html'), generateIndexHtml(name));
+  await writeFile(join(projectPath, 'vite.config.ts'), generateViteConfig());
 }
 
 async function generateBootstrapDirectory(projectPath: string): Promise<void> {
@@ -336,6 +363,45 @@ function generateAppCss(): string {
   margin: 0 auto;
   padding: 2rem;
 }
+`;
+}
+
+function generateIndexHtml(name: string): string {
+  return `<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${name}</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/resources/js/app.tsx"></script>
+  </body>
+</html>
+`;
+}
+
+function generateViteConfig(): string {
+  return `import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  // En el monolito, public/ es el web root de Laravel (sirve public/index.php),
+  // no el directorio de assets estáticos de Vite. Se desactiva publicDir para
+  // que Vite no lo copie dentro del build ni lo trate como suyo.
+  publicDir: false,
+  build: {
+    // Los assets compilados viven en public/build (idiomático de Laravel,
+    // ya ignorado en .gitignore).
+    outDir: 'public/build',
+    emptyOutDir: true,
+  },
+  server: {
+    port: 3000,
+  },
+});
 `;
 }
 
