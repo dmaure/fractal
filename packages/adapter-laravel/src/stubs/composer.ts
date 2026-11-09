@@ -2,6 +2,8 @@
  * Generador de composer.json para proyectos Laravel.
  */
 
+import { PHP_PLATFORM_VERSION } from './php-version.js';
+
 export function generateComposerJson(
   name: string,
   topology: 'monolith' | 'monorepo' | 'multirepo-api'
@@ -52,6 +54,9 @@ export function generateComposerJson(
       'optimize-autoloader': true,
       'preferred-install': 'dist',
       'sort-packages': true,
+      platform: {
+        php: PHP_PLATFORM_VERSION,
+      },
       'allow-plugins': true,
       policy: {
         advisories: {
