@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-11-04",
+  "actualizado": "2026-11-09",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -157,7 +157,7 @@
         { "id": "T4", "ticket": "FRA-85", "label": "Brazo Infraestructura opcional + local-only + hand-off", "estado": "completado" },
         { "id": "T5", "ticket": "FRA-86", "label": "Brazo GitHub opcional e independiente", "estado": "completado" },
         { "id": "T6", "ticket": "FRA-87", "label": "Brazo Base de datos (condicional)", "estado": "completado" },
-        { "id": "T7", "ticket": "FRA-88", "label": "Paridad no-interactiva + bot QA + TTS/hand-off + docs", "estado": "pendiente" }
+        { "id": "T7", "ticket": "FRA-88", "label": "Paridad no-interactiva + bot QA + TTS/hand-off + docs", "estado": "completado" }
       ]
     }
   ]
