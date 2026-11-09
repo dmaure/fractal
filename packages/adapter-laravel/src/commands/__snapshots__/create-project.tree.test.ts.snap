@@ -282,6 +282,9 @@ return [
     "optimize-autoloader": true,
     "preferred-install": "dist",
     "sort-packages": true,
+    "platform": {
+      "php": "8.3.0"
+    },
     "allow-plugins": true,
     "policy": {
       "advisories": {
@@ -1142,6 +1145,9 @@ return [
     "optimize-autoloader": true,
     "preferred-install": "dist",
     "sort-packages": true,
+    "platform": {
+      "php": "8.3.0"
+    },
     "allow-plugins": true,
     "policy": {
       "advisories": {
@@ -1894,6 +1900,9 @@ return [
     "optimize-autoloader": true,
     "preferred-install": "dist",
     "sort-packages": true,
+    "platform": {
+      "php": "8.3.0"
+    },
     "allow-plugins": true,
     "policy": {
       "advisories": {

@@ -13,10 +13,12 @@
  * El servicio php-fpm resultante escucha en el puerto 9000 y nginx (en su
  * propio contenedor) le hace fastcgi_pass; ver nginx-conf.ts.
  */
+import { PHP_DOCKER_IMAGE } from './php-version.js';
+
 export function generateDockerfile(): string {
   return `# Dockerfile generado por Fractal
 # Imagen php-fpm para producción. Se construye en el VPS durante el deploy.
-FROM php:8.3-fpm
+FROM ${PHP_DOCKER_IMAGE}
 
 # Dependencias de sistema y extensiones PHP requeridas por Laravel + PostgreSQL.
 RUN apt-get update && apt-get install -y --no-install-recommends \\
