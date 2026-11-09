@@ -6,6 +6,22 @@ import type {
   LetsEncryptEnvironment,
 } from './types.js';
 import { LETSENCRYPT_URLS } from './types.js';
+import {
+  APT_LOCK_TIMEOUT_OPT,
+  APT_LOCK_EXEC_TIMEOUT_MS,
+  isAptLockContention,
+  waitForAptLock,
+  withAptLockRetry,
+} from './apt-lock.js';
+
+/**
+ * Prefijo común de toda invocación a apt-get de la instalación de certbot:
+ * corre con sudo, en modo no interactivo (sin prompts de debconf) y esperando
+ * el lock de dpkg/apt (FRA-89, mismo patrón que FRA-76 para Docker).
+ * `DEBIAN_FRONTEND` va ANTES de sudo; el drop-in sudoers de FRA-75 lo preserva
+ * con `env_keep`. `apt-get` ya está en el allowlist.
+ */
+const APT_GET = `DEBIAN_FRONTEND=noninteractive sudo apt-get ${APT_LOCK_TIMEOUT_OPT}`;
 
 /**
  * Instalador de Certbot.
@@ -18,17 +34,51 @@ export class CertbotInstaller {
   /**
    * Ejecuta un comando SSH y retorna resultado simplificado.
    */
-  private async exec(command: string): Promise<{
+  private async exec(
+    command: string,
+    options?: { timeoutMs?: number }
+  ): Promise<{
     exitCode: number;
     stdout: string;
     stderr: string;
   }> {
-    const result = await this.ssh.executeCommand(command);
+    const result = await this.ssh.executeCommand(command, options);
     return {
       exitCode: result.exitCode ?? 1,
       stdout: result.stdout,
       stderr: result.stderr,
     };
+  }
+
+  /**
+   * Espera a que se libere el lock de apt/dpkg antes de la primera operación
+   * apt (FRA-89). Degrada con elegancia: nunca lanza.
+   */
+  private async waitForAptLock(): Promise<void> {
+    await waitForAptLock((command, opts) => this.exec(command, opts), {
+      execTimeoutMs: APT_LOCK_EXEC_TIMEOUT_MS,
+    });
+  }
+
+  /**
+   * Ejecuta una operación apt con reintento acotado ante contención del lock
+   * de apt/dpkg (FRA-89). Un fallo que no sea de lock no se reintenta: se
+   * devuelve el resultado tal cual para que el caller lo maneje como antes.
+   */
+  private async runAptStep(command: string): Promise<{
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+  }> {
+    return withAptLockRetry(async () => {
+      const result = await this.exec(command);
+      if (isAptLockContention(result)) {
+        // Se relanza para activar el reintento con backoff; el mensaje incluye
+        // el stderr real para que el detector de contención lo matchee.
+        throw new Error(result.stderr || 'Contención del lock de apt/dpkg');
+      }
+      return result;
+    });
   }
 
   /**
@@ -259,9 +309,13 @@ export class CertbotInstaller {
       }
       steps.push('Snap actualizado');
 
-      // Remover certbot de apt si existe
-      await this.exec('sudo apt-get remove -y certbot');
-      
+      // Esperar el lock de apt/dpkg antes de la operación apt (FRA-89): en un
+      // VPS recién creado cloud-init/unattended-upgrades pueden tenerlo tomado.
+      await this.waitForAptLock();
+
+      // Remover certbot de apt si existe (con reintento ante lock, FRA-89)
+      await this.runAptStep(`${APT_GET} remove -y certbot`);
+
       // Instalar certbot con snap
       const installResult = await this.exec(
         'sudo snap install --classic certbot'
@@ -307,15 +361,18 @@ export class CertbotInstaller {
     const steps: string[] = [];
     
     try {
-      // Actualizar lista de paquetes
-      await this.exec('sudo apt-get update');
+      // Esperar el lock de apt/dpkg antes de la primera operación apt (FRA-89).
+      await this.waitForAptLock();
+
+      // Actualizar lista de paquetes (con reintento ante lock, FRA-89)
+      await this.runAptStep(`${APT_GET} update`);
       steps.push('Lista de paquetes actualizada');
 
-      // Instalar certbot
-      const installResult = await this.exec(
-        'sudo apt-get install -y certbot'
+      // Instalar certbot (con reintento ante lock, FRA-89)
+      const installResult = await this.runAptStep(
+        `${APT_GET} install -y certbot`
       );
-      
+
       if (installResult.exitCode !== 0) {
         return {
           success: false,

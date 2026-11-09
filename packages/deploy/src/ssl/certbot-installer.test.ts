@@ -49,43 +49,55 @@ describe('CertbotInstaller', () => {
           exitCode: 1,
           stdout: '',
           stderr: 'not found',
-        })
+        }) // which certbot
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: '/usr/bin/snap',
           stderr: '',
-        })
+        }) // which snap
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: 'core refreshed',
           stderr: '',
-        })
+        }) // snap refresh core
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
-        })
+        }) // waitForAptLock: cloud-init wait (FRA-89)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'FREE',
+          stderr: '',
+        }) // waitForAptLock: lock probe -> libre (FRA-89)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+        }) // apt-get remove certbot
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: 'certbot installed',
           stderr: '',
-        })
+        }) // snap install
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
-        })
+        }) // ln -sf
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: 'certbot 2.7.4',
           stderr: '',
-        });
+        }); // certbot --version
 
       const result = await installer.install();
 
@@ -102,49 +114,73 @@ describe('CertbotInstaller', () => {
           exitCode: 1,
           stdout: '',
           stderr: 'not found',
-        })
+        }) // which certbot
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: '/usr/bin/snap',
           stderr: '',
-        })
+        }) // which snap
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
-        })
+        }) // snap refresh core
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
-        })
+        }) // waitForAptLock: cloud-init wait (snap path, FRA-89)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'FREE',
+          stderr: '',
+        }) // waitForAptLock: lock probe -> libre (snap path, FRA-89)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+        }) // apt-get remove certbot
         .mockResolvedValueOnce({
           success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'snap install error',
-        })
+        }) // snap install (falla -> fallback a apt)
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
-        })
+        }) // waitForAptLock: cloud-init wait (apt path, FRA-89)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'FREE',
+          stderr: '',
+        }) // waitForAptLock: lock probe -> libre (apt path, FRA-89)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+        }) // apt-get update
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: 'certbot installed',
           stderr: '',
-        })
+        }) // apt-get install
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: 'certbot 1.21.0',
           stderr: '',
-        });
+        }); // certbot --version
 
       const result = await installer.install();
 
@@ -160,31 +196,43 @@ describe('CertbotInstaller', () => {
           exitCode: 1,
           stdout: '',
           stderr: 'not found',
-        })
+        }) // which certbot
         .mockResolvedValueOnce({
           success: false,
           exitCode: 1,
           stdout: '',
           stderr: 'snap not found',
-        })
+        }) // which snap -> apt
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: '',
           stderr: '',
-        })
+        }) // waitForAptLock: cloud-init wait (FRA-89)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'FREE',
+          stderr: '',
+        }) // waitForAptLock: lock probe -> libre (FRA-89)
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+        }) // apt-get update
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: 'certbot installed',
           stderr: '',
-        })
+        }) // apt-get install
         .mockResolvedValueOnce({
           success: true,
           exitCode: 0,
           stdout: 'certbot 1.21.0',
           stderr: '',
-        });
+        }); // certbot --version
 
       const result = await installer.install();
 
@@ -200,6 +248,71 @@ describe('CertbotInstaller', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Connection failed');
+    });
+
+    it('espera el lock de apt y aplica DPkg::Lock::Timeout en el path apt (FRA-89)', async () => {
+      vi.mocked(mockSsh.executeCommand)
+        .mockResolvedValueOnce({
+          success: false,
+          exitCode: 1,
+          stdout: '',
+          stderr: 'not found',
+        }) // which certbot
+        .mockResolvedValueOnce({
+          success: false,
+          exitCode: 1,
+          stdout: '',
+          stderr: 'snap not found',
+        }) // which snap -> apt
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+        }) // cloud-init wait
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'FREE',
+          stderr: '',
+        }) // lock probe -> libre
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: '',
+          stderr: '',
+        }) // apt-get update
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'certbot installed',
+          stderr: '',
+        }) // apt-get install
+        .mockResolvedValueOnce({
+          success: true,
+          exitCode: 0,
+          stdout: 'certbot 1.21.0',
+          stderr: '',
+        }); // certbot --version
+
+      await installer.install();
+
+      const commands = vi
+        .mocked(mockSsh.executeCommand)
+        .mock.calls.map((call) => call[0] as string);
+
+      // El guard del lock (lock-frontend) se emite antes del primer apt-get.
+      const guardIdx = commands.findIndex((c) => c.includes('lock-frontend'));
+      const firstAptIdx = commands.findIndex((c) => c.includes('apt-get'));
+      expect(guardIdx).toBeGreaterThanOrEqual(0);
+      expect(firstAptIdx).toBeGreaterThanOrEqual(0);
+      expect(guardIdx).toBeLessThan(firstAptIdx);
+
+      // Todas las invocaciones a apt-get esperan el lock (DPkg::Lock::Timeout).
+      for (const c of commands.filter((cmd) => cmd.includes('apt-get'))) {
+        expect(c).toContain('DPkg::Lock::Timeout=300');
+        expect(c).toContain('DEBIAN_FRONTEND=noninteractive');
+      }
     });
   });
 
