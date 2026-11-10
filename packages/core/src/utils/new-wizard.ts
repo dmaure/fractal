@@ -11,6 +11,7 @@ import {
   validateDomain,
   validateEmail,
   validateIpv4,
+  validateProjectName,
 } from './param-validators.js';
 import { githubHttpsUrl } from './github-repo.js';
 import { promptTopology } from './prompts.js';
@@ -118,11 +119,7 @@ export async function promptProjectName(current?: string): Promise<string> {
   }
   return input({
     message: 'Nombre del proyecto:',
-    validate: (value) => {
-      if (!value.trim()) return 'El nombre del proyecto es requerido';
-      if (/\s/.test(value.trim())) return 'El nombre no puede contener espacios';
-      return true;
-    },
+    validate: (value) => validateProjectName(value),
   }).then((value) => value.trim());
 }
 

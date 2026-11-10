@@ -5,6 +5,7 @@ import type { DeployParams } from '../types/deploy-command.js';
 import type { NewCommandOptions, NewWizardParams, ValidatedNewParams } from '../types/new-command.js';
 import { isValidTopology, DEFAULT_TOPOLOGY } from '../types/topology.js';
 import { validateTargetDirectory } from '../utils/directory-validator.js';
+import { validateProjectName } from '../utils/param-validators.js';
 import { promptTopology } from '../utils/prompts.js';
 import { initializeGit } from '../utils/git-initializer.js';
 import { resolveSingleAdapter } from '../adapter-resolver.js';
@@ -72,6 +73,12 @@ export async function newCommand(
           '(argumento, --name o FRACTAL_NEW_PROJECT_NAME).'
       )
     );
+    process.exit(1);
+  }
+
+  const projectNameCheck = validateProjectName(projectName);
+  if (projectNameCheck !== true) {
+    console.error(chalk.red(`\n❌ Error: ${projectNameCheck}`));
     process.exit(1);
   }
 
@@ -217,7 +224,20 @@ export async function newCommand(
 
   printHandoff(params, wizard, createdRepos, secretsSet, secretsPrinted, knownHosts, pushWarnings);
 
-  if (wizard?.chainDeploy) {
+  // FRA-94: --deploy nunca debe ignorarse en silencio. Si se pidió deploy pero
+  // el proyecto quedó local-only (sin servidor), avisar de forma visible en
+  // todos los modos (incluido no-TTY/PTY), en lugar de ser un no-op.
+  const deployRequested = options.deploy === true;
+  const hasServer = Boolean(wizard?.serverIp && wizard?.domain);
+
+  if (deployRequested && !hasServer) {
+    console.warn(
+      chalk.yellow(
+        '⚠️  Se omite el deploy (--deploy): el proyecto es local-only y no hay servidor configurado.'
+      )
+    );
+    console.log(chalk.dim('   Ejecutá fractal deploy cuando tengas un servidor disponible.'));
+  } else if (wizard?.chainDeploy) {
     await chainToDeploy(params, wizard);
   }
 }
@@ -584,7 +604,7 @@ export function printHandoff(
   // FRA-85: información adicional solo cuando hay infraestructura
   if (wizard && hasInfrastructure) {
     console.log(chalk.dim('\n  El .env local NO se sube al VPS (FRA-76): DB_PASSWORD vive en /home/deploy/.env.'));
-    if (wizard.dbPasswordGenerated) {
+    if (wizard.dbPasswordGenerated && secretsSet.includes('DB_PASSWORD')) {
       console.log(chalk.dim('  Se generó una DB_PASSWORD; quedó como secret de GitHub (no se commitea).'));
     }
     if (!knownHosts) {
