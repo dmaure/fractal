@@ -76,13 +76,18 @@ export async function newCommand(
     process.exit(1);
   }
 
-  const projectNameCheck = validateProjectName(projectName);
+  // El argumento posicional (y --name / env var) puede ser una ruta
+  // absoluta o relativa; el nombre real del proyecto es el basename del
+  // directorio destino resuelto. Validamos ese nombre derivado, no la ruta
+  // cruda, para no rechazar barras ni puntos de una ruta legítima.
+  const targetDir = resolve(process.cwd(), projectName);
+  const derivedProjectName = basename(targetDir);
+
+  const projectNameCheck = validateProjectName(derivedProjectName);
   if (projectNameCheck !== true) {
     console.error(chalk.red(`\n❌ Error: ${projectNameCheck}`));
     process.exit(1);
   }
-
-  const targetDir = resolve(process.cwd(), projectName);
 
   const validation = validateTargetDirectory(targetDir, options.force);
 

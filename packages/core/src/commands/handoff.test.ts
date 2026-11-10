@@ -143,7 +143,6 @@ describe('printHandoff (FRA-85)', () => {
           "  fractal deploy",
           "
           El .env local NO se sube al VPS (FRA-76): DB_PASSWORD vive en /home/deploy/.env.",
-          "  Se generó una DB_PASSWORD; quedó como secret de GitHub (no se commitea).",
           "  SSH_KNOWN_HOSTS: ssh-keyscan -t ed25519,rsa,ecdsa 192.168.1.100",
           "
           Para reusar estos valores en fractal deploy --non-interactive:",
