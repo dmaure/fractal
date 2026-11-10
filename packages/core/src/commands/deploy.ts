@@ -265,6 +265,7 @@ export async function deployCommand(
     shouldReuseExistingCertificate,
     adaptSshClient,
     CicdManager,
+    reconnectWithRetry,
   } = await import('@fractal/deploy');
 
   console.log(chalk.blue('🚀 Fractal Deploy — Provisioning de VPS production-ready\n'));
@@ -637,17 +638,30 @@ export async function deployCommand(
   // Decisión de producto #5: Reconectar como usuario deploy
   console.log(chalk.blue('\n🔄 Reconectando como usuario deploy...\n'));
   
+  // Timeout por-intento de la reconexión. Debe quedar holgadamente por debajo
+  // del presupuesto de reintento (~90s) para que un timeout de handshake en un
+  // intento no consuma todo el presupuesto y haya margen para reintentar
+  // mientras sshd reinicia (FRA-93).
+  const RECONNECT_ATTEMPT_TIMEOUT_MS = 20_000;
+
   const deployClient = new SshClient({
     host: params.serverIp,
     username: 'deploy',
     privateKeyPath: deployPrivateKeyPath,
-    timeout: 120_000,
+    timeout: RECONNECT_ATTEMPT_TIMEOUT_MS,
     knownHostsPath,
     onUnknownHost,
     unknownHostRejectError,
   });
-  
-  const deployConnectionResult = await deployClient.testConnection();
+
+  // `hardenSshd()` acaba de hacer `systemctl reload sshd`, por lo que el puerto
+  // 22 rechaza conexiones por un instante. Reintentar ante errores transitorios
+  // (ECONNREFUSED/timeout de handshake) con backoff acotado evita el fallo
+  // espurio de la reconexión como usuario deploy (FRA-93).
+  const deployConnectionResult = await reconnectWithRetry(
+    () => deployClient.testConnection(),
+    { logger: (message) => console.log(chalk.yellow(`   ${message}`)) },
+  );
   
   if (!deployConnectionResult.success) {
     console.error(chalk.red(`\n❌ Error al reconectar como usuario deploy:\n   ${deployConnectionResult.error}`));
