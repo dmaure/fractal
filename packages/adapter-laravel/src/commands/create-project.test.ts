@@ -128,6 +128,9 @@ describe('createProject', () => {
         // publicDir desactivado: public/ es el web root de Laravel, no los
         // assets estáticos de Vite; evita que Vite copie public/index.php.
         expect(viteConfig).toContain('publicDir: false');
+        // FRA-94: base '/build/' para que el HTML referencie /build/assets/...
+        // (los assets viven en public/build) en vez de /assets/... (404).
+        expect(viteConfig).toContain("base: '/build/'");
 
         // La dependencia que usa el vite.config está declarada en package.json.
         const pkg = JSON.parse(

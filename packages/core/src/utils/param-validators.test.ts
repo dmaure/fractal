@@ -4,6 +4,7 @@ import {
   validateDomain,
   validateEmail,
   validateGitUrl,
+  validateProjectName,
   flagOrEnv,
   readTrimmedEnv,
   isTruthyEnv,
@@ -30,6 +31,21 @@ describe('param-validators', () => {
     expect(validateGitUrl('git@gitlab.com:acme/app.git')).toBe(true);
     expect(validateGitUrl('ftp://x')).not.toBe(true);
     expect(validateGitUrl('')).not.toBe(true);
+  });
+
+  it('valida el nombre del proyecto: acepta minúsculas/dígitos/guiones y rechaza el resto (FRA-94)', () => {
+    // Nombres válidos usados en la suite y en el día a día.
+    expect(validateProjectName('demo')).toBe(true);
+    expect(validateProjectName('my-app')).toBe(true);
+    expect(validateProjectName('test-project')).toBe(true);
+    expect(validateProjectName('miapp')).toBe(true);
+    expect(validateProjectName('app1')).toBe(true);
+    // Inválidos: mayúsculas, guión bajo, signos y espacios.
+    expect(typeof validateProjectName('Bad_Name!')).toBe('string');
+    expect(typeof validateProjectName('con espacios')).toBe('string');
+    expect(typeof validateProjectName('mal_nombre')).toBe('string');
+    expect(typeof validateProjectName('-empieza-con-guion')).toBe('string');
+    expect(typeof validateProjectName('')).toBe('string');
   });
 });
 

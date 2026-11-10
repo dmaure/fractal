@@ -10,6 +10,7 @@
 import { input, select } from '@inquirer/prompts';
 import type { WizardArm, WizardContext, WizardArmResult } from '../../types/wizard-arm.js';
 import { promptTopology } from '../../utils/prompts.js';
+import { validateProjectName } from '../../utils/param-validators.js';
 
 /**
  * Opciones de framework disponibles.
@@ -77,11 +78,7 @@ export async function promptProjectName(current?: string): Promise<string> {
   }
   return input({
     message: 'Nombre del proyecto:',
-    validate: (value) => {
-      if (!value.trim()) return 'El nombre del proyecto es requerido';
-      if (/\s/.test(value.trim())) return 'El nombre no puede contener espacios';
-      return true;
-    },
+    validate: (value) => validateProjectName(value),
   }).then((value) => value.trim());
 }
 

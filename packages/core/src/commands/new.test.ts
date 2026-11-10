@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
-import { newCommand } from './new.js';
-import type { NewCommandOptions } from '../types/new-command.js';
+import { newCommand, printHandoff } from './new.js';
+import type { NewCommandOptions, NewWizardParams } from '../types/new-command.js';
+import type { ValidatedNewParams } from '../types/new-command.js';
 import * as adapterResolver from '../adapter-resolver.js';
 import * as adapterBridge from '../adapter-bridge.js';
 import * as githubRepo from '../utils/github-repo.js';
@@ -506,5 +507,104 @@ describe('newCommand', () => {
         expect.stringContaining('fractal deploy')
       );
     });
+  });
+
+  describe('FRA-94: nombre de proyecto inválido', () => {
+    it('rechaza "Bad_Name!" con exit != 0 y explica el formato válido', async () => {
+      const originalCwd = process.cwd();
+      process.chdir(TEST_DIR);
+
+      await expect(async () => {
+        await newCommand('Bad_Name!', { topology: 'monolith' });
+      }).rejects.toThrow('process.exit called');
+
+      process.chdir(originalCwd);
+
+      expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining('Nombre de proyecto inválido')
+      );
+    });
+  });
+
+  describe('FRA-94: --deploy en local-only / no-TTY', () => {
+    it('avisa de forma visible que se omite el deploy y no lo encadena (no-TTY, local-only)', async () => {
+      for (const key of [
+        'FRACTAL_NEW_SERVER_IP',
+        'FRACTAL_DEPLOY_SERVER_IP',
+        'FRACTAL_NEW_DOMAIN',
+        'FRACTAL_DEPLOY_DOMAIN',
+        'FRACTAL_NEW_EMAIL',
+        'FRACTAL_DEPLOY_EMAIL',
+        'FRACTAL_NEW_SSH_KEY_PATH',
+        'FRACTAL_DEPLOY_SSH_KEY_PATH',
+        'FRACTAL_NEW_GITHUB_TOKEN',
+        'FRACTAL_NEW_DEPLOY',
+      ]) {
+        delete process.env[key];
+      }
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const originalCwd = process.cwd();
+      process.chdir(TEST_DIR);
+
+      // No-TTY (isTTY=false en beforeEach) sin --non-interactive => modo skip,
+      // wizard null. Con deploy:true el flag debe avisar, no quedar en silencio.
+      await newCommand('deploy-localonly', { topology: 'monolith', deploy: true });
+
+      process.chdir(originalCwd);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Se omite el deploy (--deploy)')
+      );
+      // No se encadena deploy real.
+      expect(console.log).not.toHaveBeenCalledWith(
+        expect.stringContaining('Encadenando a fractal deploy')
+      );
+    });
+  });
+});
+
+describe('printHandoff (FRA-94)', () => {
+  const baseParams: ValidatedNewParams = {
+    projectName: 'hp-test',
+    targetDir: '/tmp/hp-test',
+    topology: 'monolith',
+    target: 'default',
+  };
+
+  function buildWizard(): NewWizardParams {
+    return {
+      projectName: 'hp-test',
+      topology: 'monolith',
+      serverIp: '192.0.2.10',
+      sshUser: 'deploy',
+      authMethod: 'key',
+      domain: 'hp.example.com',
+      email: 'ops@example.com',
+      dnsProvider: 'manual',
+      productionBranch: 'main',
+      githubRepo: 'hp-test',
+      githubVisibility: 'private',
+      dbPassword: 'secret',
+      dbPasswordGenerated: true,
+      chainDeploy: false,
+    };
+  }
+
+  it('NO reporta DB_PASSWORD como secret de GitHub cuando no se subió', () => {
+    printHandoff(baseParams, buildWizard(), [], [], [], undefined, []);
+
+    expect(console.log).not.toHaveBeenCalledWith(
+      expect.stringContaining('secret de GitHub')
+    );
+  });
+
+  it('SÍ reporta DB_PASSWORD como secret de GitHub cuando está en secretsSet', () => {
+    printHandoff(baseParams, buildWizard(), [], ['DB_PASSWORD'], [], undefined, []);
+
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('secret de GitHub')
+    );
   });
 });

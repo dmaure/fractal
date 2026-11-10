@@ -13,6 +13,8 @@ export const DOMAIN_REGEX = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/i;
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export const PROJECT_NAME_REGEX = /^[a-z0-9][a-z0-9-]*$/;
+
 /**
  * Lee la primera variable de entorno no vacía de la lista.
  * Sirve para el mapping FRACTAL_NEW_* → FRACTAL_DEPLOY_* (FRA-77).
@@ -60,6 +62,18 @@ export function validateEmail(value: string): true | string {
   if (!value.trim()) return 'El email es requerido para Let\'s Encrypt';
   if (!EMAIL_REGEX.test(value.trim())) {
     return 'Formato de email inválido (ej: admin@example.com)';
+  }
+  return true;
+}
+
+export function validateProjectName(value: string): true | string {
+  if (!value.trim()) return 'El nombre del proyecto es requerido';
+  if (!PROJECT_NAME_REGEX.test(value.trim())) {
+    return (
+      'Nombre de proyecto inválido: usá solo minúsculas, dígitos y guiones, ' +
+      'empezando por una letra o dígito (ej: mi-app). ' +
+      'No se permiten espacios, guiones bajos ni otros símbolos.'
+    );
   }
   return true;
 }

@@ -817,6 +817,9 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // Los assets compilados se sirven desde /build/ (public/build), así el HTML
+  // referencia /build/assets/... en vez de /assets/... (que daría 404).
+  base: '/build/',
   // En el monolito, public/ es el web root de Laravel (sirve public/index.php),
   // no el directorio de assets estáticos de Vite. Se desactiva publicDir para
   // que Vite no lo copie dentro del build ni lo trate como suyo.
