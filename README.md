@@ -3,7 +3,7 @@
 > Generador de aplicaciones production-ready, multi-framework.
 > De cero a desplegado en internet en menos de 30 minutos.
 
-**Estado:** En desarrollo (M2 — FDL y generación por el agente). M0, M1 y M1.5 (wizard v2) ya están implementados.
+**Estado:** En desarrollo (M2 — FDL y generación por el agente). M0 sigue en curso: falta la matriz de versiones en CI. M1 y M1.5 (wizard v2) ya están implementados.
 
 ---
 
