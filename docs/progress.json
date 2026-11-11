@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-11-09",
+  "actualizado": "2026-11-10",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -9,7 +9,7 @@
   "milestones": [
     { "id": "M0", "nombre": "Fundaciones", "entregable": "reglas, docs y CI base", "estado": "en_curso" },
     { "id": "M1", "nombre": "Esqueleto vertical", "entregable": "new + deploy = app online", "estado": "completado" },
-    { "id": "M1.5", "nombre": "Wizard v2", "entregable": "wizard code-first y modular", "estado": "en_curso" },
+    { "id": "M1.5", "nombre": "Wizard v2", "entregable": "wizard code-first y modular", "estado": "completado" },
     { "id": "M2", "nombre": "FDL y entidades", "entregable": "CRUD generado y desplegable", "estado": "en_curso" },
     { "id": "M3", "nombre": "Autenticación y autorización", "entregable": "roles, OAuth, 2FA", "estado": "pendiente" },
     { "id": "M4", "nombre": "Adapter Rails", "entregable": "multi-target verificado", "estado": "pendiente" },
@@ -23,7 +23,7 @@
         "titulo": "Capabilities (CLI · core)",
         "nodos": [
           { "id": "NEW", "label": "fractal new", "estado": "completado" },
-          { "id": "ENT", "label": "fractal entity", "estado": "en_curso" },
+          { "id": "ENT", "label": "fractal entity", "estado": "pendiente" },
           { "id": "DEP", "label": "fractal deploy", "estado": "completado" },
           { "id": "MOD", "label": "fractal module", "estado": "pendiente" }
         ]
@@ -149,7 +149,7 @@
       "id": "SPEC-0032",
       "label": "Wizard v2 — code-first y brazos modulares",
       "milestone": "M1.5",
-      "estado": "en_curso",
+      "estado": "completado",
       "tareas": [
         { "id": "T1", "ticket": "FRA-82", "label": "Contrato de brazo + orquestador modular en core", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-83", "label": "Checklist inicial del wizard", "estado": "completado" },

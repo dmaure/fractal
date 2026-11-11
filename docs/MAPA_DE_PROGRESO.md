@@ -2,10 +2,11 @@
 
 **Versión:** 1.0.0
 **Estado:** Draft
-**Última revisión:** 2026-10-26 — M1 cerrado (SPEC-0001/0002/0003
-**Implementado**, FRA-81). El Diagrama 1 (milestones) y el Diagrama 2
-(capacidades y módulos) se regeneran desde [`progress.json`](progress.json)
-(SPEC-0031).
+**Última revisión:** 2026-11-10 — M1.5 cerrado en `progress.json`
+(SPEC-0032, FRA-82..FRA-88 mergeados; QA e2e post-merge #113 / FRA-94
+PASS en master `081f2e2`). `fractal entity` vuelve a pendiente. El
+Diagrama 1 (milestones) y el Diagrama 2 (capacidades y módulos) se
+regeneran desde [`progress.json`](progress.json) (SPEC-0031).
 
 ---
 
@@ -15,9 +16,10 @@ ubicarse en el día a día y ver, de un vistazo, cómo va Fractal en su camino d
 
 - La visión completa vive en [`VISION.md`](VISION.md).
 - Los principios innegociables, en [`CONSTITUTION.md`](CONSTITUTION.md).
-- **La fuente de verdad del estado es [`ROADMAP.md`](ROADMAP.md) + los
-  milestones de Linear.** Este diagrama los *refleja*; se actualiza cuando un
-  milestone cambia de estado. Si este mapa y ROADMAP discrepan, manda ROADMAP.
+- **La fuente de verdad que pintan los diagramas es [`progress.json`](progress.json)**
+  (SPEC-0031). [`ROADMAP.md`](ROADMAP.md) y los milestones de Linear se mantienen
+  en paralelo. Si este mapa y ROADMAP discrepan, el diagrama sigue a
+  `progress.json`; alinear ROADMAP es un cambio aparte.
 
 ---
 
@@ -76,25 +78,34 @@ flowchart LR
     classDef curso fill:#f9a825,color:#000,stroke:#f57f17;
     classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
 
-    class M1 done;
-    class M0,M1.5,M2 curso;
+    class M1,M1.5 done;
+    class M0,M2 curso;
     class M3,M4,M5,M6 pend;
 ```
 <!-- progress-map:auto:end -->
 
-**Lectura honesta del estado actual** (justificada desde
-[`ROADMAP.md`](ROADMAP.md) y el trabajo reciente):
+**Lectura honesta del estado actual** (contrastada con el código, los
+workflows de CI y [`progress.json`](progress.json) en master):
 
-- **M0 🟡** — Fundaciones casi completas (ADRs, docs, lint de acoplamiento,
-  monorepo ✅); falta el ítem **CI base** (lint, tests, matriz de versiones).
+- **M0 🟡** — Fundaciones casi completas: ADRs, docs, lint de acoplamiento,
+  monorepo y SPEC-0031 ✅. La CI del repo está en
+  [`.github/workflows/ci.yml`](../.github/workflows/ci.yml): `fractal status
+  --check`, tests + typecheck, `pnpm lint`, lint de acoplamiento y e2e Laravel
+  (PHP 8.2); Node queda fijo en 22. Falta la **matriz de versiones**:
+  ningún workflow declara `strategy.matrix` (`deploy-e2e.yml` usa PHP 8.3 en un
+  job aparte). Por esa matriz el milestone sigue en curso.
 - **M1 ✅** — Esqueleto vertical cerrado el 2026-10-26 (FRA-81, decisión de
   Diego): SPEC-0001, SPEC-0002 y SPEC-0003 **Implementado**. El e2e real
   `fractal new` + `fractal deploy` (FRA-73/76) y el QA PASS post-merge #93
   en master `2df1d60` cubren el DoD que la auditoría del 2026-10-14 había
   reabierto.
-- **M2 🟡** — SPEC-0006 (contrato del adapter) quedó **Implementado**
-  (2026-10-11, FRA-55): `fractal new` ya genera las tres topologías contra el
-  contrato. El resto de M2 (FDL, generación de entidades) sigue pendiente.
+- **M1.5 ✅** — Wizard v2 cerrado en `progress.json` el 2026-11-10. Las siete
+  tareas de SPEC-0032 (FRA-82..FRA-88) están mergeadas en master. El QA e2e
+  post-merge de #113 (FRA-94) dio PASS en master `081f2e2`.
+- **M2 🟡** — SPEC-0004 (lenguaje FDL) y SPEC-0006 (contrato del adapter) están
+  **Implementado**: el lenguaje vive en `packages/core/src/fdl` y `fractal new`
+  ya genera las tres topologías contra el contrato. `fractal entity` y el CRUD
+  generado no están: no hay comando ni spec de esa capability en master.
 - **M3–M6 ⬜** — Pendientes.
 
 ---
@@ -140,8 +151,8 @@ flowchart TD
     classDef pend fill:#cfd8dc,color:#000,stroke:#90a4ae;
 
     class NEW,DEP,FDL done;
-    class ENT,CORE,ALAR,DEPLOY curso;
-    class MOD,ARAI,MODULOS pend;
+    class CORE,ALAR,DEPLOY curso;
+    class ENT,MOD,ARAI,MODULOS pend;
 ```
 <!-- progress-map:diagrama2:end -->
 
@@ -149,12 +160,14 @@ Cómo leerlo:
 
 - **`fractal new` y `fractal deploy` ✅** — M1 cerrado (FRA-81): specs
   **Implementado**, e2e real + QA PASS en master `2df1d60`.
-- **`fractal entity` 🟡** — el contrato del adapter (SPEC-0006) está
-  **Implementado**, así que la capability cuenta como arrancada; la generación
-  de entidades en sí sigue pendiente.
-- **FDL / entidades ⬜** — el modelo intermedio (ADR-0003: entidades, campos,
-  relaciones, reglas) está especificado, pero su parser/generación es M2 sin
-  entregar.
+- **`fractal entity` ⬜** — pendiente. El CLI de master registra `new`, `deploy`
+  y `status` (`packages/core/src/cli.ts`). En `docs/specs/` no hay un spec de
+  esa capability.
+- **FDL ✅** — lenguaje v0 entregado: tipos, parser, validador y diagnósticos
+  en `packages/core/src/fdl`, guía `docs/guides/fdl.md`, SPEC-0004
+  **Implementado** (SPEC-0005 absorbido). El nodo cubre el lenguaje de ADR-0003
+  (entidades, campos, relaciones, reglas). La generación de CRUD sigue abierta
+  en M2.
 - **`fractal module` y módulos ⬜** — módulos opcionales, planificados para M5
   (ver [`CONSTITUTION.md`](CONSTITUTION.md) Artículo IX).
 - **`core` y `deploy` 🟡** — packages agnósticos en construcción; **adapter-laravel
@@ -164,23 +177,27 @@ Cómo leerlo:
 
 ## Tabla de trazabilidad
 
-Milestone → specs → estado (glifos de [`ROADMAP.md`](ROADMAP.md)) → milestone de
-Linear. **[`ROADMAP.md`](ROADMAP.md) sigue siendo la fuente de verdad**; esta
-tabla solo lo espeja.
+Milestone → specs → estado en [`progress.json`](progress.json) → milestone de
+Linear. Los diagramas y esta tabla salen de ese archivo (SPEC-0031).
+[`ROADMAP.md`](ROADMAP.md) se mantiene aparte.
 
-| Milestone | Specs / ítems | Estado (ROADMAP) | Milestone en Linear |
+| Milestone | Specs / ítems | Estado (progress.json) | Milestone en Linear |
 |---|---|---|---|
-| M0 — Fundaciones | ADR-0002/0003/0004/0006/0007 ✅, lint de acoplamiento ✅, monorepo ✅, **CI base** ⬜ | 🟡 (falta CI base) | M0 — Fundaciones |
+| M0 — Fundaciones | ADR-0002/0003/0004/0006/0007 ✅, lint de acoplamiento ✅, monorepo ✅, SPEC-0031 ✅, CI (lint, tests, typecheck, e2e) ✅, **matriz de versiones** ⬜ | 🟡 (falta la matriz de versiones) | M0 — Fundaciones |
 | M1 — Esqueleto vertical | SPEC-0001, SPEC-0002, SPEC-0003 **Implementado** ✅ | ✅ (FRA-81, Diego 2026-10-26; QA PASS #93) | M1 — Esqueleto vertical |
-| M2 — FDL y generación de entidades | SPEC-0004 … SPEC-0013 (SPEC-0006 **Implementado** ✅) | 🟡 (SPEC-0006 cerrado; resto pendiente) | M2 — FDL y generación de entidades |
+| M1.5 — Wizard v2 | SPEC-0032, FRA-82..FRA-88 mergeados; QA PASS #113 en `081f2e2` | ✅ | M1.5 — Wizard v2 |
+| M2 — FDL y generación de entidades | SPEC-0004 **Implementado** ✅, SPEC-0005 absorbido ✅, SPEC-0006 **Implementado** ✅; SPEC-0007 … SPEC-0013 sin entregar; `fractal entity` sin comando ni spec | 🟡 | M2 — FDL y generación de entidades |
 | M3 — Autenticación y autorización | SPEC-0014, SPEC-0015, SPEC-0016 | ⬜ | M3 — Autenticación y autorización |
 | M4 — Adapter Rails | SPEC-0017 … SPEC-0021 | ⬜ | M4 — Adapter Rails |
 | M5 — Módulos avanzados | SPEC-0022 … SPEC-0026 | ⬜ | M5 — Módulos avanzados |
 | M6 — Operación | SPEC-0027 … SPEC-0030 | ⬜ | M6 — Operación |
 
-> Recordatorio: un spec **Aprobado** no es un spec **Implementado**. Mientras
-> ROADMAP marque ⬜, el estado real es pendiente aunque este mapa muestre 🟡 a
-> nivel de milestone por trabajo ya arrancado.
+> Recordatorio: un spec **Aprobado** no es un spec **Implementado**. El estado
+> de este mapa es el de `progress.json`. SPEC-0032 sigue **Aprobado** en
+> `docs/specs/0032-wizard-v2-code-first-modular-arms.md` (la DoD §9, salvo la
+> aprobación del spec, sigue sin tildar). M1.5 figura ✅ acá porque FRA-82..FRA-88
+> están mergeados y el QA e2e post-merge de #113 dio PASS. Pasar el spec a
+> **Implementado** no se hace en este documento.
 
 ---
 
