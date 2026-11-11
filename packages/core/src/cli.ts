@@ -6,6 +6,7 @@ import { realpathSync } from 'node:fs';
 import { newCommand } from './commands/new.js';
 import { deployCommand } from './commands/deploy.js';
 import { statusCommand } from './commands/status.js';
+import { fdlCheckCommand } from './commands/fdl-check.js';
 import type { NewCommandOptions } from './types/new-command.js';
 import type { DeployCommandOptions } from './types/deploy-command.js';
 import type { StatusCommandOptions } from './types/status-command.js';
@@ -53,6 +54,7 @@ program
   .option('--db-password <password>', 'Contraseña de la base de datos de producción')
   .option('--generate-db-password', 'Genera la contraseña de la base (default en --non-interactive)')
   .option('--deploy', 'Encadena a fractal deploy al terminar')
+  .option('--dry-run', 'Muestra los paths del pack de convenciones que se escribirían, sin tocar disco')
   .action(async (projectName: string | undefined, options: NewCommandOptions) => {
     try {
       await newCommand(projectName, options);
@@ -114,6 +116,22 @@ program
   .action(async (options: StatusCommandOptions) => {
     try {
       await statusCommand(options);
+    } catch (error) {
+      console.error('Error:', error);
+      process.exit(1);
+    }
+  });
+
+const fdl = program
+  .command('fdl')
+  .description('Operaciones sobre el FDL (Fractal Definition Language)');
+
+fdl
+  .command('check <path>')
+  .description('Valida un archivo FDL como contrato (VR-1..VR-12); sale != 0 si es inválido')
+  .action(async (path: string) => {
+    try {
+      await fdlCheckCommand(path);
     } catch (error) {
       console.error('Error:', error);
       process.exit(1);
