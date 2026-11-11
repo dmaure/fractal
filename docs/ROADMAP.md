@@ -30,7 +30,8 @@ Cada milestone entrega valor verificable por sí solo.
 | ADR-0004: estrategia multi-DB | ✅ |
 | ADR-0006: Docker Compose como runtime | ✅ |
 | ADR-0007: GitHub Actions como CI/CD | ✅ |
-| CI base: lint, tests, matriz de versiones | ✅ |
+| CI base: lint y tests | ✅ |
+| CI: matriz de versiones | ⬜[^ci-matrix] |
 | Lint de acoplamiento (Artículo II) | ✅ |
 | Monorepo con workspaces configurado | ✅ |
 | Visibilidad de estado del proyecto (SPEC-0031) | ✅[^spec0031] |
@@ -41,6 +42,12 @@ Cada milestone entrega valor verificable por sí solo.
     de `MAPA_DE_PROGRESO.md`, con `--check` cableado en CI) y su spec ya estaba
     marcado **Implementado**. Antes esta fila estaba en ⬜/🟡 con el MVP vía
     `scripts/progress-map.js`; se alinea a ✅ con `progress.json` (FRA-63).
+
+[^ci-matrix]: Ningún workflow define todavía una matriz de versiones.
+    `.github/workflows/ci.yml` fija una sola versión por runtime (Node 22, PHP 8.2)
+    y no usa `strategy.matrix`. Antes esta capacidad figuraba como ✅ dentro de la
+    fila de CI base; se separa y se marca pendiente para no afirmar una matriz que
+    no existe. Lint y tests sí corren en CI y siguen en ✅.
 
 **Definition of Done:** un contribuidor nuevo entiende qué construir y cómo, leyendo solo el repo.
 
@@ -86,16 +93,22 @@ code-first con deploy opcional y una arquitectura modular de brazos (ADR-0016).
 
 | Spec | Capability | Estado |
 |---|---|---|
-| SPEC-00XX | Wizard v2: checklist inicial, brazos modulares, orden code-first | ⬜ |
+| SPEC-0032 | Wizard v2: checklist inicial, brazos modulares, orden code-first | ✅[^spec0032] |
 
 **Salida:** `fractal new` pregunta primero por el código (framework, topología, DB,
 frontend), después por infraestructura (opcional), GitHub (opcional) y deploy (opcional).
 El usuario puede generar un proyecto local sin datos de deploy.
 
-**Nota:** este milestone desbloquea M2. SPEC-0007 (motor de templating) asume que el
-wizard v2 ya está implementado; redactar SPEC-0007 antes del wizard v2 duplicaría el
-trabajo de adaptación. Por eso wizard v2 se documenta y se implementa **antes** de
-continuar con SPEC-0007.
+**Nota:** este milestone desbloqueó M2 y quedó **Implementado** el 2026-11-11. El
+wizard v2 era prerequisito para encarar SPEC-0007; una vez listo el wizard, SPEC-0007
+se reorientó a **convenciones y prompts para el agente de IA** (ya no un motor de
+templating, ver M2).
+
+[^spec0032]: Wizard v2 **Implementado** el 2026-11-11: las siete tareas del spec
+    (FRA-82..FRA-88) están completadas, PR #113 mergeado y Fractal QA dio PASS.
+    `docs/specs/0032-wizard-v2-code-first-modular-arms.md` quedó en estado
+    **Implementado**. La sincronización de `docs/progress.json` / `MAPA_DE_PROGRESO.md`
+    la aplica Fractal QA vía `fractal status --write`.
 
 ---
 
@@ -109,16 +122,10 @@ continuar con SPEC-0007.
 | SPEC-0005 | Parser y validador de FDL | ✅[^spec0005] |
 | SPEC-0006 | Contrato del adapter | ✅ |
 | SPEC-0007 | Convenciones y prompts para generación por agente (FDL como contrato) | ⬜[^spec0007] |
-| SPEC-0008 | Convenciones de entidad en el pack: migration, model, factory, seeder | ⬜ |
-| SPEC-0009 | Convenciones de capas Repository y Service | ⬜ |
-| SPEC-0010 | Convenciones de API REST con validación y serialización | ⬜ |
-| SPEC-0011 | Convenciones de frontend React + Vite (Index, Show, Form) — ADR-0005 | ⬜ |
-| SPEC-0012 | Convenciones de tests por entidad | ⬜ |
-| SPEC-0013 | Snapshots y verificación del pack de convenciones | ⬜ |
 
 **Salida:** con `fractal new` el proyecto trae el pack (`AGENTS.md` + FDL + prompts); el agente genera el CRUD completo y desplegable desde el FDL validado siguiendo esas convenciones.
 
-> **Nota (2026-11-11):** M2 se reorientó — Fractal no implementa un motor de templating. El core valida el FDL (contrato) y el agente de IA del proyecto genera el código siguiendo el pack de convenciones (SPEC-0007). Las filas SPEC-0008..0013 describen qué convenciones cubre el pack para cada capa; su decomposición final se detalla al redactar cada spec.
+> **Nota (2026-11-11):** M2 se reorientó — Fractal no implementa un motor de templating ni specs de generador por capa. El core valida el FDL (contrato) y el **agente de IA del proyecto** escribe el código siguiendo el pack de convenciones (`AGENTS.md` + FDL + prompts) que entrega SPEC-0007. Lo que antes se pensaba como specs de generador por capa —entidad (migration/model/factory/seeder), capas Repository/Service, API REST, frontend React + Vite, tests por entidad y snapshots/verificación del pack— queda **absorbido por el agente vía SPEC-0007**: son convenciones del pack, no capabilities propias de Fractal. Los números SPEC-0008..0013 se retiran y no se reutilizan (PROCESO, «Numeración»).
 
 > SPEC-0006 (contrato del adapter) quedó **Implementado** el 2026-10-11
 > (FRA-55, cierre documental). Sus cuatro tickets base están mergeados —
@@ -131,8 +138,9 @@ continuar con SPEC-0007.
 > `deployRuntime` del contrato por target). `fractal new` ya genera las tres
 > topologías contra el contrato y la Definition of Done del §9 del spec se
 > cumple por completo (evidencia en SPEC-0006 §9.1). Por eso pasa de 🟡 a **✅**.
-> Nota: el milestone M2 sigue abierto; SPEC-0006 es la primera de sus specs en
-> cerrarse, el resto (FDL, generación de entidades) continúa pendiente.
+> Nota: el milestone M2 sigue abierto. SPEC-0006 fue la primera de sus specs en
+> cerrarse; el FDL (SPEC-0004/0005) también quedó **Implementado**, así que lo que
+> continúa pendiente es SPEC-0007 (convenciones y prompts para el agente).
 
 > SPEC-0004 (lenguaje FDL) está **Implementado**
 > (`docs/specs/0004-lenguaje-fdl.md`, Estado: Implementado) y su cadena de
@@ -177,10 +185,15 @@ continuar con SPEC-0007.
 | Spec | Capability | Estado |
 |---|---|---|
 | SPEC-0017 | Adapter Rails: proyecto base | ⬜ |
-| SPEC-0018 | Adapter Rails: entidades y CRUD | ⬜ |
-| SPEC-0019 | Adapter Rails: API REST | ⬜ |
-| SPEC-0020 | Adapter Rails: auth | ⬜ |
 | SPEC-0021 | Deploy agnóstico verificado en Rails | ⬜ |
+
+> **Nota (2026-11-11):** con la reorientación de M2, el adapter Rails solo necesita
+> entregar el **proyecto base** (SPEC-0017) y validar el **deploy agnóstico**
+> (SPEC-0021). Las entidades y el CRUD, la API REST y la auth para Rails las escribe
+> el **agente de IA** siguiendo el pack de convenciones (SPEC-0007), igual que en
+> Laravel — no hacen falta specs de generador Rails por capa. Eso es, además, la
+> prueba multi-target buscada: el mismo FDL validado, el agente generando código
+> Rails real. Los números SPEC-0018..0020 se retiran y no se reutilizan.
 
 **Criterio de éxito duro:** cero cambios en `packages/core` durante todo este milestone.
 Si el core necesita modificarse, se abre un ADR explicando por qué el diseño original falló.
@@ -189,13 +202,14 @@ Si el core necesita modificarse, se abre un ADR explicando por qué el diseño o
 
 ## M5 — Módulos avanzados
 
-| Spec | Capability | Estado |
-|---|---|---|
-| SPEC-0022 | Sistema de módulos instalables | ⬜ |
-| SPEC-0023 | GraphQL | ⬜ |
-| SPEC-0024 | Multi-tenancy | ⬜ |
-| SPEC-0025 | Auditoría de cambios | ⬜ |
-| SPEC-0026 | Media library | ⬜ |
+> **Nota (2026-11-11):** con la reorientación de M2, los módulos avanzados
+> —módulos instalables, GraphQL, multi-tenancy, auditoría de cambios, media
+> library— dejan de ser specs de generador de Fractal. El **agente de IA** los
+> agrega al proyecto siguiendo convenciones y prompts reutilizables del pack
+> (SPEC-0007), sobre el FDL validado por el core; donde sean una capacidad del
+> proyecto generado, se entregan como módulos instalables (`fractal module`,
+> CONSTITUTION Art. IX.B). Fractal no mantiene un generador por módulo. Los
+> números SPEC-0022..0026 se retiran y no se reutilizan (PROCESO, «Numeración»).
 
 ---
 

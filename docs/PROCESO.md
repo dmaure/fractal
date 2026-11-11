@@ -53,8 +53,7 @@ archivo. Nunca se reutiliza un número, ni aunque el documento se descarte.
 
 | Rama | Propósito |
 |---|---|
-| `main` | Código estable, listo para release |
-| `production` | Lo desplegado. Merge dispara deploy |
+| `master` | Rama por defecto: código estable e integrado. El merge dispara el deploy automático |
 | `feature/NNNN-nombre` | Implementación de un spec |
 | `fix/descripcion` | Corrección |
 | `docs/descripcion` | Solo documentación |
