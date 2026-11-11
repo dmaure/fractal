@@ -99,24 +99,26 @@ continuar con SPEC-0007.
 
 ---
 
-## M2 — FDL y generación de entidades
+## M2 — FDL y generación de entidades por el agente
 
-**Objetivo:** el generador genera código útil, sobre una base agnóstica.
+**Objetivo:** el FDL es el contrato que el core valida; el agente de IA del proyecto genera el código útil siguiendo un pack de convenciones, sobre una base agnóstica.
 
 | Spec | Capability | Estado |
 |---|---|---|
 | SPEC-0004 | Especificación del lenguaje FDL | ✅[^spec0004] |
 | SPEC-0005 | Parser y validador de FDL | ✅[^spec0005] |
 | SPEC-0006 | Contrato del adapter | ✅ |
-| SPEC-0007 | Motor de templating de stubs | ⬜[^spec0007] |
-| SPEC-0008 | Entidad: migration, model, factory, seeder | ⬜ |
-| SPEC-0009 | Capas Repository y Service | ⬜ |
-| SPEC-0010 | API REST con validación y serialización | ⬜ |
-| SPEC-0011 | Frontend React + Vite consumiendo la API (Index, Show, Form) — ADR-0005 | ⬜ |
-| SPEC-0012 | Generación de tests por entidad | ⬜ |
-| SPEC-0013 | Tests de snapshot de stubs | ⬜ |
+| SPEC-0007 | Convenciones y prompts para generación por agente (FDL como contrato) | ⬜[^spec0007] |
+| SPEC-0008 | Convenciones de entidad en el pack: migration, model, factory, seeder | ⬜ |
+| SPEC-0009 | Convenciones de capas Repository y Service | ⬜ |
+| SPEC-0010 | Convenciones de API REST con validación y serialización | ⬜ |
+| SPEC-0011 | Convenciones de frontend React + Vite (Index, Show, Form) — ADR-0005 | ⬜ |
+| SPEC-0012 | Convenciones de tests por entidad | ⬜ |
+| SPEC-0013 | Snapshots y verificación del pack de convenciones | ⬜ |
 
-**Salida:** `fractal entity Producto` genera CRUD completo y desplegable.
+**Salida:** con `fractal new` el proyecto trae el pack (`AGENTS.md` + FDL + prompts); el agente genera el CRUD completo y desplegable desde el FDL validado siguiendo esas convenciones.
+
+> **Nota (2026-11-11):** M2 se reorientó — Fractal no implementa un motor de templating. El core valida el FDL (contrato) y el agente de IA del proyecto genera el código siguiendo el pack de convenciones (SPEC-0007). Las filas SPEC-0008..0013 describen qué convenciones cubre el pack para cada capa; su decomposición final se detalla al redactar cada spec.
 
 > SPEC-0006 (contrato del adapter) quedó **Implementado** el 2026-10-11
 > (FRA-55, cierre documental). Sus cuatro tickets base están mergeados —
@@ -150,9 +152,11 @@ continuar con SPEC-0007.
     El spec está **Implementado** (2026-10-12, por decisión de Diego en FRA-63); el ✅ refleja `progress.json: completado`.
 [^spec0005]: Absorbido en SPEC-0004 (ver `docs/specs/0005-parser-y-validador-de-fdl.md`).
     Sin entrada propia en `progress.json`; sus tareas se trazan bajo SPEC-0004.
-[^spec0007]: **Pausado** hasta que wizard v2 (M1.5) esté documentado y aprobado (decisión
-    de Diego, 2026-11-01). El spec del motor de templating asume que el wizard v2 ya está
-    en su lugar; implementarlo antes duplicaría el trabajo de adaptación.
+[^spec0007]: **Reorientado** (decisión de Diego, 2026-11-11): se descarta el motor de
+    templating propio. El FDL es el contrato que el core valida y el agente de IA del
+    proyecto escribe el código siguiendo un pack de convenciones (`AGENTS.md` + prompts)
+    dentro del proyecto generado. Del plumbing anterior se rescata solo lo chico que aporta
+    (validación de rutas, escritura atómica, `--dry-run`). Ver SPEC-0007 (reescrito en la PR #114).
 
 ---
 
