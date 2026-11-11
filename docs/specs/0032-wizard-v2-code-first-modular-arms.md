@@ -1,9 +1,12 @@
 # SPEC-0032: Wizard v2 — code-first y brazos modulares
 
-**Estado:** Aprobado
+**Estado:** Implementado
 **Autor:** Claude
 **Fecha:** 2026-11-02
 **Fecha de aprobación:** 2026-11-07 (aprobado por Diego, PO)
+**Fecha de implementación:** 2026-11-11 — **cierre documental**: las siete tareas
+(FRA-82..FRA-88) están mergeadas (PR #113) y Fractal QA dio **PASS**. Pasa de
+Aprobado a **Implementado**.
 **ADR relacionado:** ADR-0016
 **Issue:** —
 
@@ -230,15 +233,15 @@ Restricciones conocidas, no diseño. El diseño va en el plan de implementación
 
 ## 9. Definition of Done
 
-- [x] Spec aprobada por Diego (pasa de "En revisión" a "Aprobado")
-- [ ] Todos los criterios de aceptación (AC-1..AC-11) son verificables con test
+- [x] Spec aprobada por Diego (pasó de "En revisión" a "Aprobado"; ahora **Implementado**)
+- [x] Todos los criterios de aceptación (AC-1..AC-11) son verificables con test
   automatizado
-- [ ] Tickets de implementación creados (FRA-82..FRA-88)
-- [ ] (Al implementar) El lint de acoplamiento pasa (sin términos de framework en core)
-- [ ] (Al implementar) Tests + e2e en verde
-- [ ] (Al implementar) Documentación de usuario actualizada
-- [ ] (Al implementar) `docs/progress.json` y `MAPA_DE_PROGRESO.md` sincronizados
-  vía `fractal status --write`
+- [x] Tickets de implementación creados y mergeados (FRA-82..FRA-88, PR #113)
+- [x] El lint de acoplamiento pasa (sin términos de framework en core)
+- [x] Tests + e2e en verde
+- [x] Documentación de usuario actualizada
+- [ ] `docs/progress.json` y `MAPA_DE_PROGRESO.md` sincronizados vía
+  `fractal status --write` (lo aplica Fractal QA en el cierre de estado)
 
 ---
 

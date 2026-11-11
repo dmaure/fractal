@@ -3,7 +3,7 @@
 > Generador de aplicaciones production-ready, multi-framework.
 > De cero a desplegado en internet en menos de 30 minutos.
 
-**Estado:** En diseño (M0 — Fundaciones)
+**Estado:** En desarrollo (M2 — FDL y generación por el agente). M0, M1 y M1.5 (wizard v2) ya están implementados.
 
 ---
 
@@ -19,8 +19,11 @@ destino. El dominio se define una vez, en FDL, y se proyecta sobre cada target.
 ```
 fractal new mi-proyecto     # genera el proyecto
 fractal deploy              # lo pone online con HTTPS y CI/CD
-fractal entity Producto     # genera CRUD completo
 ```
+
+El CRUD por entidad (modelo, API, frontend, tests) lo escribe el **agente de IA**
+del proyecto siguiendo el pack de convenciones y el FDL que valida el core — no un
+comando generador de Fractal (ver SPEC-0007 y el ROADMAP).
 
 ---
 
