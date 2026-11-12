@@ -41,7 +41,6 @@ const noopSleep = async (): Promise<void> => undefined;
 const RETRY_BASE: Omit<ProbeWithRetryOptions, 'kind' | 'retries'> = {
   timeoutMs: 10,
   insecure: false,
-  followRedirect: false,
   retryDelayMs: 1,
 };
 

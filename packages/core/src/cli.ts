@@ -154,6 +154,23 @@ function parseNonNegativeInt(raw: unknown, name: string): number | null {
   return value;
 }
 
+/**
+ * Parsea una opción numérica entera positiva (>= 1). Devuelve `null` si es
+ * inválida (no numérica, no entera o < 1), para que el comando pueda salir con
+ * un error de uso. Se usa para `--timeout` y `--retries`, donde 0 sería un
+ * footgun (`--timeout 0` = sin timeout en node:http; `--retries 0` colapsa a un
+ * único intento).
+ */
+function parsePositiveInt(raw: unknown, name: string): number | null {
+  if (raw === undefined) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) {
+    console.error(`❌ Opción --${name} inválida: se esperaba un entero >= 1 (recibido: ${String(raw)}).`);
+    return null;
+  }
+  return value;
+}
+
 interface DoctorCliOptions {
   expectContent?: string;
   timeout?: string;
@@ -168,16 +185,16 @@ program
   .command('doctor <target>')
   .description('Chequeo determinista post-deploy: HTTPS, app levantada y página base')
   .option('--expect-content <text>', 'Substring que debe aparecer en la página base (señal de app arriba)')
-  .option('--timeout <ms>', 'Timeout por request en ms (default 10000)')
-  .option('--retries <n>', 'Máximo de intentos ante fallos transitorios (default 10)')
+  .option('--timeout <ms>', 'Timeout por request en ms, entero >= 1 (default 10000)')
+  .option('--retries <n>', 'Máximo de intentos TOTALES (incluye el primero) ante fallos transitorios, entero >= 1 (default 10)')
   .option('--retry-delay <ms>', 'Delay base entre intentos en ms (default 5000)')
   .option('--insecure', 'Omite la validación del certificado TLS (staging / self-signed)')
   .option('--check-redirect', 'Verifica también la redirección HTTP→HTTPS')
   .option('--json', 'Salida machine-readable en JSON')
   .action(async (target: string, opts: DoctorCliOptions) => {
     try {
-      const timeout = opts.timeout === undefined ? 10000 : parseNonNegativeInt(opts.timeout, 'timeout');
-      const retries = opts.retries === undefined ? 10 : parseNonNegativeInt(opts.retries, 'retries');
+      const timeout = opts.timeout === undefined ? 10000 : parsePositiveInt(opts.timeout, 'timeout');
+      const retries = opts.retries === undefined ? 10 : parsePositiveInt(opts.retries, 'retries');
       const retryDelay =
         opts.retryDelay === undefined ? 5000 : parseNonNegativeInt(opts.retryDelay, 'retry-delay');
 

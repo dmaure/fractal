@@ -32,7 +32,7 @@ export const DOCTOR_EXIT = {
   BASE_PAGE_FAILED: 3,
   /** La app no está levantada (5xx = proxy arriba / app caída, o contenido ausente). */
   APP_NOT_UP: 4,
-  /** La redirección HTTP→HTTPS no se verificó. */
+  /** La verificación de la redirección HTTP→HTTPS falló. */
   REDIRECT_FAILED: 5,
 } as const;
 
@@ -258,7 +258,7 @@ export function evaluateHealth(
     reason = 'App no levantada: contenido esperado ausente en la página base.';
   } else if (checkRedirect && !redirectOk) {
     exitCode = DOCTOR_EXIT.REDIRECT_FAILED;
-    reason = 'Redirección HTTP→HTTPS no verificada.';
+    reason = 'La verificación de la redirección HTTP→HTTPS falló.';
   }
 
   return {
@@ -276,21 +276,19 @@ export interface HttpProbeOptions {
   timeoutMs: number;
   /** Si `true`, se omite la validación del certificado TLS. */
   insecure: boolean;
-  /** Si `false`, las redirecciones NO se siguen (se lee status + `Location`). */
-  followRedirect: boolean;
 }
 
 /**
  * Sonda HTTP/HTTPS de bajo nivel usando los módulos nativos de Node. Nunca
  * lanza: ante un error de red/TLS resuelve con `ok:false` y `errorCode`.
  *
- * No sigue redirecciones (lee el status y el header `Location`). Aplica el
- * timeout destruyendo el socket, lee un cuerpo acotado (truncado de forma
- * determinista a `MAX_BODY_BYTES`) y usa `rejectUnauthorized: !insecure` en
- * https.
+ * Nunca sigue redirecciones por diseño: lee el status y el header `Location`.
+ * Aplica el timeout destruyendo el socket, lee un cuerpo acotado (truncado de
+ * forma determinista a `MAX_BODY_BYTES`) y usa `rejectUnauthorized: !insecure`
+ * en https.
  *
  * @param url - URL absoluta a sondear.
- * @param opts - Timeout, modo inseguro y política de redirección.
+ * @param opts - Timeout y modo inseguro.
  * @returns El resultado de la sonda (nunca rechaza).
  */
 export async function httpProbe(url: string, opts: HttpProbeOptions): Promise<HttpProbeResult> {
@@ -446,7 +444,6 @@ export async function probeWithRetry(
   const probeOpts: HttpProbeOptions = {
     timeoutMs: opts.timeoutMs,
     insecure: opts.insecure,
-    followRedirect: opts.followRedirect,
   };
 
   let last: HttpProbeResult = {
@@ -474,7 +471,7 @@ export interface DoctorCommandOptions {
   expectContent?: string;
   /** Timeout por request, en ms (default 10000). */
   timeout?: number;
-  /** Máximo de intentos ante fallos transitorios (default 10). */
+  /** Máximo de intentos totales, incluyendo el primero, ante fallos transitorios (default 10). */
   retries?: number;
   /** Delay base entre intentos, en ms (default 5000). */
   retryDelay?: number;
@@ -568,7 +565,6 @@ export async function doctorCommand(
       probeWithRetry(url, {
         timeoutMs,
         insecure,
-        followRedirect: false,
         retries,
         retryDelayMs,
         expectContent,
@@ -580,7 +576,6 @@ export async function doctorCommand(
       probeWithRetry(url, {
         timeoutMs,
         insecure,
-        followRedirect: false,
         retries,
         retryDelayMs,
         kind: 'redirect',
