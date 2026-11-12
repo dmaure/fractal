@@ -168,13 +168,15 @@ Una capability está terminada cuando:
 
 ## Uso de agentes de IA
 
-El proyecto usa asistentes de código. Reglas:
+El proyecto usa a **Claude** como implementador: toda implementación de
+código y de documentación la hace Claude, coordinada por el orquestador, que
+no implementa. Reglas:
 
-1. El spec es el contrato. El agente implementa contra el spec, no contra un prompt suelto.
-2. Toda salida de un agente pasa por code review de Claude y después por revisión humana (Diego) antes del merge. El ciclo está en `ORCHESTRATOR_PLAYBOOK.md`, sección 6.
-3. Si el agente propone una decisión técnica no contemplada, se detiene y se escribe un ADR.
-4. `CONSTITUTION.md` y el spec relevante se incluyen siempre en el contexto del agente.
-5. Ningún agente modifica `packages/core` sin verificación explícita del Artículo II.
+1. El spec es el contrato. Claude implementa contra el spec, no contra un prompt suelto.
+2. Toda implementación pasa por code review de Claude —en una sesión distinta de la que implementó— y después por revisión humana (Diego) antes del merge. El ciclo está en `ORCHESTRATOR_PLAYBOOK.md`, sección 6.
+3. Si al implementar aparece una decisión técnica no contemplada, se detiene y se escribe un ADR.
+4. `CONSTITUTION.md` y el spec relevante se incluyen siempre en el contexto de implementación.
+5. No se modifica `packages/core` sin verificación explícita del Artículo II.
 
 ---
 
