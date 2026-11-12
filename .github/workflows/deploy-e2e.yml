@@ -333,14 +333,19 @@ jobs:
             curl -sS -X DELETE "$API/instances/$VULTR_INSTANCE_ID" -H "$AUTH" >/dev/null
           fi
 
-          echo "→ Backup: eliminando cualquier instancia cuya label matchee el run..."
-          if [ -n "${VULTR_LABEL:-}" ]; then
-            for id in $(curl -sS "$API/instances?per_page=500" -H "$AUTH" \
-                | jq -r --arg L "$VULTR_LABEL" '.instances[] | select(.label==$L) | .id'); do
-              echo "   borrando instancia $id"
-              curl -sS -X DELETE "$API/instances/$id" -H "$AUTH" >/dev/null
-            done
-          fi
+          # Backup a prueba de fallos: aunque el provisionado falle antes de
+          # persistir VULTR_INSTANCE_ID (o incluso VULTR_LABEL) en $GITHUB_ENV,
+          # GITHUB_RUN_ID siempre está disponible. Se listan y borran TODAS las
+          # instancias del run actual por prefijo de label (fra64-e2e-<run_id>-*).
+          # El prefijo incluye el run_id para NO tocar instancias de otros runs
+          # (p.ej. huérfanos que se limpian a mano).
+          PREFIX="fra64-e2e-${GITHUB_RUN_ID}-"
+          echo "→ Backup: eliminando toda instancia cuya label matchee ${PREFIX}*..."
+          for id in $(curl -sS "$API/instances?per_page=500" -H "$AUTH" \
+              | jq -r --arg P "$PREFIX" '.instances[]? | select(.label | startswith($P)) | .id'); do
+            echo "   borrando instancia $id"
+            curl -sS -X DELETE "$API/instances/$id" -H "$AUTH" >/dev/null
+          done
 
           echo "→ Eliminando SSH key de Vultr (${VULTR_SSH_KEY_ID:-<none>})..."
           if [ -n "${VULTR_SSH_KEY_ID:-}" ]; then
@@ -364,3 +369,44 @@ jobs:
 
           echo "Teardown completado."
           exit 0
+
+      - name: Verificar que no quedan VPS e2e huérfanos del run (siempre)
+        if: always()
+        env:
+          VULTR_API_KEY: ${{ secrets.VULTR_API_KEY }}
+        run: |
+          # Red de seguridad: tras el teardown, re-lista las instancias y falla
+          # el job si queda alguna del run actual. Filtra SIEMPRE por el run_id
+          # (prefijo fra64-e2e-<run_id>-*) para no mirar instancias de otros runs.
+          set -uo pipefail
+          API="https://api.vultr.com/v2"
+          AUTH="Authorization: Bearer $VULTR_API_KEY"
+          PREFIX="fra64-e2e-${GITHUB_RUN_ID}-"
+
+          echo "→ Verificando que no queden instancias con label ${PREFIX}*..."
+          # El DELETE de Vultr es asíncrono: una instancia recién borrada puede
+          # seguir apareciendo en la lista unos segundos. Se reintenta un rato
+          # antes de declararla huérfana, para no romper el flujo verde.
+          LEFT=""
+          for i in $(seq 1 6); do
+            RESP="$(curl -sS "$API/instances?per_page=500" -H "$AUTH")"
+            if ! printf '%s' "$RESP" | jq -e . >/dev/null 2>&1; then
+              echo "   intento $i/6: respuesta inválida de la API de Vultr, reintentando..."
+              sleep 10
+              continue
+            fi
+            LEFT="$(printf '%s' "$RESP" \
+              | jq -r --arg P "$PREFIX" '.instances[]? | select(.label | startswith($P)) | "\(.label) (\(.id))"')"
+            if [ -z "$LEFT" ]; then
+              break
+            fi
+            echo "   intento $i/6: aún quedan instancias; esperando a que Vultr complete el DELETE..."
+            sleep 10
+          done
+
+          if [ -n "$LEFT" ]; then
+            echo "ERROR: quedaron instancias e2e huérfanas del run ${GITHUB_RUN_ID}:"
+            printf '%s\n' "$LEFT"
+            exit 1
+          fi
+          echo "✓ No quedan VPS e2e huérfanos del run ${GITHUB_RUN_ID}"
