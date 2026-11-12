@@ -3,3 +3,4 @@ export * from './deploy.js';
 export * from './status.js';
 export * from './progress-map.js';
 export * from './fdl-check.js';
+export * from './doctor.js';

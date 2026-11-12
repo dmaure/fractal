@@ -7,6 +7,7 @@ import { newCommand } from './commands/new.js';
 import { deployCommand } from './commands/deploy.js';
 import { statusCommand } from './commands/status.js';
 import { fdlCheckCommand } from './commands/fdl-check.js';
+import { doctorCommand } from './commands/doctor.js';
 import type { NewCommandOptions } from './types/new-command.js';
 import type { DeployCommandOptions } from './types/deploy-command.js';
 import type { StatusCommandOptions } from './types/status-command.js';
@@ -132,6 +133,85 @@ fdl
   .action(async (path: string) => {
     try {
       await fdlCheckCommand(path);
+    } catch (error) {
+      console.error('Error:', error);
+      process.exit(1);
+    }
+  });
+
+/**
+ * Parsea una opción numérica entera no negativa. Devuelve `null` si es inválida
+ * (no numérica, negativa o no entera), para que el comando pueda salir con un
+ * error de uso.
+ */
+function parseNonNegativeInt(raw: unknown, name: string): number | null {
+  if (raw === undefined) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    console.error(`❌ Opción --${name} inválida: se esperaba un entero no negativo (recibido: ${String(raw)}).`);
+    return null;
+  }
+  return value;
+}
+
+/**
+ * Parsea una opción numérica entera positiva (>= 1). Devuelve `null` si es
+ * inválida (no numérica, no entera o < 1), para que el comando pueda salir con
+ * un error de uso. Se usa para `--timeout` y `--retries`, donde 0 sería un
+ * footgun (`--timeout 0` = sin timeout en node:http; `--retries 0` colapsa a un
+ * único intento).
+ */
+function parsePositiveInt(raw: unknown, name: string): number | null {
+  if (raw === undefined) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) {
+    console.error(`❌ Opción --${name} inválida: se esperaba un entero >= 1 (recibido: ${String(raw)}).`);
+    return null;
+  }
+  return value;
+}
+
+interface DoctorCliOptions {
+  expectContent?: string;
+  timeout?: string;
+  retries?: string;
+  retryDelay?: string;
+  insecure?: boolean;
+  checkRedirect?: boolean;
+  json?: boolean;
+}
+
+program
+  .command('doctor <target>')
+  .description('Chequeo determinista post-deploy: HTTPS, app levantada y página base')
+  .option('--expect-content <text>', 'Substring que debe aparecer en la página base (señal de app arriba)')
+  .option('--timeout <ms>', 'Timeout por request en ms, entero >= 1 (default 10000)')
+  .option('--retries <n>', 'Máximo de intentos TOTALES (incluye el primero) ante fallos transitorios, entero >= 1 (default 10)')
+  .option('--retry-delay <ms>', 'Delay base entre intentos en ms (default 5000)')
+  .option('--insecure', 'Omite la validación del certificado TLS (staging / self-signed)')
+  .option('--check-redirect', 'Verifica también la redirección HTTP→HTTPS')
+  .option('--json', 'Salida machine-readable en JSON')
+  .action(async (target: string, opts: DoctorCliOptions) => {
+    try {
+      const timeout = opts.timeout === undefined ? 10000 : parsePositiveInt(opts.timeout, 'timeout');
+      const retries = opts.retries === undefined ? 10 : parsePositiveInt(opts.retries, 'retries');
+      const retryDelay =
+        opts.retryDelay === undefined ? 5000 : parseNonNegativeInt(opts.retryDelay, 'retry-delay');
+
+      if (timeout === null || retries === null || retryDelay === null) {
+        process.exit(1);
+      }
+
+      const code = await doctorCommand(target, {
+        expectContent: opts.expectContent,
+        timeout,
+        retries,
+        retryDelay,
+        insecure: opts.insecure ?? false,
+        checkRedirect: opts.checkRedirect ?? false,
+        json: opts.json ?? false,
+      });
+      process.exit(code);
     } catch (error) {
       console.error('Error:', error);
       process.exit(1);
