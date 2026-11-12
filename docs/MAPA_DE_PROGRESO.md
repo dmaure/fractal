@@ -2,11 +2,13 @@
 
 **Versión:** 1.0.0
 **Estado:** Draft
-**Última revisión:** 2026-11-11 — alineado con lo mergeado en #114.
-SPEC-0032 está **Implementado** y la DoD §9 tildada. M2 usa el título del
-ROADMAP («FDL y generación de entidades por el agente»); sigue pendiente
-SPEC-0007. M1.5 sigue cerrado (FRA-82..FRA-88; QA e2e #113 / FRA-94 PASS
-en `081f2e2`). `fractal entity` sigue pendiente. El Diagrama 1
+**Última revisión:** 2026-11-12 — FRA-102 (PR #117) mergeado y Done.
+El pack de convenciones (`AGENTS.md`, `fractal/domain.fdl.json`,
+`fractal/prompts/add-entity.md`, `fractal fdl check`) cubre AC-1..AC-8 de
+SPEC-0007; el spec queda en curso porque su DoD §9 no está cumplida (sigue
+en «En revisión»). M2 sigue abierto. SPEC-0032 está **Implementado** y la
+DoD §9 tildada. M1.5 sigue cerrado (FRA-82..FRA-88; QA e2e #113 / FRA-94
+PASS en `081f2e2`). `fractal entity` sigue pendiente. El Diagrama 1
 (milestones) y el Diagrama 2 (capacidades y módulos) se regeneran desde
 [`progress.json`](progress.json) (SPEC-0031).
 
@@ -108,9 +110,18 @@ workflows de CI y [`progress.json`](progress.json) en master):
 - **M2 🟡** — SPEC-0004 (lenguaje FDL) y SPEC-0006 (contrato del adapter) están
   **Implementado**: el lenguaje vive en `packages/core/src/fdl` y `fractal new`
   ya genera las tres topologías contra el contrato. SPEC-0005 quedó absorbido
-  en SPEC-0004. Sigue pendiente SPEC-0007 (convenciones y prompts para
-  generación por el agente, #114): el core valida el FDL y el agente de IA del
-  proyecto escribe el código siguiendo el pack de convenciones.
+  en SPEC-0004. FRA-102 (PR #117, merge `d563b5f`) está Done: `fractal new`
+  deja el pack (`AGENTS.md`, `fractal/domain.fdl.json`,
+  `fractal/prompts/add-entity.md`) y `fractal fdl check` valida el contrato
+  (AC-1..AC-8, con tests). SPEC-0007 queda **en curso**: el documento sigue
+  en «En revisión» (DoD §9 pide la aprobación de Diego y marcarlo
+  **Implementado**, decisión que el propio spec deja fuera de la
+  implementación) y las preguntas de §8 siguen abiertas. La implementación
+  siguió los defaults de §8 (convenciones en el adapter, `fractal fdl check`,
+  un solo prompt, `AGENTS.md` como plantilla del adapter); queda sin decidir
+  si el descarte del motor de templating amerita un ADR. El ROADMAP deja M2
+  abierto mientras SPEC-0007 no cierre. La salida de CRUD desplegable queda
+  en el agente del proyecto, que la escribe siguiendo el pack.
 - **M3–M6 ⬜** — Pendientes.
 
 ---
@@ -171,8 +182,8 @@ Cómo leerlo:
 - **FDL ✅** — lenguaje v0 entregado: tipos, parser, validador y diagnósticos
   en `packages/core/src/fdl`, guía `docs/guides/fdl.md`, SPEC-0004
   **Implementado** (SPEC-0005 absorbido). El nodo cubre el lenguaje de ADR-0003
-  (entidades, campos, relaciones, reglas). En M2 sigue abierto SPEC-0007: el
-  agente escribe el código desde el FDL validado.
+  (entidades, campos, relaciones, reglas). En M2, FRA-102 ya entrega el pack
+  y `fractal fdl check`; SPEC-0007 sigue en curso (DoD §9 sin cumplir).
 - **`fractal module` y módulos ⬜** — módulos opcionales, planificados para M5
   (ver [`CONSTITUTION.md`](CONSTITUTION.md) Artículo IX).
 - **`core` y `deploy` 🟡** — packages agnósticos en construcción; **adapter-laravel
@@ -191,7 +202,7 @@ Linear. Los diagramas y esta tabla salen de ese archivo (SPEC-0031).
 | M0 — Fundaciones | ADR-0002/0003/0004/0006/0007 ✅, lint de acoplamiento ✅, monorepo ✅, SPEC-0031 ✅, CI (lint, tests, typecheck, e2e) ✅, **matriz de versiones** ⬜ | 🟡 (falta la matriz de versiones) | M0 — Fundaciones |
 | M1 — Esqueleto vertical | SPEC-0001, SPEC-0002, SPEC-0003 **Implementado** ✅ | ✅ (FRA-81, Diego 2026-10-26; QA PASS #93) | M1 — Esqueleto vertical |
 | M1.5 — Wizard v2 | SPEC-0032 **Implementado** ✅ (DoD §9 tildada, #114); FRA-82..FRA-88 mergeados; QA PASS #113 en `081f2e2` | ✅ | M1.5 — Wizard v2 |
-| M2 — FDL y generación de entidades por el agente | SPEC-0004 **Implementado** ✅, SPEC-0005 absorbido ✅, SPEC-0006 **Implementado** ✅; SPEC-0007 (convenciones y prompts para generación por agente) ⬜ | 🟡 | M2 — FDL y generación de entidades por el agente |
+| M2 — FDL y generación de entidades por el agente | SPEC-0004 **Implementado** ✅, SPEC-0005 absorbido ✅, SPEC-0006 **Implementado** ✅; SPEC-0007 🟡 — FRA-102 / #117 Done (pack AC-1..AC-8); falta aprobación, marcado Implementado y cierre de §8 | 🟡 | M2 — FDL y generación de entidades por el agente |
 | M3 — Autenticación y autorización | SPEC-0014, SPEC-0015, SPEC-0016 | ⬜ | M3 — Autenticación y autorización |
 | M4 — Adapter Rails | SPEC-0017 … SPEC-0021 | ⬜ | M4 — Adapter Rails |
 | M5 — Módulos avanzados | SPEC-0022 … SPEC-0026 | ⬜ | M5 — Módulos avanzados |
@@ -203,7 +214,10 @@ Linear. Los diagramas y esta tabla salen de ese archivo (SPEC-0031).
 > la DoD §9 está tildada. Queda sin tildar el ítem de sincronizar
 > `docs/progress.json` y este mapa vía `fractal status --write` (lo aplica
 > Fractal QA). M1.5 figura ✅ porque FRA-82..FRA-88 están mergeados y el QA
-> e2e post-merge de #113 dio PASS.
+> e2e post-merge de #113 dio PASS. SPEC-0007 no está **Implementado**: sigue
+> «En revisión» en `docs/specs/0007-convenciones-y-prompts-para-generacion.md`.
+> En `progress.json` figura en curso porque FRA-102 cubre AC-1..AC-8 y la
+> DoD §9 todavía no (aprobación de Diego, marcado Implementado, §8).
 
 ---
 
