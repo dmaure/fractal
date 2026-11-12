@@ -71,6 +71,31 @@ beforeEach(() => {
         },
       };
     }
+    if (payload.action === 'get-pack') {
+      // SPEC-0007: pack de convenciones con un FDL inicial válido (VR-1..VR-12).
+      return {
+        success: true,
+        data: {
+          files: [
+            { path: 'AGENTS.md', contents: '# convenciones\n' },
+            {
+              path: 'fractal/domain.fdl.json',
+              contents: JSON.stringify({
+                fdlVersion: '0',
+                project: { name: payload.name },
+                entities: [
+                  {
+                    name: 'Author',
+                    fields: [{ name: 'id', type: 'uuid', primaryKey: true }],
+                  },
+                ],
+              }),
+            },
+            { path: 'fractal/prompts/add-entity.md', contents: '# prompt\n' },
+          ],
+        },
+      };
+    }
     return { success: false, error: { message: 'Acción desconocida' } };
   });
   

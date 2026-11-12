@@ -11,6 +11,7 @@ import { initializeGit } from '../utils/git-initializer.js';
 import { resolveSingleAdapter } from '../adapter-resolver.js';
 import { invokeAdapter } from '../adapter-bridge.js';
 import { checkRuntimeRequirements } from '../bridge/binary-check.js';
+import { assertPackFdlValid, writePack, type PackFile } from '../pack/index.js';
 import type { AdapterContract, CreateProjectPayload } from '../types/adapter-contract.js';
 import {
   collectNewWizardParams,
@@ -98,6 +99,14 @@ export async function newCommand(
 
   if (validation.reason) {
     console.log(chalk.yellow(`⚠️  ${validation.reason}\n`));
+  }
+
+  // SPEC-0007 AC-6: --dry-run inspecciona el pack de convenciones sin scaffoldear
+  // ni escribir nada. Resuelve el adapter, obtiene el pack, valida su FDL (gate
+  // AC-1) e imprime los paths que se escribirían; sale 0 y deja el destino vacío.
+  if (options.dryRun) {
+    await runPackDryRun(derivedProjectName, targetDir);
+    return;
   }
 
   let topology = options.topology || DEFAULT_TOPOLOGY;
@@ -247,6 +256,76 @@ export async function newCommand(
   }
 }
 
+/**
+ * Obtiene el pack de convenciones del adapter vía la acción read-only `get-pack`
+ * (SPEC-0007). Devuelve los archivos del pack o lanza con un mensaje legible.
+ */
+async function fetchPack(
+  adapterCommand: string[],
+  projectName: string
+): Promise<PackFile[]> {
+  const result = await invokeAdapter(adapterCommand, {
+    action: 'get-pack',
+    name: projectName,
+  });
+
+  if (!result.success) {
+    throw new Error(
+      `No se pudo obtener el pack de convenciones del adapter: ${result.error.message}`
+    );
+  }
+
+  const data = result.data as { files?: PackFile[] };
+  if (!data || !Array.isArray(data.files)) {
+    throw new Error(
+      'El adapter devolvió un pack sin la lista de archivos esperada (data.files).'
+    );
+  }
+
+  return data.files;
+}
+
+/**
+ * SPEC-0007 AC-6: inspección del pack con `--dry-run`. Resuelve el adapter,
+ * obtiene el pack, valida su FDL (gate AC-1) e imprime los paths que se
+ * escribirían; no toca disco y deja el directorio destino vacío.
+ */
+async function runPackDryRun(
+  projectName: string,
+  targetDir: string
+): Promise<void> {
+  console.log(
+    chalk.blue('\n🔍 Dry-run: pack de convenciones (no se escribe nada en disco)\n')
+  );
+
+  const cliPath = dirname(fileURLToPath(import.meta.url));
+
+  let packFiles: PackFile[];
+  try {
+    const adapter = resolveSingleAdapter(cliPath);
+    console.log(chalk.dim(`   Adapter: ${adapter.target}`));
+    packFiles = await fetchPack(adapter.command, projectName);
+    assertPackFdlValid(packFiles);
+  } catch (error) {
+    console.error(
+      chalk.red(
+        `\n❌ ${error instanceof Error ? error.message : String(error)}`
+      )
+    );
+    process.exit(1);
+  }
+
+  const planned = await writePack(targetDir, packFiles, { dryRun: true });
+
+  console.log(chalk.green('\n✅ Se escribirían estos archivos del pack:'));
+  for (const packPath of planned) {
+    console.log(chalk.dim(`   + ${packPath}`));
+  }
+  console.log(
+    chalk.dim('\n(--dry-run) No se generó el proyecto ni se escribió ningún archivo.')
+  );
+}
+
 async function generateProject(
   params: ValidatedNewParams
 ): Promise<{ repositories: string[] }> {
@@ -338,6 +417,30 @@ async function generateProject(
   }
 
   console.log(chalk.green('   ✓ Estructura generada'));
+
+  // SPEC-0007 AC-2/AC-8: escribir el pack de convenciones (AGENTS.md + FDL +
+  // prompt) junto al scaffold. El FDL del pack es un contrato: se valida antes
+  // de escribir (gate AC-1) y la escritura es atómica (AC-5).
+  console.log(chalk.blue('\n📝 Escribiendo pack de convenciones...'));
+
+  let packFiles: PackFile[];
+  try {
+    packFiles = await fetchPack(adapter.command, params.projectName);
+    assertPackFdlValid(packFiles);
+  } catch (error) {
+    console.error(
+      chalk.red(
+        `\n❌ Error al preparar el pack de convenciones: ${error instanceof Error ? error.message : String(error)}`
+      )
+    );
+    process.exit(1);
+  }
+
+  const writtenPack = await writePack(params.targetDir, packFiles, { dryRun: false });
+  console.log(chalk.green('   ✓ Pack de convenciones escrito'));
+  for (const packPath of writtenPack) {
+    console.log(chalk.dim(`     ${packPath}`));
+  }
 
   console.log(chalk.blue('\n📂 Inicializando repositorio(s) git...'));
 

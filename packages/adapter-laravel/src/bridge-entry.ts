@@ -6,12 +6,15 @@
  * Acciones soportadas:
  * - get-contract: devuelve el contrato del adapter (SPEC-0006 AC-2, AC-3)
  * - create-project: genera un proyecto Laravel (SPEC-0006 AC-1)
- * 
+ * - get-pack: devuelve el pack de convenciones (SPEC-0007 AC-2, AC-3)
+ *
  * @see docs/specs/0002-bridge-node-toolchain.md
  * @see docs/specs/0006-contrato-adapter-v0.md
+ * @see docs/specs/0007-convenciones-y-prompts-para-generacion.md
  */
 
 import { createProject } from './commands/create-project.js';
+import { getPack } from './commands/get-pack.js';
 import { getAdapterContract } from './contract.js';
 import type { CreateProjectPayload, DeployTarget } from '@fractal/core';
 
@@ -204,12 +207,33 @@ async function main(): Promise<void> {
         // Invocar createProject
         response = await createProject(createProjectPayload);
         break;
-      
+
+      case 'get-pack': {
+        // El pack de convenciones (SPEC-0007). Read-only y determinista: usa el
+        // nombre del proyecto del payload para el FDL inicial y los docs.
+        if (!payload.name || typeof payload.name !== 'string') {
+          response = {
+            success: false,
+            error: {
+              message: 'El campo "name" es requerido y debe ser un string',
+              step: 'validación',
+            },
+          };
+          break;
+        }
+
+        response = {
+          success: true,
+          data: getPack(payload.name),
+        };
+        break;
+      }
+
       default:
         response = {
           success: false,
           error: {
-            message: `Acción desconocida: "${payload.action}". Acciones soportadas: get-contract, create-project`,
+            message: `Acción desconocida: "${payload.action}". Acciones soportadas: get-contract, create-project, get-pack`,
             step: 'validación',
           },
         };

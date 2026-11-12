@@ -11,6 +11,7 @@
  */
 
 export { createProject } from './commands/create-project.js';
+export { getPack, type GetPackResponse } from './commands/get-pack.js';
 export {
   getAdapterContract,
   LARAVEL_BACKEND_DEPLOY_RUNTIME,

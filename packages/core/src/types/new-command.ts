@@ -52,6 +52,13 @@ export interface NewCommandOptions {
 
   /** Encadena a `fractal deploy` al terminar la generación. */
   deploy?: boolean;
+
+  /**
+   * Modo inspección (SPEC-0007 AC-6): no scaffoldea ni escribe nada. Resuelve el
+   * adapter, obtiene el pack de convenciones, valida su FDL e imprime los paths
+   * que se escribirían. Sale con código 0 y deja el directorio destino vacío.
+   */
+  dryRun?: boolean;
 }
 
 /**
