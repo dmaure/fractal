@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doctorCommand > snapshot del reporte humano: caso con fallo (503) 1`] = `
+"fractal doctor — https://example.com/
+  ✓ HTTPS responde: respuesta recibida (status 503)
+  ✗ App levantada (sin 5xx): status 503 (5xx: proxy arriba, app caída)
+  ✗ Página base servida (200): status 503 (se esperaba 200)
+✘ Falló (exit 4): App no levantada: status 503 (5xx)."
+`;
+
+exports[`doctorCommand > snapshot del reporte humano: caso sano 1`] = `
+"fractal doctor — https://example.com/
+  ✓ HTTPS responde: respuesta recibida (status 200)
+  ✓ App levantada (sin 5xx): status 200 (sin 5xx)
+  ✓ Página base servida (200): status 200
+✔ Sano: todas las verificaciones pasaron."
+`;
