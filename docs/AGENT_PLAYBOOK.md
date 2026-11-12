@@ -1,9 +1,10 @@
 # Agent Playbook
 
 > Reglas de comportamiento para los agentes de IA que trabajan en Fractal
-> (Claude al preparar trabajo, Cursor al implementarlo). Para el mapa
-> completo del sistema — quién es cada pieza, el diagrama del circuito,
-> los estados de Linear — ver
+> (Claude prepara el trabajo, lo implementa y hace el code review; el
+> orquestador coordina pero no implementa). Para el mapa completo del
+> sistema — quién es cada pieza, el diagrama del circuito, los estados de
+> Linear — ver
 > [`docs/ARCHITECTURE_WORKFLOW.md`](ARCHITECTURE_WORKFLOW.md). Este
 > documento es el manual de cada ejecutor; ese es el mapa.
 
@@ -24,12 +25,13 @@
 - **Diego decide arquitectura**: qué opción se elige en cada ADR, qué se
   prioriza en el roadmap.
 - **Claude** escribe la documentación fundacional y descompone specs
-  Aprobados en tickets, pero nunca decide entre alternativas viables: en un
-  ADR con más de una opción, el campo Decisión queda vacío hasta que Diego
-  lo resuelve.
-- **Cursor** implementa contra el ticket ya en Ready for AI. No inventa
-  alcance ni decide entre alternativas técnicas no resueltas por el ticket
-  o sus ADRs.
+  Aprobados en tickets; **implementa** los tickets que el orquestador le pide
+  desde `Ready for AI`; y **hace el code review** de cada PR antes de Diego
+  (en una sesión distinta de la que implementó). Nunca decide entre
+  alternativas viables: en un ADR con más de una opción, el campo Decisión
+  queda vacío hasta que Diego lo resuelve. Al implementar no inventa alcance
+  ni decide entre alternativas técnicas no resueltas por el ticket o sus
+  ADRs.
 
 ---
 
@@ -53,11 +55,11 @@ falta — no se fuerza.
 
 ---
 
-## Durante la implementación (Cursor)
+## Durante la implementación (Claude)
 
 - No se toca `packages/core` ni `packages/deploy` sin verificar
   explícitamente el Artículo II antes de cada commit (ver la lista de
-  términos prohibidos en ADR-0002 y en `.cursor/rules/fractal.mdc`).
+  términos prohibidos en ADR-0002 y en `docs/CONSTITUTION.md`, Artículo II).
 - Si aparece una decisión técnica que el ticket no cubre y existe más de una
   alternativa razonable, no se elige por cuenta propia: se documenta el
   punto de bloqueo en el PR y se espera.
@@ -98,9 +100,9 @@ falta — no se fuerza.
 
 ## Code review (Claude)
 
-Claude revisa cada PR del agente de código antes de que llegue a Diego. El
-orquestador le pide el review con el link al PR, el ticket y el número de
-ronda.
+Claude revisa cada PR de implementación antes de que llegue a Diego, en una
+sesión distinta de la que lo implementó. El orquestador le pide el review
+con el link al PR, el ticket y el número de ronda.
 
 **Contra qué se revisa**, en este orden:
 
@@ -169,5 +171,3 @@ ronda.
 - `docs/PROCESO.md` — ciclo de trabajo completo
 - `docs/adr/` — decisiones ya tomadas
 - `docs/specs/` — especificaciones de cada capability
-- `.cursor/rules/fractal.mdc` — reglas operativas cargadas automáticamente
-  en Cursor

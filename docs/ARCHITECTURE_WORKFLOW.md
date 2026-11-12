@@ -75,9 +75,9 @@ Detalle de cada paso del orquestador: `ORCHESTRATOR_PLAYBOOK.md`.
 | Quién | Rol | No hace |
 |---|---|---|
 | **Diego** | Product Owner / Tech Lead. Decide arquitectura (ADRs) y prioridades, aprueba specs, hace el review final y mergea. | No implementa código en el flujo normal. No tiene que elegir el próximo ticket: el orquestador se lo recomienda. |
-| **Claude** | Desarrolla las ideas con Diego, escribe specs, ADRs y docs, crea los tickets. **Hace el code review** de cada PR del agente, con veredicto explícito. | No decide entre alternativas de arquitectura viables. No implementa código de `packages/` salvo pedido explícito. No mergea. |
+| **Claude** | Desarrolla las ideas con Diego, escribe specs, ADRs y docs, crea los tickets. **Implementa** los tickets que le pide el orquestador y **hace el code review** de cada PR antes de Diego (en sesiones distintas), con veredicto explícito. | No decide entre alternativas de arquitectura viables. No mergea. No revisa su propia sesión de implementación. |
 | **Tracker** | Fuente de verdad de qué hay que hacer, en qué estado está y qué lo bloquea. | No es fuente de verdad del código ni de las decisiones: eso vive en `docs/`. |
-| **Orquestador** | Project manager. (1) Elige y lanza tickets con reglas determinísticas. (2) Coordina el ciclo PR → code review → correcciones → review de Diego → cierre. (3) Recomienda todos los días el próximo paso y hace el review semanal. | No mergea, no inventa alcance, no promueve tickets a `READY FOR AI`, no toca producción sin aprobación. |
+| **Orquestador** | Project manager. (1) Elige tickets con reglas determinísticas y le pide la implementación a Claude. (2) Coordina el ciclo PR → code review → correcciones → review de Diego → cierre. (3) Recomienda todos los días el próximo paso y hace el review semanal. | No implementa (toda implementación la hace Claude), no mergea, no inventa alcance, no promueve tickets a `READY FOR AI` sin la OK de Diego, no toca producción sin aprobación. |
 | **Agente de código** | Implementa contra el ticket, abre el PR y corrige lo que pida el code review. | No decide alcance no cubierto por el ticket. |
 | **GitHub** | Fuente de verdad del código. Todo cambio pasa por PR. | Nunca se pushea directo a `master`. |
 
@@ -90,7 +90,7 @@ del rol correspondiente).
 | Rol | Herramienta hoy | Desde | Antes |
 |---|---|---|---|
 | Orquestador | Bot de Grok ("Project Manager"), con rutinas por evento y por horario | 2026-10 | n8n (2026-08-31 → 2026-10), workflow `sF5SIIrRWKyvQ2HI` |
-| Agente de código | Cursor Cloud Agent | 2026-08-31 | — |
+| Agente de código | Claude, invocado por el orquestador en Slack `#project-ai` | 2026-11 | Cursor Cloud Agent (2026-08-31 → 2026-11) |
 | Revisor de código | Claude, invocado por el orquestador en Slack `#project-ai` | 2026-10 | Solo Diego |
 | Tracker | Linear (equipo FRA) | 2026-08 | — |
 | Canal de coordinación | Slack `#project-ai` | 2026-10 | — |
