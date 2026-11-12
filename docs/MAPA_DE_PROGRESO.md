@@ -2,11 +2,13 @@
 
 **Versión:** 1.0.0
 **Estado:** Draft
-**Última revisión:** 2026-11-10 — M1.5 cerrado en `progress.json`
-(SPEC-0032, FRA-82..FRA-88 mergeados; QA e2e post-merge #113 / FRA-94
-PASS en master `081f2e2`). `fractal entity` vuelve a pendiente. El
-Diagrama 1 (milestones) y el Diagrama 2 (capacidades y módulos) se
-regeneran desde [`progress.json`](progress.json) (SPEC-0031).
+**Última revisión:** 2026-11-11 — alineado con lo mergeado en #114.
+SPEC-0032 está **Implementado** y la DoD §9 tildada. M2 usa el título del
+ROADMAP («FDL y generación de entidades por el agente»); sigue pendiente
+SPEC-0007. M1.5 sigue cerrado (FRA-82..FRA-88; QA e2e #113 / FRA-94 PASS
+en `081f2e2`). `fractal entity` sigue pendiente. El Diagrama 1
+(milestones) y el Diagrama 2 (capacidades y módulos) se regeneran desde
+[`progress.json`](progress.json) (SPEC-0031).
 
 ---
 
@@ -66,7 +68,7 @@ flowchart LR
     M0["M0 · Fundaciones<br/>reglas, docs y CI base"]
     M1["M1 · Esqueleto vertical<br/>new + deploy = app online"]
     M1.5["M1.5 · Wizard v2<br/>wizard code-first y modular"]
-    M2["M2 · FDL y entidades<br/>CRUD generado y desplegable"]
+    M2["M2 · FDL y generación de entidades por el agente<br/>convenciones y prompts para el agente"]
     M3["M3 · Autenticación y autorización<br/>roles, OAuth, 2FA"]
     M4["M4 · Adapter Rails<br/>multi-target verificado"]
     M5["M5 · Módulos avanzados<br/>módulos instalables"]
@@ -99,13 +101,16 @@ workflows de CI y [`progress.json`](progress.json) en master):
   `fractal new` + `fractal deploy` (FRA-73/76) y el QA PASS post-merge #93
   en master `2df1d60` cubren el DoD que la auditoría del 2026-10-14 había
   reabierto.
-- **M1.5 ✅** — Wizard v2 cerrado en `progress.json` el 2026-11-10. Las siete
-  tareas de SPEC-0032 (FRA-82..FRA-88) están mergeadas en master. El QA e2e
-  post-merge de #113 (FRA-94) dio PASS en master `081f2e2`.
+- **M1.5 ✅** — Wizard v2 cerrado. SPEC-0032 está **Implementado** (#114,
+  2026-11-11) y la DoD §9 está tildada. Las siete tareas (FRA-82..FRA-88)
+  están mergeadas en master. El QA e2e post-merge de #113 (FRA-94) dio PASS
+  en master `081f2e2`.
 - **M2 🟡** — SPEC-0004 (lenguaje FDL) y SPEC-0006 (contrato del adapter) están
   **Implementado**: el lenguaje vive en `packages/core/src/fdl` y `fractal new`
-  ya genera las tres topologías contra el contrato. `fractal entity` y el CRUD
-  generado no están: no hay comando ni spec de esa capability en master.
+  ya genera las tres topologías contra el contrato. SPEC-0005 quedó absorbido
+  en SPEC-0004. Sigue pendiente SPEC-0007 (convenciones y prompts para
+  generación por el agente, #114): el core valida el FDL y el agente de IA del
+  proyecto escribe el código siguiendo el pack de convenciones.
 - **M3–M6 ⬜** — Pendientes.
 
 ---
@@ -166,8 +171,8 @@ Cómo leerlo:
 - **FDL ✅** — lenguaje v0 entregado: tipos, parser, validador y diagnósticos
   en `packages/core/src/fdl`, guía `docs/guides/fdl.md`, SPEC-0004
   **Implementado** (SPEC-0005 absorbido). El nodo cubre el lenguaje de ADR-0003
-  (entidades, campos, relaciones, reglas). La generación de CRUD sigue abierta
-  en M2.
+  (entidades, campos, relaciones, reglas). En M2 sigue abierto SPEC-0007: el
+  agente escribe el código desde el FDL validado.
 - **`fractal module` y módulos ⬜** — módulos opcionales, planificados para M5
   (ver [`CONSTITUTION.md`](CONSTITUTION.md) Artículo IX).
 - **`core` y `deploy` 🟡** — packages agnósticos en construcción; **adapter-laravel
@@ -185,19 +190,20 @@ Linear. Los diagramas y esta tabla salen de ese archivo (SPEC-0031).
 |---|---|---|---|
 | M0 — Fundaciones | ADR-0002/0003/0004/0006/0007 ✅, lint de acoplamiento ✅, monorepo ✅, SPEC-0031 ✅, CI (lint, tests, typecheck, e2e) ✅, **matriz de versiones** ⬜ | 🟡 (falta la matriz de versiones) | M0 — Fundaciones |
 | M1 — Esqueleto vertical | SPEC-0001, SPEC-0002, SPEC-0003 **Implementado** ✅ | ✅ (FRA-81, Diego 2026-10-26; QA PASS #93) | M1 — Esqueleto vertical |
-| M1.5 — Wizard v2 | SPEC-0032, FRA-82..FRA-88 mergeados; QA PASS #113 en `081f2e2` | ✅ | M1.5 — Wizard v2 |
-| M2 — FDL y generación de entidades | SPEC-0004 **Implementado** ✅, SPEC-0005 absorbido ✅, SPEC-0006 **Implementado** ✅; SPEC-0007 … SPEC-0013 sin entregar; `fractal entity` sin comando ni spec | 🟡 | M2 — FDL y generación de entidades |
+| M1.5 — Wizard v2 | SPEC-0032 **Implementado** ✅ (DoD §9 tildada, #114); FRA-82..FRA-88 mergeados; QA PASS #113 en `081f2e2` | ✅ | M1.5 — Wizard v2 |
+| M2 — FDL y generación de entidades por el agente | SPEC-0004 **Implementado** ✅, SPEC-0005 absorbido ✅, SPEC-0006 **Implementado** ✅; SPEC-0007 (convenciones y prompts para generación por agente) ⬜ | 🟡 | M2 — FDL y generación de entidades por el agente |
 | M3 — Autenticación y autorización | SPEC-0014, SPEC-0015, SPEC-0016 | ⬜ | M3 — Autenticación y autorización |
 | M4 — Adapter Rails | SPEC-0017 … SPEC-0021 | ⬜ | M4 — Adapter Rails |
 | M5 — Módulos avanzados | SPEC-0022 … SPEC-0026 | ⬜ | M5 — Módulos avanzados |
 | M6 — Operación | SPEC-0027 … SPEC-0030 | ⬜ | M6 — Operación |
 
 > Recordatorio: un spec **Aprobado** no es un spec **Implementado**. El estado
-> de este mapa es el de `progress.json`. SPEC-0032 sigue **Aprobado** en
-> `docs/specs/0032-wizard-v2-code-first-modular-arms.md` (la DoD §9, salvo la
-> aprobación del spec, sigue sin tildar). M1.5 figura ✅ acá porque FRA-82..FRA-88
-> están mergeados y el QA e2e post-merge de #113 dio PASS. Pasar el spec a
-> **Implementado** no se hace en este documento.
+> de este mapa es el de `progress.json`. SPEC-0032 está **Implementado** en
+> `docs/specs/0032-wizard-v2-code-first-modular-arms.md` (#114, 2026-11-11) y
+> la DoD §9 está tildada. Queda sin tildar el ítem de sincronizar
+> `docs/progress.json` y este mapa vía `fractal status --write` (lo aplica
+> Fractal QA). M1.5 figura ✅ porque FRA-82..FRA-88 están mergeados y el QA
+> e2e post-merge de #113 dio PASS.
 
 ---
 
