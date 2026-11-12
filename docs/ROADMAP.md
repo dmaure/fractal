@@ -1,6 +1,6 @@
 # Roadmap
 
-**Última revisión:** 2026-10-26
+**Última revisión:** 2026-11-12
 
 > Mapa visual del avance: ver [`MAPA_DE_PROGRESO.md`](./MAPA_DE_PROGRESO.md).
 
@@ -121,7 +121,7 @@ templating, ver M2).
 | SPEC-0004 | Especificación del lenguaje FDL | ✅[^spec0004] |
 | SPEC-0005 | Parser y validador de FDL | ✅[^spec0005] |
 | SPEC-0006 | Contrato del adapter | ✅ |
-| SPEC-0007 | Convenciones y prompts para generación por agente (FDL como contrato) | ⬜[^spec0007] |
+| SPEC-0007 | Convenciones y prompts para generación por agente (FDL como contrato) | 🟡[^spec0007] |
 
 **Salida:** con `fractal new` el proyecto trae el pack (`AGENTS.md` + FDL + prompts); el agente genera el CRUD completo y desplegable desde el FDL validado siguiendo esas convenciones.
 
@@ -160,11 +160,7 @@ templating, ver M2).
     El spec está **Implementado** (2026-10-12, por decisión de Diego en FRA-63); el ✅ refleja `progress.json: completado`.
 [^spec0005]: Absorbido en SPEC-0004 (ver `docs/specs/0005-parser-y-validador-de-fdl.md`).
     Sin entrada propia en `progress.json`; sus tareas se trazan bajo SPEC-0004.
-[^spec0007]: **Reorientado** (decisión de Diego, 2026-11-11): se descarta el motor de
-    templating propio. El FDL es el contrato que el core valida y el agente de IA del
-    proyecto escribe el código siguiendo un pack de convenciones (`AGENTS.md` + prompts)
-    dentro del proyecto generado. Del plumbing anterior se rescata solo lo chico que aporta
-    (validación de rutas, escritura atómica, `--dry-run`). Ver SPEC-0007 (reescrito en la PR #114).
+[^spec0007]: **Reorientado** (decisión de Diego, 2026-11-11): se descarta el motor de templating propio. El FDL es el contrato que el core valida y el agente de IA del proyecto escribe el código siguiendo un pack de convenciones. Del plumbing anterior se rescata solo lo chico (validación de rutas, escritura atómica, `--dry-run`). Spec **Aprobado** el 2026-11-12 (reescrito en #114). En curso: el pack de convenciones se entregó en **#117** (FRA-102, mergeado) y `fractal doctor` está en revisión en **#119** (FRA-103); quedan pendientes el cableado en el e2e y la doc de usuario.
 
 ---
 

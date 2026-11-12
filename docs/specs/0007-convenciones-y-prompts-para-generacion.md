@@ -1,10 +1,10 @@
 # SPEC-0007: Convenciones y prompts para generación asistida por agente
 
-**Estado:** En revisión
+**Estado:** Aprobado
 **Autor:** Claude
 **Fecha:** 2026-11-10
 **Fecha de reorientación:** 2026-11-11
-**Fecha de aprobación:** —
+**Fecha de aprobación:** 2026-11-12 (Diego)
 **ADR relacionado:** ADR-0003 (diseño del FDL); posible ADR nuevo por el descarte del motor de templating (a decisión de Diego)
 **Issue:** —
 
@@ -85,6 +85,56 @@ Formato Given/When/Then. Deben ser verificables automáticamente.
 - **Entonces** produce los mismos archivos byte-idénticos, sin acceso a red
 - **Y** un snapshot del pack es estable y funciona como fuente de verdad.
 
+### AC-9: `fractal doctor` — chequeo determinista post-deploy
+
+`fractal doctor <target>` evalúa la salud de un deploy de forma determinista y
+termina con un exit code que identifica el motivo, apto para consumir desde el
+e2e de deploy.
+
+**Alcance.** Un único comando de solo lectura que, dado un `target` (URL o
+host), hace sondeos HTTP(S) y clasifica el resultado. No despliega, no modifica
+el servidor ni el proyecto, y no depende de ningún framework (Art. II): la
+lógica de evaluación es pura y el I/O vive aparte.
+
+**Checks.**
+1. **HTTPS/TLS responde** — el host contesta sobre HTTPS; si no, exit `2`.
+2. **Página base servida** — `GET /` devuelve `200`; si devuelve otro status
+   no-5xx, exit `3`.
+3. **App levantada** — sin `5xx` y, si se pasó `--expect-content`, el body
+   contiene ese texto; si falla, exit `4`.
+4. **Redirección HTTP→HTTPS** (opcional, `--check-redirect`) — el host en HTTP
+   redirige a HTTPS; si no, exit `5`.
+
+**Contrato de exit codes (AC).**
+
+| Code | Significado |
+|------|-------------|
+| `0` | Sano: todos los checks pasan. |
+| `1` | Error de uso (target faltante o flag inválido). |
+| `2` | HTTPS/TLS no responde. |
+| `3` | La página base no se sirve (status ≠200, no-5xx). |
+| `4` | La app no está levantada (5xx o falta el contenido esperado). |
+| `5` | Falló la verificación de redirección HTTP→HTTPS. |
+
+**Precedencia de fallo** (se reporta el primero que aplica): HTTPS caído >
+`5xx` > status ≠200 > contenido esperado faltante > redirección.
+
+**Flags.**
+
+| Flag | Default | Efecto |
+|------|---------|--------|
+| `--expect-content <texto>` | — | Exige que el body de `GET /` contenga `<texto>`. |
+| `--timeout <ms>` | `10000` | Timeout por sondeo (entero ≥1). |
+| `--retries <n>` | `10` | Intentos totales **incluido el primero** (entero ≥1). |
+| `--retry-delay <ms>` | `5000` | Espera entre intentos. |
+| `--insecure` | off | No valida el certificado TLS. |
+| `--check-redirect` | off | Verifica la redirección HTTP→HTTPS. |
+| `--json` | off | Emite el resultado como JSON (incluye `reason` y el exit code). |
+
+**Testeable.** Tests unitarios sobre la evaluación pura (`evaluateHealth`) para
+cada exit code y la precedencia, sin red ni timers reales; snapshot del reporte
+humano. Lint de acoplamiento en verde (Art. II).
+
 ## 5. Fuera de alcance
 
 - Un **motor de templating** (`renderPlan`/`writePlan`, brazos de generación, contrato de plantillas): se descarta; el agente escribe el código.
@@ -116,18 +166,31 @@ Formato Given/When/Then. Deben ser verificables automáticamente.
   - `fractal/domain.fdl.json` (o equivalente) — el FDL del dominio, contrato validable.
   - `fractal/prompts/add-entity.md` — "agregá la entidad {X} siguiendo el FDL y `AGENTS.md`".
 
-## 8. Preguntas abiertas
+## 8. Preguntas abiertas → decisiones
 
-- [ ] ¿El pack se compone en el adapter (convenciones específicas del stack) con plumbing agnóstico en el core, o todo en el core? (Default propuesto: convenciones en el adapter; escritura/validación en el core.)
-- [ ] ¿La validación del FDL se expone como comando dedicado (`fractal fdl check`) o como gate dentro de otro flujo? (Default propuesto: comando pequeño + reuso del validador.)
-- [ ] ¿Un único prompt genérico "add-entity" o uno por capa (migración/modelo/API/frontend/tests)? (Default propuesto: uno genérico que referencia `AGENTS.md`; se divide si hace falta.)
-- [ ] ¿`AGENTS.md` del proyecto generado se mantiene a mano o se deriva del contrato del adapter? (Default propuesto: plantilla del adapter, versionada con el contrato.)
-- [ ] ¿Esta reorientación (descarte del motor de templating) amerita un ADR propio? (Decisión de arquitectura → Diego, PO.)
+Al aprobar el spec (2026-11-12, Diego) se cierran las preguntas abiertas con la
+opción más simple que encaja — en todos los casos la que ya quedó implementada
+en FRA-102 (#117):
+
+1. **¿Dónde se compone el pack, adapter o core?** → El **adapter** aporta las
+   convenciones específicas del stack (contenido de `AGENTS.md`); el **core**
+   hace la validación y la escritura atómica. (Como en #117.)
+2. **¿Validación del FDL como comando dedicado o como gate?** → Comando chico
+   **`fractal fdl check`** que reutiliza el validador existente
+   (`packages/core/src/fdl/validator.ts`). (Como en #117.)
+3. **¿Un prompt `add-entity` genérico o uno por capa?** → **Uno genérico**
+   reutilizable ("agregá la entidad X siguiendo el FDL"). (Como en #117.)
+4. **¿`AGENTS.md` a mano o derivado del contrato del adapter?** → **Derivado**
+   de una plantilla del adapter, no a mano. (Como en #117.)
+5. **¿La reorientación amerita un ADR propio?** → **No.** La reorientación ya
+   queda registrada en este spec y en el ROADMAP (nota 2026-11-11), y el
+   contrato de exit codes de `fractal doctor` se fija en el AC-9 de este mismo
+   spec. No se abre un ADR separado.
 
 ## 9. Definition of Done
 
-- [ ] Spec aprobada por Diego (pasa de "En revisión" a "Aprobado")
-- [ ] Todos los criterios de aceptación (AC-1..AC-8) verificables con test automatizado
+- [x] Spec aprobada por Diego (pasa de "En revisión" a "Aprobado") ✅ (2026-11-12)
+- [ ] Todos los criterios de aceptación (AC-1..AC-9) verificables con test automatizado
 - [ ] Tickets de implementación creados en Linear (estado Todo) con dependencias declaradas (`blockedBy`)
 - [ ] (Al implementar) El lint de acoplamiento (Art. II) pasa
 - [ ] (Al implementar) Tests unitarios + snapshot del pack en verde
@@ -135,15 +198,15 @@ Formato Given/When/Then. Deben ser verificables automáticamente.
 - [ ] (Al implementar) `docs/progress.json` y `docs/MAPA_DE_PROGRESO.md` sincronizados vía `fractal status --write`
 - [ ] Este spec marcado como Implementado (al cumplirse la DoD completa)
 
-## 9.1 Trazabilidad (AC → ticket)
+## 9.1 Trazabilidad
 
-Los tickets son provisionales (T1..T6); los números FRA definitivos los asigna Linear al crearlos.
+| AC | Ticket | PR | Estado |
+|----|--------|----|--------|
+| AC-1..AC-8 — pack de convenciones (AGENTS.md + FDL + prompt, validación y escritura atómica) | FRA-102 | #117 | Mergeado |
+| AC-9 — `fractal doctor` (chequeo determinista post-deploy, contrato de exit codes) | FRA-103 | #119 | En revisión |
+| Cableado de `fractal doctor` en el e2e de deploy (`deploy-e2e.yml`) | FRA-104 | — | Pendiente |
+| Documentación de usuario del pack y de `fractal doctor` | FRA-105 | — | Pendiente |
 
-| AC | Cubre | Ticket (prov.) |
-|---|---|---|
-| AC-1 | FDL como contrato validado (reuso del validador) | T1 |
-| AC-4, AC-5 | Helpers de escritura segura (rutas) y atómica | T2 |
-| AC-6 | `--dry-run` de la escritura del pack | T3 |
-| AC-2, AC-8 | Pack de convenciones (`AGENTS.md` + FDL) determinista | T4 |
-| AC-3 | Prompt reutilizable "agregá la entidad X" | T5 |
-| AC-7 | Agnosticismo + lint de acoplamiento | T6 |
+> El alcance de FRA-104 y FRA-105 se infiere del epic SPEC-0007 y de los
+> diferidos reconocidos en #119 (cableado del doctor en el e2e y doc de
+> usuario); los títulos definitivos los fija Linear.
