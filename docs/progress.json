@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-11-11",
+  "actualizado": "2026-11-12",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -128,6 +128,18 @@
         { "id": "T5", "ticket": "FRA-52", "label": "Esqueleto Laravel ejecutable (artisan, bootstrap, config)", "estado": "completado" },
         { "id": "T6", "ticket": "FRA-54", "label": "Conectar `fractal new` al adapter", "estado": "completado" },
         { "id": "T7", "ticket": "FRA-51", "label": "`fractal deploy` lee el deployRuntime del contrato por target", "estado": "completado" }
+      ]
+    },
+    {
+      "id": "SPEC-0007",
+      "label": "Convenciones y prompts para generación asistida por agente",
+      "milestone": "M2",
+      "estado": "en_curso",
+      "tareas": [
+        { "id": "T1", "ticket": "FRA-102", "label": "Pack de convenciones (`AGENTS.md` + FDL + prompt, validación y escritura atómica)", "estado": "completado" },
+        { "id": "T2", "ticket": "FRA-103", "label": "`fractal doctor`: chequeo determinista post-deploy (contrato de exit codes)", "estado": "completado" },
+        { "id": "T3", "ticket": "FRA-104", "label": "Cableado de `fractal doctor` en el e2e de deploy (`deploy-e2e.yml`)", "estado": "pendiente" },
+        { "id": "T4", "ticket": "FRA-105", "label": "Documentación de usuario del pack y de `fractal doctor`", "estado": "pendiente" }
       ]
     },
     {
