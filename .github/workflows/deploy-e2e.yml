@@ -324,32 +324,113 @@ jobs:
         run: |
           # Teardown idempotente y a prueba de fallos: nunca falla el job aunque
           # un recurso ya no exista. `set +e` para continuar pese a errores.
+          #
+          # FRA-106: el teardown NO depende de que el provisionado haya guardado el
+          # id ni la label de la instancia. Busca y borra por el PREFIJO
+          # determinista `fra64-e2e-<run_id>-*`, armado con GITHUB_RUN_ID (variable
+          # siempre disponible), así limpia aunque el provisionado falle antes de
+          # persistir VULTR_INSTANCE_ID / VULTR_LABEL (caso del run 43272106007).
           set +e
           API="https://api.vultr.com/v2"
           AUTH="Authorization: Bearer $VULTR_API_KEY"
+          LABEL_PREFIX="fra64-e2e-${GITHUB_RUN_ID}-"
+
+          # FRA-106 (failsafe): lista instancias del run distinguiendo
+          # "la API respondió una lista (posiblemente vacía)" de "la consulta falló".
+          # stdout: una línea "id<TAB>label" por instancia cuya label empieza con
+          #         $LABEL_PREFIX (vacío si la cuenta no tiene ninguna).
+          # return: 0 si la consulta tuvo ÉXITO (curl ok + HTTP 2xx + JSON con
+          #         .instances); !=0 si la llamada/parseo falló. Un return !=0 NO
+          #         debe interpretarse como "no hay huérfanos".
+          list_run_instances() {
+            local body http
+            body="$(curl -sS -w $'\n%{http_code}' "$API/instances?per_page=500" -H "$AUTH")" || return 1
+            http="$(printf '%s\n' "$body" | tail -n1)"
+            body="$(printf '%s\n' "$body" | sed '$d')"
+            case "$http" in 2*) ;; *) echo "::warning::GET /instances devolvió HTTP $http" >&2; return 1 ;; esac
+            printf '%s' "$body" | jq -e 'has("instances")' >/dev/null 2>&1 || return 1
+            printf '%s' "$body" | jq -r --arg P "$LABEL_PREFIX" \
+              '.instances[]? | select(.label | startswith($P)) | "\(.id)\t\(.label)"'
+          }
+
+          # FRA-106 (DELETE verificado): borra una instancia comprobando el status
+          # HTTP del DELETE, con reintentos ante fallos transitorios. Trata 2xx como
+          # éxito y 404 como ya-borrada (éxito). return: 0 si se borró o ya no
+          # existía, !=0 si tras 3 intentos no se pudo (se loguea claramente).
+          delete_instance() {
+            local id="$1" attempt http rc
+            for attempt in 1 2 3; do
+              http="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE "$API/instances/$id" -H "$AUTH")"
+              rc=$?
+              if [ "$rc" -ne 0 ]; then
+                echo "   DELETE instancia $id: error de red (curl rc=$rc, intento $attempt/3)"
+              else
+                case "$http" in
+                  2*)  echo "   DELETE instancia $id: OK (HTTP $http)"; return 0 ;;
+                  404) echo "   DELETE instancia $id: ya no existía (HTTP 404)"; return 0 ;;
+                  *)   echo "   DELETE instancia $id: HTTP $http inesperado (intento $attempt/3)" ;;
+                esac
+              fi
+              sleep $((attempt * 5))
+            done
+            echo "   ✗ DELETE instancia $id: NO se pudo borrar tras 3 intentos"
+            return 1
+          }
 
           echo "→ Eliminando instancia Vultr por id (${VULTR_INSTANCE_ID:-<none>})..."
           if [ -n "${VULTR_INSTANCE_ID:-}" ]; then
-            curl -sS -X DELETE "$API/instances/$VULTR_INSTANCE_ID" -H "$AUTH" >/dev/null
+            delete_instance "$VULTR_INSTANCE_ID"
           fi
 
-          echo "→ Backup: eliminando cualquier instancia cuya label matchee el run..."
-          if [ -n "${VULTR_LABEL:-}" ]; then
-            for id in $(curl -sS "$API/instances?per_page=500" -H "$AUTH" \
-                | jq -r --arg L "$VULTR_LABEL" '.instances[] | select(.label==$L) | .id'); do
-              echo "   borrando instancia $id"
-              curl -sS -X DELETE "$API/instances/$id" -H "$AUTH" >/dev/null
-            done
-          fi
+          # Backup robusto: borrar TODA instancia cuya label empiece con el prefijo
+          # del run (cualquier intento). Se reintenta con una ventana corta porque
+          # una instancia recién creada puede tardar unos segundos en aparecer en
+          # el listado: si el provisionado falla justo después del POST de
+          # creación, la instancia aún no está en GET /instances. Se corta al tener
+          # dos listados limpios seguidos (confirma que no queda nada por aparecer).
+          echo "→ Backup: borrando instancias con label '${LABEL_PREFIX}*' (con reintentos)..."
+          CLEAN_STREAK=0
+          for i in $(seq 1 6); do
+            # Importante: solo un LISTADO EXITOSO y vacío cuenta como "limpio". Si la
+            # consulta a la API falla (curl/HTTP/JSON), NO se asume vacío: se resetea
+            # el streak y se reintenta, para no cortar el loop sin haber borrado nada
+            # por un hipo transitorio del API (la flakiness que originó FRA-106).
+            if LIST="$(list_run_instances)"; then
+              if [ -z "$LIST" ]; then
+                CLEAN_STREAK=$((CLEAN_STREAK + 1))
+                [ "$CLEAN_STREAK" -ge 2 ] && break
+              else
+                CLEAN_STREAK=0
+                for id in $(printf '%s\n' "$LIST" | cut -f1); do
+                  delete_instance "$id"
+                done
+              fi
+            else
+              CLEAN_STREAK=0
+              echo "   intento $i/6: no se pudo listar instancias Vultr (curl/HTTP/JSON falló); reintentando..."
+            fi
+            sleep 10
+          done
 
-          echo "→ Eliminando SSH key de Vultr (${VULTR_SSH_KEY_ID:-<none>})..."
+          echo "→ Eliminando SSH key de Vultr por id (${VULTR_SSH_KEY_ID:-<none>})..."
           if [ -n "${VULTR_SSH_KEY_ID:-}" ]; then
             curl -sS -X DELETE "$API/ssh-keys/$VULTR_SSH_KEY_ID" -H "$AUTH" >/dev/null
           fi
+          # Backup: SSH keys huérfanas de este run (la key se crea ANTES del VPS, así
+          # que el mismo fallo de provisionado puede dejarla colgada). Mismo prefijo.
+          echo "→ Backup: borrando SSH keys con nombre '${LABEL_PREFIX}*'..."
+          for id in $(curl -sS "$API/ssh-keys?per_page=500" -H "$AUTH" \
+              | jq -r --arg P "$LABEL_PREFIX" '.ssh_keys[]? | select(.name | startswith($P)) | .id'); do
+            echo "   borrando ssh-key $id"
+            curl -sS -X DELETE "$API/ssh-keys/$id" -H "$AUTH" >/dev/null
+          done
 
-          echo "→ Eliminando registro(s) DNS de Cloudflare..."
-          if [ -n "${FRACTAL_E2E_DOMAIN:-}" ] && [ -n "${CLOUDFLARE_ZONE_ID:-}" ]; then
-            for name in "$FRACTAL_E2E_DOMAIN" "www.$FRACTAL_E2E_DOMAIN"; do
+          # DNS: el dominio es determinista (run_id + run_attempt); no depende de
+          # que el step de DNS haya llegado a correr. Se borra el nombre y su www.
+          DOMAIN="${FRACTAL_E2E_DOMAIN:-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.codigofractal.dev}"
+          echo "→ Eliminando registro(s) DNS de Cloudflare para $DOMAIN..."
+          if [ -n "${CLOUDFLARE_ZONE_ID:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            for name in "$DOMAIN" "www.$DOMAIN"; do
               RECS="$(curl -sS \
                 "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=$name" \
                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
@@ -364,3 +445,96 @@ jobs:
 
           echo "Teardown completado."
           exit 0
+
+      - name: Verificar que no quedaron VPS huérfanos del run
+        if: always()
+        env:
+          VULTR_API_KEY: ${{ secrets.VULTR_API_KEY }}
+        run: |
+          # Failsafe de FRA-106: tras el teardown, NINGUNA instancia con label
+          # `fra64-e2e-<run_id>-*` debe seguir viva. Se poolea una ventana corta
+          # (una instancia en borrado puede tardar en desaparecer del listado). Si
+          # en algún chequeo el listado queda limpio -> OK. Si persisten durante
+          # toda la ventana, son huérfanas reales: se borran como último recurso
+          # (para cumplir el CA de 'no quedan VPS huérfanos') y el step FALLA con
+          # un mensaje claro para que el run quede en rojo y se investigue.
+          set +e
+          API="https://api.vultr.com/v2"
+          AUTH="Authorization: Bearer $VULTR_API_KEY"
+          LABEL_PREFIX="fra64-e2e-${GITHUB_RUN_ID}-"
+
+          # FRA-106 (failsafe): lista instancias del run distinguiendo
+          # "la API respondió una lista (posiblemente vacía)" de "la consulta falló".
+          # return 0 solo si la consulta tuvo ÉXITO (curl ok + HTTP 2xx + JSON con
+          # .instances). Un return !=0 NO significa "no hay huérfanos".
+          list_run_instances() {
+            local body http
+            body="$(curl -sS -w $'\n%{http_code}' "$API/instances?per_page=500" -H "$AUTH")" || return 1
+            http="$(printf '%s\n' "$body" | tail -n1)"
+            body="$(printf '%s\n' "$body" | sed '$d')"
+            case "$http" in 2*) ;; *) echo "::warning::GET /instances devolvió HTTP $http" >&2; return 1 ;; esac
+            printf '%s' "$body" | jq -e 'has("instances")' >/dev/null 2>&1 || return 1
+            printf '%s' "$body" | jq -r --arg P "$LABEL_PREFIX" \
+              '.instances[]? | select(.label | startswith($P)) | "\(.id)\t\(.label)"'
+          }
+
+          # FRA-106 (DELETE verificado): borra comprobando el status HTTP, con
+          # reintentos. 2xx = éxito, 404 = ya-borrada (éxito), otro = reintenta.
+          delete_instance() {
+            local id="$1" attempt http rc
+            for attempt in 1 2 3; do
+              http="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE "$API/instances/$id" -H "$AUTH")"
+              rc=$?
+              if [ "$rc" -ne 0 ]; then
+                echo "   DELETE instancia $id: error de red (curl rc=$rc, intento $attempt/3)"
+              else
+                case "$http" in
+                  2*)  echo "   DELETE instancia $id: OK (HTTP $http)"; return 0 ;;
+                  404) echo "   DELETE instancia $id: ya no existía (HTTP 404)"; return 0 ;;
+                  *)   echo "   DELETE instancia $id: HTTP $http inesperado (intento $attempt/3)" ;;
+                esac
+              fi
+              sleep $((attempt * 5))
+            done
+            echo "   ✗ DELETE instancia $id: NO se pudo borrar tras 3 intentos"
+            return 1
+          }
+
+          LAST_LIST=""
+          LAST_QUERY_OK=0
+          for i in $(seq 1 6); do
+            if LIST="$(list_run_instances)"; then
+              # Consulta verificada: ahora SÍ podemos concluir sobre huérfanos.
+              LAST_QUERY_OK=1
+              if [ -z "$LIST" ]; then
+                echo "✓ No quedan VPS huérfanos con label '${LABEL_PREFIX}*' (verificado contra la API de Vultr)."
+                exit 0
+              fi
+              LAST_LIST="$LIST"
+              echo "   intento $i/6: todavía hay instancias con el prefijo del run:"
+              printf '%s\n' "$LIST" | sed 's/^/     /'
+            else
+              # La consulta falló: NO se puede declarar "limpio" con esto.
+              LAST_QUERY_OK=0
+              echo "   intento $i/6: no se pudo consultar la API de Vultr (curl/HTTP/JSON falló); reintentando..."
+            fi
+            sleep 10
+          done
+
+          # Caso 1: nunca se logró un listado verificado -> NO se puede garantizar el
+          # teardown. Se FALLA con mensaje claro en vez de dar un falso "limpio".
+          if [ "$LAST_QUERY_OK" != "1" ] && [ -z "$LAST_LIST" ]; then
+            echo "✗ FRA-106: No se pudo verificar instancias huérfanas: la consulta a la API de Vultr falló en todos los intentos (red / token inválido / rate limit / HTTP no-2xx / JSON inválido)."
+            echo "No se puede garantizar el teardown de '${LABEL_PREFIX}*'. El run queda en rojo para investigar manualmente."
+            exit 1
+          fi
+
+          # Caso 2: se verificó que quedan huérfanas reales. Último recurso + rojo.
+          echo "✗ FRA-106: quedaron instancias huérfanas con label '${LABEL_PREFIX}*' tras el teardown:"
+          printf '%s\n' "$LAST_LIST" | sed 's/^/    /'
+          for id in $(printf '%s\n' "$LAST_LIST" | cut -f1); do
+            echo "   borrando huérfana (último recurso) $id"
+            delete_instance "$id"
+          done
+          echo "El teardown no eliminó estas instancias a tiempo. Revisar el step de teardown."
+          exit 1
