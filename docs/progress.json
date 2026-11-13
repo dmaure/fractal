@@ -1,6 +1,6 @@
 {
   "proyecto": "Fractal",
-  "actualizado": "2026-11-12",
+  "actualizado": "2026-11-13",
   "leyenda": {
     "completado": "✅",
     "en_curso": "🟡",
@@ -138,8 +138,9 @@
       "tareas": [
         { "id": "T1", "ticket": "FRA-102", "label": "Pack de convenciones (`AGENTS.md` + FDL + prompt, validación y escritura atómica)", "estado": "completado" },
         { "id": "T2", "ticket": "FRA-103", "label": "`fractal doctor`: chequeo determinista post-deploy (contrato de exit codes)", "estado": "completado" },
-        { "id": "T3", "ticket": "FRA-104", "label": "Cableado de `fractal doctor` en el e2e de deploy (`deploy-e2e.yml`)", "estado": "pendiente" },
-        { "id": "T4", "ticket": "FRA-105", "label": "Documentación de usuario del pack y de `fractal doctor`", "estado": "pendiente" }
+        { "id": "T3", "ticket": "FRA-104", "label": "Manifiesto de configuración del pack/proyecto", "estado": "pendiente" },
+        { "id": "T4", "ticket": "FRA-105", "label": "Medición de TTS y TTP en el e2e (`fractal doctor` cableado en `deploy-e2e.yml`)", "estado": "completado" },
+        { "id": "T5", "ticket": "FRA-107", "label": "Documentación de usuario del pack y de `fractal doctor`", "estado": "pendiente" }
       ]
     },
     {

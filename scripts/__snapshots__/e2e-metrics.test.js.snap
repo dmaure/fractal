@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderSummary / warnings > resumen estable con TTP no alcanzado 1`] = `
+"## Métricas TTS / TTP (FRA-105)
+
+| Métrica | Duración | Objetivo | Estado |
+|---|---|---|---|
+| TTS — scaffold local | 1m 00s | < 5m 00s | ✅ dentro del objetivo |
+| TTP — producción sana | — | < 30m 00s | ⚪ no alcanzado |
+
+| Tramo | Duración |
+|---|---|
+| \`fractal new\` | 0m 12s |
+| Local (\`composer install\` + \`php artisan serve\`) | 0m 48s |
+| \`fractal deploy\` | — |
+| \`fractal doctor\` hasta sano | — |
+
+TTS = new + local · TTP = new + deploy + doctor. No incluyen el provisionado del VPS ni el DNS (prerrequisitos del usuario).
+"
+`;
+
+exports[`renderSummary / warnings > resumen estable con todas las métricas alcanzadas 1`] = `
+"## Métricas TTS / TTP (FRA-105)
+
+| Métrica | Duración | Objetivo | Estado |
+|---|---|---|---|
+| TTS — scaffold local | 1m 00s | < 5m 00s | ✅ dentro del objetivo |
+| TTP — producción sana | 9m 32s | < 30m 00s | ✅ dentro del objetivo |
+
+| Tramo | Duración |
+|---|---|
+| \`fractal new\` | 0m 12s |
+| Local (\`composer install\` + \`php artisan serve\`) | 0m 48s |
+| \`fractal deploy\` | 9m 00s |
+| \`fractal doctor\` hasta sano | 0m 20s |
+
+TTS = new + local · TTP = new + deploy + doctor. No incluyen el provisionado del VPS ni el DNS (prerrequisitos del usuario).
+"
+`;
