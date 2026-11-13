@@ -160,7 +160,7 @@ templating, ver M2).
     El spec está **Implementado** (2026-10-12, por decisión de Diego en FRA-63); el ✅ refleja `progress.json: completado`.
 [^spec0005]: Absorbido en SPEC-0004 (ver `docs/specs/0005-parser-y-validador-de-fdl.md`).
     Sin entrada propia en `progress.json`; sus tareas se trazan bajo SPEC-0004.
-[^spec0007]: **Reorientado** (decisión de Diego, 2026-11-11): se descarta el motor de templating propio. El FDL es el contrato que el core valida y el agente de IA del proyecto escribe el código siguiendo un pack de convenciones. Del plumbing anterior se rescata solo lo chico (validación de rutas, escritura atómica, `--dry-run`). Spec **Aprobado** el 2026-11-12 (reescrito en #114). En curso: el pack de convenciones se entregó en **#117** (FRA-102, mergeado) y `fractal doctor` está en revisión en **#119** (FRA-103); quedan pendientes el cableado en el e2e y la doc de usuario.
+[^spec0007]: **Reorientado** (decisión de Diego, 2026-11-11): se descarta el motor de templating propio. El FDL es el contrato que el core valida y el agente de IA del proyecto escribe el código siguiendo un pack de convenciones. Del plumbing anterior se rescata solo lo chico (validación de rutas, escritura atómica, `--dry-run`). Spec **Aprobado** el 2026-11-12 (reescrito en #114). En curso: el pack de convenciones se entregó en **#117** (FRA-102, mergeado) y `fractal doctor` en **#119** (FRA-103, mergeado). La medición de TTS/TTP en el e2e, con `fractal doctor` cableado, está en FRA-105; quedan pendientes el manifiesto del pack (FRA-104) y la doc de usuario (FRA-107).
 
 ---
 
