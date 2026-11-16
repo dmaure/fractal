@@ -33,3 +33,17 @@ export {
   PackFdlValidationError,
   type PackFdlViolation,
 } from './validate-pack-fdl.js';
+
+export {
+  serializePackManifest,
+  assertPackManifestValid,
+  collectPackManifestViolations,
+  isManifestPackFile,
+  PackManifestValidationError,
+  PACK_MANIFEST_PATH,
+  PACK_MANIFEST_VERSION,
+  type PackManifest,
+  type PackManifestFramework,
+  type PackManifestData,
+  type PackManifestViolation,
+} from './manifest.js';

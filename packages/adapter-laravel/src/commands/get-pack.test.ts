@@ -12,7 +12,7 @@ import { validateFdl, parseFdl } from '@fractal/core';
 import { getPack } from './get-pack.js';
 
 describe('getPack', () => {
-  it('devuelve los tres archivos del pack con los paths esperados (AC-2, AC-3)', () => {
+  it('devuelve los cuatro archivos del pack con los paths esperados (AC-2, AC-3, FRA-104)', () => {
     const { files } = getPack('mi-proyecto');
     const paths = files.map((f) => f.path);
 
@@ -20,7 +20,33 @@ describe('getPack', () => {
       'AGENTS.md',
       'fractal/domain.fdl.json',
       'fractal/prompts/add-entity.md',
+      'fractal/manifest.json',
     ]);
+  });
+
+  it('el manifiesto declara las cuatro aristas y referencia archivos del pack (FRA-104)', () => {
+    const { files } = getPack('mi-proyecto');
+    const paths = files.map((f) => f.path);
+    const manifestText = files.find((f) => f.path === 'fractal/manifest.json')!
+      .contents;
+
+    const manifest = JSON.parse(manifestText);
+
+    expect(manifest.manifestVersion).toBe('1');
+    expect(manifest.project.name).toBe('mi-proyecto');
+    expect(manifest.framework.adapter).toBe('laravel');
+    expect(typeof manifest.framework.name).toBe('string');
+    expect(manifest.topology).toBe('single-service');
+
+    // Cross-check: las rutas declaradas existen entre los archivos del pack.
+    expect(paths).toContain(manifest.conventions);
+    expect(paths).toContain(manifest.data.fdl);
+    for (const prompt of manifest.prompts) {
+      expect(paths).toContain(prompt);
+    }
+
+    // El manifiesto se serializa con 2 espacios y newline final (determinista).
+    expect(manifestText.endsWith('\n')).toBe(true);
   });
 
   it('el AGENTS.md documenta el mapeo del FDL y referencia el FDL + el prompt (AC-2)', () => {
