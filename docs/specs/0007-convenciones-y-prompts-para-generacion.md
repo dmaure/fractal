@@ -203,10 +203,72 @@ en FRA-102 (#117):
 | AC | Ticket | PR | Estado |
 |----|--------|----|--------|
 | AC-1..AC-8 — pack de convenciones (AGENTS.md + FDL + prompt, validación y escritura atómica) | FRA-102 | #117 | Mergeado |
-| AC-9 — `fractal doctor` (chequeo determinista post-deploy, contrato de exit codes) | FRA-103 | #119 | En revisión |
-| Cableado de `fractal doctor` en el e2e de deploy (`deploy-e2e.yml`) | FRA-104 | — | Pendiente |
-| Documentación de usuario del pack y de `fractal doctor` | FRA-105 | — | Pendiente |
+| AC-9 — `fractal doctor` (chequeo determinista post-deploy, contrato de exit codes) | FRA-103 | #119 | Mergeado |
+| Manifiesto de configuración del pack/proyecto | FRA-104 | — | Pendiente |
+| Medición de TTS y TTP en el e2e (`fractal doctor` cableado en `deploy-e2e.yml`) | FRA-105 | #123 | En revisión |
+| Documentación de usuario del pack y de `fractal doctor` | FRA-107 | — | Pendiente |
 
-> El alcance de FRA-104 y FRA-105 se infiere del epic SPEC-0007 y de los
-> diferidos reconocidos en #119 (cableado del doctor en el e2e y doc de
-> usuario); los títulos definitivos los fija Linear.
+> Tabla alineada con los títulos de Linear (fuente de verdad de los tickets) el
+> 2026-11-13. El cableado de `fractal doctor` en el e2e, diferido en #119, quedó
+> dentro de FRA-105: el TTP cierra cuando el doctor da sano.
+
+## 9.2 Decisiones de medición de TTS/TTP en el e2e (FRA-105)
+
+Estas decisiones acompañan a FRA-105 (`scripts/e2e-metrics.js` +
+`deploy-e2e.yml`). Se documentan acá para no dejar decisiones técnicas fuera del
+spec/ADR (AGENT_PLAYBOOK, review #3). Ninguna cambia la semántica de VISION §8:
+la reconcilian con lo que el e2e puede medir de forma reproducible.
+
+### 9.2.1 Composición del TTP medido (porción controlada por Fractal)
+
+El e2e mide **la porción del TTP que Fractal controla**, no el TTP end-to-end de
+VISION §8:
+
+```
+TTS = new + local                 (objetivo < 5 min)
+TTP = new + deploy + doctor        (objetivo < 30 min, porción Fractal)
+```
+
+- **Qué se excluye y por qué.** El TTP medido no incluye el provisionado del VPS
+  ni el registro/propagación DNS. VISION §8 define el TTP como «el tiempo hasta
+  producción cuando el usuario elige desplegar» (end-to-end), y SPEC-0001 §7
+  deriva el presupuesto de scaffold < 5 min repartiendo el presupuesto de TTP
+  < 30 min: provisionado completo < 15 min (SPEC-0003) + `fractal new` (la parte
+  más controlable) + colchón para lo manual que el CLI no maneja (propagación
+  DNS, paneles de terceros). El provisionado y el DNS son **prerrequisitos que el
+  usuario trae**; en el e2e se simulan con un VPS descartable y un registro
+  DNS-only solo para tener dónde desplegar, y su duración (dependiente del
+  proveedor y de la propagación) no es representativa del camino del usuario.
+  Por eso el número que reporta este e2e es un **sub-TTP controlado por
+  Fractal**, distinto del TTP end-to-end de VISION, y así se rotula en el
+  resumen del run (`TTP — producción sana (tramo Fractal)`).
+- **Por qué no rompe VISION §8.** VISION mantiene el TTP end-to-end con objetivo
+  < 30 min; este spec no lo redefine. Lo que se mide reproduciblemente en CI es
+  la parte que Fractal gobierna (scaffold + deploy + verificación con `fractal
+  doctor`). Medir el tramo controlable contra el mismo objetivo de 30 min es
+  conservador (el tramo Fractal siempre es ≤ el TTP completo), y el resumen
+  aclara explícitamente qué queda afuera.
+- **El tramo `local` no suma al TTP.** Quien despliega no necesita levantar el
+  proyecto en local primero; el tramo local alimenta solo al TTS.
+
+### 9.2.2 Pasarse del objetivo no falla el job
+
+Exceder el objetivo (TTS ≥ 5 min o TTP ≥ 30 min) emite un `::warning::` de
+GitHub Actions y queda en el resumen del run, pero **no falla el job**. El
+alcance de FRA-105 es *medir y reportar* TTS/TTP, no convertirlos en un gate de
+CI; un umbral que bloquee sería una decisión de producto aparte (qué margen,
+sobre qué baseline, con qué tolerancia a la varianza de red). El código lo deja
+trivialmente conmutable: el umbral que bloquee se activaría cambiando el exit
+code en `scripts/e2e-metrics.js`.
+
+### 9.2.3 Caveats conocidos de la medición (no bloquean)
+
+- **Versión de PHP.** El tramo de TTS local se mide sobre el PHP del runner
+  (hoy 8.3), mientras el piso del adapter es PHP ≥ 8.2 y el check de referencia
+  es «E2E Laravel (PHP 8.2)». El número de TTS queda tomado contra 8.3; se
+  interpreta como orientativo, no como la medición contra la versión piso.
+- **Varianza de red en el TTS.** El `composer install` del tramo local depende
+  de Packagist, lo que introduce varianza de red en el TTS (y, si Packagist está
+  lento o caído, el paso agota su timeout y voltea el job). Es inherente a la
+  definición de TTS de VISION (`composer install` + `php artisan serve`); se
+  tiene presente al leer el número y como posible fuente de flakiness.

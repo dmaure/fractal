@@ -4,11 +4,15 @@ name: Deploy E2E (VPS efímero)
 #
 # Provisiona un VPS Vultr efímero (Ubuntu LTS), crea un registro DNS DNS-only en
 # Cloudflare (subdominio de codigofractal.dev), y corre el CLI de verdad:
-#   1. `fractal new` genera un proyecto monolito.
+#   1. `fractal new` genera un proyecto monolito, y se levanta en local
+#      (`composer install` + `php artisan serve`) para medir el TTS.
 #   2. `fractal deploy --non-interactive` lo despliega en el VPS (SSL Let's Encrypt
-#      staging), y se verifica la app por HTTPS y la redirección HTTP→HTTPS.
+#      staging), y `fractal doctor` verifica la app por HTTPS, su contenido y la
+#      redirección HTTP→HTTPS (cierra el TTP).
 #   3. Se modifica la landing, se vuelve a desplegar y se verifica que el cambio
 #      llega a producción (prueba del refresco del volumen app_code, FRA-73).
+#   4. Se reportan TTS y TTP (FRA-105, `scripts/e2e-metrics.js`) en el resumen
+#      del run y como artifact `e2e-metrics`.
 # SIEMPRE destruye el VPS, la SSH key de Vultr y el registro DNS al final
 # (`if: always()`), aun si algún paso falla.
 #
@@ -23,6 +27,7 @@ on:
       - 'packages/core/**'
       - 'packages/adapter-laravel/**'
       - '.github/workflows/deploy-e2e.yml'
+      - 'scripts/e2e-metrics.js'
       - 'docs/specs/0003-*'
   workflow_dispatch:
 
@@ -205,8 +210,47 @@ jobs:
           WORK="$RUNNER_TEMP/fractal-e2e-work"
           mkdir -p "$WORK"
           cd "$WORK"
+          # FRA-105: el reloj de TTS y TTP arranca con `fractal new`.
+          START="$(date +%s)"
           node "$FRACTAL" new fractale2e --topology monolith --force
+          echo "E2E_NEW_SECONDS=$(( $(date +%s) - START ))" >> "$GITHUB_ENV"
           echo "FRACTAL_E2E_PROJECT_DIR=$WORK/fractale2e" >> "$GITHUB_ENV"
+
+      # FRA-105 — tramo local del TTS: los pasos del README del proyecto generado
+      # hasta que la landing responde en local. Corre sobre una COPIA para no
+      # dejar vendor/ ni .env en el proyecto que después se despliega. No suma al
+      # TTP (quien despliega no necesita levantar el proyecto en local antes).
+      - name: TTS — levantar el scaffold en local (composer install + php artisan serve)
+        run: |
+          set -euo pipefail
+          START="$(date +%s)"
+          LOCAL="$RUNNER_TEMP/fractal-e2e-tts"
+          rm -rf "$LOCAL"
+          cp -a "$FRACTAL_E2E_PROJECT_DIR" "$LOCAL"
+          cd "$LOCAL"
+          cp .env.example .env
+          composer install --no-interaction --no-progress
+          php artisan key:generate --no-interaction
+
+          php artisan serve --host=127.0.0.1 --port=8765 > "$RUNNER_TEMP/fractal-e2e-serve.log" 2>&1 &
+          SERVE_PID=$!
+          trap 'kill "$SERVE_PID" 2>/dev/null || true' EXIT
+
+          OK=0
+          for i in $(seq 1 30); do
+            CODE="$(curl -sS -m 5 -o "$RUNNER_TEMP/fractal-e2e-local.html" -w '%{http_code}' http://127.0.0.1:8765/ || echo 000)"
+            if [ "$CODE" = "200" ] && grep -q 'está corriendo' "$RUNNER_TEMP/fractal-e2e-local.html"; then
+              OK=1; break
+            fi
+            sleep 1
+          done
+          if [ "$OK" != "1" ]; then
+            echo "✗ El scaffold no respondió 200 con 'está corriendo' en local"
+            cat "$RUNNER_TEMP/fractal-e2e-serve.log"
+            exit 1
+          fi
+          echo "E2E_LOCAL_SECONDS=$(( $(date +%s) - START ))" >> "$GITHUB_ENV"
+          echo "✓ Scaffold sirviendo en local"
 
       - name: fractal deploy --non-interactive — deploy real al VPS
         working-directory: ${{ env.FRACTAL_E2E_PROJECT_DIR }}
@@ -228,39 +272,26 @@ jobs:
           FRACTAL_DEPLOY_SSL_ENV: staging
         run: |
           set -euo pipefail
+          START="$(date +%s)"
           node "$FRACTAL_CLI" deploy --non-interactive
+          echo "E2E_DEPLOY_SECONDS=$(( $(date +%s) - START ))" >> "$GITHUB_ENV"
 
-      - name: Verificar la app por HTTPS (y la redirección HTTP→HTTPS)
-        env:
-          FRACTAL_E2E_DOMAIN: ${{ env.FRACTAL_E2E_DOMAIN }}
+      # FRA-105: el TTP cierra cuando `fractal doctor` declara sana la producción
+      # (exit 0). Mismos checks que antes hacía curl: HTTPS 200 + contenido de la
+      # landing + redirección HTTP→HTTPS. --insecure por el cert de staging de LE.
+      # Misma ventana de espera que el loop anterior: 30 intentos cada 10 s.
+      - name: fractal doctor — verificar producción sana (cierra el TTP)
         run: |
           set -euo pipefail
-          URL="https://$FRACTAL_E2E_DOMAIN/"
-          echo "→ Esperando 200 + 'está corriendo' en $URL (cert de staging: -k)..."
-          OK=0
-          for i in $(seq 1 30); do
-            # -k porque el cert de staging no es de confianza. `|| true`/`|| echo`
-            # dentro del loop para no abortar ante un fallo transitorio de curl.
-            CODE="$(curl -ksS -m 15 -o /dev/null -w '%{http_code}' "$URL" || echo 000)"
-            BODY="$(curl -ksS -m 15 "$URL" || true)"
-            echo "   intento $i/30: HTTP $CODE"
-            if [ "$CODE" = "200" ] && printf '%s' "$BODY" | grep -q 'está corriendo'; then
-              OK=1; break
-            fi
-            sleep 10
-          done
-          if [ "$OK" != "1" ]; then
-            echo "✗ La app no respondió 200 con 'está corriendo' a tiempo"; exit 1
-          fi
-          echo "✓ App sirviendo por HTTPS"
-
-          echo "→ Verificando la redirección HTTP→HTTPS..."
-          REDIR="$(curl -s -m 15 -o /dev/null -w '%{http_code}' "http://$FRACTAL_E2E_DOMAIN/" || echo 000)"
-          echo "   HTTP devolvió $REDIR"
-          case "$REDIR" in
-            301|302|308) echo "✓ Redirección HTTP→HTTPS OK ($REDIR)";;
-            *) echo "✗ Se esperaba 301/302/308 en HTTP, se obtuvo $REDIR"; exit 1;;
-          esac
+          START="$(date +%s)"
+          node "$FRACTAL_CLI" doctor "https://$FRACTAL_E2E_DOMAIN/" \
+            --insecure \
+            --check-redirect \
+            --expect-content 'está corriendo' \
+            --timeout 15000 \
+            --retries 30 \
+            --retry-delay 10000
+          echo "E2E_DOCTOR_SECONDS=$(( $(date +%s) - START ))" >> "$GITHUB_ENV"
 
       - name: Probar que un cambio llega a producción (redeploy + refresco de volumen, FRA-73)
         working-directory: ${{ env.FRACTAL_E2E_PROJECT_DIR }}
@@ -314,6 +345,21 @@ jobs:
             echo "✗ El marcador nunca apareció: el volumen app_code no se refrescó"; exit 1
           fi
           echo "✓ El cambio llegó a producción (volumen app_code refrescado)"
+
+      # FRA-105: siempre se reporta, aunque un step haya fallado (la métrica cuyo
+      # tramo no se midió queda "no alcanzada"). Exceder el objetivo no falla el
+      # job: emite un warning y queda en el resumen del run.
+      - name: Métricas TTS / TTP
+        if: always()
+        run: node scripts/e2e-metrics.js --json "$RUNNER_TEMP/e2e-metrics.json"
+
+      - name: Publicar métricas TTS / TTP como artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-metrics
+          path: ${{ runner.temp }}/e2e-metrics.json
+          if-no-files-found: ignore
 
       - name: Teardown — destruir VPS, SSH key y DNS (siempre)
         if: always()
