@@ -6,7 +6,7 @@ exports[`renderSummary / warnings > resumen estable con TTP no alcanzado 1`] = `
 | Métrica | Duración | Objetivo | Estado |
 |---|---|---|---|
 | TTS — scaffold local | 1m 00s | < 5m 00s | ✅ dentro del objetivo |
-| TTP — producción sana | — | < 30m 00s | ⚪ no alcanzado |
+| TTP — producción sana (tramo Fractal) | — | < 30m 00s | ⚪ no alcanzado |
 
 | Tramo | Duración |
 |---|---|
@@ -15,7 +15,8 @@ exports[`renderSummary / warnings > resumen estable con TTP no alcanzado 1`] = `
 | \`fractal deploy\` | — |
 | \`fractal doctor\` hasta sano | — |
 
-TTS = new + local · TTP = new + deploy + doctor. No incluyen el provisionado del VPS ni el DNS (prerrequisitos del usuario).
+TTS = new + local · TTP = new + deploy + doctor.
+El TTP acá es la porción controlada por Fractal (scaffold + deploy + verificación), no el TTP end-to-end de VISION §8: no incluye el provisionado del VPS ni el DNS, prerrequisitos del usuario fuera de este e2e (ver SPEC-0007 §9.2).
 "
 `;
 
@@ -25,7 +26,7 @@ exports[`renderSummary / warnings > resumen estable con todas las métricas alca
 | Métrica | Duración | Objetivo | Estado |
 |---|---|---|---|
 | TTS — scaffold local | 1m 00s | < 5m 00s | ✅ dentro del objetivo |
-| TTP — producción sana | 9m 32s | < 30m 00s | ✅ dentro del objetivo |
+| TTP — producción sana (tramo Fractal) | 9m 32s | < 30m 00s | ✅ dentro del objetivo |
 
 | Tramo | Duración |
 |---|---|
@@ -34,6 +35,7 @@ exports[`renderSummary / warnings > resumen estable con todas las métricas alca
 | \`fractal deploy\` | 9m 00s |
 | \`fractal doctor\` hasta sano | 0m 20s |
 
-TTS = new + local · TTP = new + deploy + doctor. No incluyen el provisionado del VPS ni el DNS (prerrequisitos del usuario).
+TTS = new + local · TTP = new + deploy + doctor.
+El TTP acá es la porción controlada por Fractal (scaffold + deploy + verificación), no el TTP end-to-end de VISION §8: no incluye el provisionado del VPS ni el DNS, prerrequisitos del usuario fuera de este e2e (ver SPEC-0007 §9.2).
 "
 `;

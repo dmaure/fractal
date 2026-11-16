@@ -15,14 +15,22 @@
  *     `fractal new` hasta que `fractal doctor` declara sana la producción.
  *       TTP = new + deploy + doctor
  *
- * El tramo `local` NO suma al TTP: el usuario que despliega no necesita
- * levantar el proyecto en local antes. Tampoco suman el provisionado del VPS ni
- * el registro DNS: son prerrequisitos que el usuario trae (el workflow solo los
- * simula para tener un servidor descartable).
+ * Qué mide este TTP y por qué (documentado en SPEC-0007 §9.2): este e2e mide la
+ * **porción del TTP controlada por Fractal** (scaffold + deploy + verificación),
+ * no el TTP end-to-end de VISION §8. El TTP de VISION es el tiempo hasta
+ * producción completo; su presupuesto de 30 min se reparte (SPEC-0001 §7) entre
+ * el provisionado del VPS (< 15 min, SPEC-0003), `fractal new` (la parte más
+ * controlable) y un colchón para lo manual que el CLI no maneja. Por eso acá
+ * NO suman ni el provisionado del VPS ni el registro DNS: son prerrequisitos que
+ * el usuario trae (el workflow solo los simula para tener un servidor
+ * descartable). El tramo `local` tampoco suma al TTP: quien despliega no
+ * necesita levantar el proyecto en local antes.
  *
  * Si falta un tramo (un step falló antes de medirlo), la métrica que lo
  * necesita queda como "no alcanzada" (`null`). Pasarse del objetivo NO falla el
- * job: se emite un `::warning::` de GitHub Actions y queda en el resumen.
+ * job: se emite un `::warning::` de GitHub Actions y queda en el resumen. Esta
+ * política (medir y reportar, no gatear) está documentada en SPEC-0007 §9.2; si
+ * se decide que el objetivo bloquee, se cambia el exit code acá.
  *
  * Entradas (env, enteros >= 0 en segundos; ausentes/vacías = tramo no medido):
  *   E2E_NEW_SECONDS, E2E_LOCAL_SECONDS, E2E_DEPLOY_SECONDS, E2E_DOCTOR_SECONDS
@@ -128,7 +136,7 @@ export function renderSummary(metrics) {
     '| Métrica | Duración | Objetivo | Estado |',
     '|---|---|---|---|',
     `| TTS — scaffold local | ${formatDuration(tts.seconds)} | < ${formatDuration(tts.target)} | ${statusLabel(tts)} |`,
-    `| TTP — producción sana | ${formatDuration(ttp.seconds)} | < ${formatDuration(ttp.target)} | ${statusLabel(ttp)} |`,
+    `| TTP — producción sana (tramo Fractal) | ${formatDuration(ttp.seconds)} | < ${formatDuration(ttp.target)} | ${statusLabel(ttp)} |`,
     '',
     '| Tramo | Duración |',
     '|---|---|',
@@ -137,7 +145,8 @@ export function renderSummary(metrics) {
     `| \`fractal deploy\` | ${formatDuration(segments.deploy)} |`,
     `| \`fractal doctor\` hasta sano | ${formatDuration(segments.doctor)} |`,
     '',
-    'TTS = new + local · TTP = new + deploy + doctor. No incluyen el provisionado del VPS ni el DNS (prerrequisitos del usuario).',
+    'TTS = new + local · TTP = new + deploy + doctor.',
+    'El TTP acá es la porción controlada por Fractal (scaffold + deploy + verificación), no el TTP end-to-end de VISION §8: no incluye el provisionado del VPS ni el DNS, prerrequisitos del usuario fuera de este e2e (ver SPEC-0007 §9.2).',
     '',
   ].join('\n');
 }
