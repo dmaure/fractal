@@ -111,7 +111,7 @@ sobre qué framework/topología trabaja. Sus campos:
 | `project.name` | el nombre de tu proyecto | Identificador del proyecto. |
 | `framework.adapter` | `"laravel"` | Adapter que produjo el pack. |
 | `framework.name` | `"Laravel + React (Vite)"` | Nombre legible del stack. |
-| `topology` | `"single-service"` | Topología del proyecto. |
+| `topology` | `"monolith"` · `"monorepo"` · `"multirepo"` | Topología del proyecto. |
 | `conventions` | `"AGENTS.md"` | Ruta a las convenciones. |
 | `data.fdl` | `"fractal/domain.fdl.json"` | Ruta al contrato de dominio FDL. |
 | `prompts` | `["fractal/prompts/add-entity.md"]` | Prompts reutilizables del pack. |
