@@ -92,6 +92,24 @@ beforeEach(() => {
               }),
             },
             { path: 'fractal/prompts/add-entity.md', contents: '# prompt\n' },
+            {
+              // FRA-104: manifiesto del pack. Referencia rutas que existen en el
+              // pack para pasar el cross-check de assertPackManifestValid.
+              path: 'fractal/manifest.json',
+              contents: `${JSON.stringify(
+                {
+                  manifestVersion: '1',
+                  project: { name: payload.name },
+                  framework: { adapter: 'test', name: 'Test Stack' },
+                  topology: 'single-service',
+                  conventions: 'AGENTS.md',
+                  data: { fdl: 'fractal/domain.fdl.json' },
+                  prompts: ['fractal/prompts/add-entity.md'],
+                },
+                null,
+                2
+              )}\n`,
+            },
           ],
         },
       };

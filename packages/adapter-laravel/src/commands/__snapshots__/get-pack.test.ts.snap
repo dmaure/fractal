@@ -147,6 +147,25 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
   ]
 }
 ",
+  "fractal/manifest.json": "{
+  "manifestVersion": "1",
+  "project": {
+    "name": "demo"
+  },
+  "framework": {
+    "adapter": "laravel",
+    "name": "Laravel + React (Vite)"
+  },
+  "topology": "single-service",
+  "conventions": "AGENTS.md",
+  "data": {
+    "fdl": "fractal/domain.fdl.json"
+  },
+  "prompts": [
+    "fractal/prompts/add-entity.md"
+  ]
+}
+",
   "fractal/prompts/add-entity.md": "# Prompt: agregar la entidad \`{{ENTIDAD}}\`
 
 Reemplazá \`{{ENTIDAD}}\` por el nombre de la entidad (p. ej. \`Book\`) y seguí

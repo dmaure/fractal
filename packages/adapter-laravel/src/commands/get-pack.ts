@@ -12,6 +12,10 @@
  *    el core (VR-1..VR-12).
  * 3. `fractal/prompts/add-entity.md` — prompt reutilizable "agregá la entidad X
  *    siguiendo el FDL".
+ * 4. `fractal/manifest.json` — manifiesto declarativo del pack (FRA-104): ata
+ *    convenciones, framework, topología y datos que consume el agente. El core
+ *    define la forma abstracta y lo serializa; acá se ponen los valores reales
+ *    del stack.
  *
  * El conocimiento específico de Laravel vive acá, en el adapter (Artículo II);
  * el core trata estos contenidos como dato opaco.
@@ -19,7 +23,17 @@
  * @see SPEC-0007 AC-2, AC-3, AC-8
  */
 
-import type { PackFile } from '@fractal/core';
+import {
+  serializePackManifest,
+  PACK_MANIFEST_VERSION,
+  type PackFile,
+  type PackManifest,
+} from '@fractal/core';
+
+/** Rutas del pack que referencia el manifiesto (fuente única). */
+const CONVENTIONS_PATH = 'AGENTS.md';
+const DOMAIN_FDL_PATH = 'fractal/domain.fdl.json';
+const ADD_ENTITY_PROMPT_PATH = 'fractal/prompts/add-entity.md';
 
 /** Respuesta de la acción `get-pack`. */
 export interface GetPackResponse {
@@ -195,6 +209,27 @@ estos pasos. No escribas nada hasta que el contrato valide.
 }
 
 /**
+ * Construye el manifiesto declarativo del pack (FRA-104) con los valores reales
+ * del stack Laravel.
+ *
+ * Declara las cuatro aristas que consume el agente — convenciones, framework,
+ * topología y datos — más los prompts reutilizables, referenciando las rutas
+ * de los otros archivos del pack. El core lo valida (campos requeridos +
+ * cross-check de rutas) y lo serializa de forma determinista.
+ */
+function buildManifest(projectName: string): PackManifest {
+  return {
+    manifestVersion: PACK_MANIFEST_VERSION,
+    project: { name: projectName },
+    framework: { adapter: 'laravel', name: 'Laravel + React (Vite)' },
+    topology: 'single-service',
+    conventions: CONVENTIONS_PATH,
+    data: { fdl: DOMAIN_FDL_PATH },
+    prompts: [ADD_ENTITY_PROMPT_PATH],
+  };
+}
+
+/**
  * Devuelve el pack de convenciones para un proyecto Laravel.
  *
  * Determinista y offline: mismas entradas ⇒ mismos archivos byte a byte.
@@ -205,9 +240,10 @@ estos pasos. No escribas nada hasta que el contrato valide.
 export function getPack(projectName: string): GetPackResponse {
   return {
     files: [
-      { path: 'AGENTS.md', contents: buildAgentsMd(projectName) },
-      { path: 'fractal/domain.fdl.json', contents: buildDomainFdl(projectName) },
-      { path: 'fractal/prompts/add-entity.md', contents: buildAddEntityPrompt() },
+      { path: CONVENTIONS_PATH, contents: buildAgentsMd(projectName) },
+      { path: DOMAIN_FDL_PATH, contents: buildDomainFdl(projectName) },
+      { path: ADD_ENTITY_PROMPT_PATH, contents: buildAddEntityPrompt() },
+      serializePackManifest(buildManifest(projectName)),
     ],
   };
 }

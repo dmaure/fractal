@@ -11,7 +11,12 @@ import { initializeGit } from '../utils/git-initializer.js';
 import { resolveSingleAdapter } from '../adapter-resolver.js';
 import { invokeAdapter } from '../adapter-bridge.js';
 import { checkRuntimeRequirements } from '../bridge/binary-check.js';
-import { assertPackFdlValid, writePack, type PackFile } from '../pack/index.js';
+import {
+  assertPackFdlValid,
+  assertPackManifestValid,
+  writePack,
+  type PackFile,
+} from '../pack/index.js';
 import type { AdapterContract, CreateProjectPayload } from '../types/adapter-contract.js';
 import {
   collectNewWizardParams,
@@ -103,7 +108,8 @@ export async function newCommand(
 
   // SPEC-0007 AC-6: --dry-run inspecciona el pack de convenciones sin scaffoldear
   // ni escribir nada. Resuelve el adapter, obtiene el pack, valida su FDL (gate
-  // AC-1) e imprime los paths que se escribirían; sale 0 y deja el destino vacío.
+  // AC-1) y su manifiesto (FRA-104) e imprime los paths que se escribirían; sale
+  // 0 y deja el destino vacío.
   if (options.dryRun) {
     await runPackDryRun(derivedProjectName, targetDir);
     return;
@@ -287,8 +293,8 @@ async function fetchPack(
 
 /**
  * SPEC-0007 AC-6: inspección del pack con `--dry-run`. Resuelve el adapter,
- * obtiene el pack, valida su FDL (gate AC-1) e imprime los paths que se
- * escribirían; no toca disco y deja el directorio destino vacío.
+ * obtiene el pack, valida su FDL (gate AC-1) y su manifiesto (FRA-104) e imprime
+ * los paths que se escribirían; no toca disco y deja el directorio destino vacío.
  */
 async function runPackDryRun(
   projectName: string,
@@ -306,6 +312,7 @@ async function runPackDryRun(
     console.log(chalk.dim(`   Adapter: ${adapter.target}`));
     packFiles = await fetchPack(adapter.command, projectName);
     assertPackFdlValid(packFiles);
+    assertPackManifestValid(packFiles);
   } catch (error) {
     console.error(
       chalk.red(
@@ -419,14 +426,16 @@ async function generateProject(
   console.log(chalk.green('   ✓ Estructura generada'));
 
   // SPEC-0007 AC-2/AC-8: escribir el pack de convenciones (AGENTS.md + FDL +
-  // prompt) junto al scaffold. El FDL del pack es un contrato: se valida antes
-  // de escribir (gate AC-1) y la escritura es atómica (AC-5).
+  // prompt + manifiesto) junto al scaffold. El FDL del pack es un contrato: se
+  // valida antes de escribir (gate AC-1), igual que el manifiesto (FRA-104), y
+  // la escritura es atómica (AC-5).
   console.log(chalk.blue('\n📝 Escribiendo pack de convenciones...'));
 
   let packFiles: PackFile[];
   try {
     packFiles = await fetchPack(adapter.command, params.projectName);
     assertPackFdlValid(packFiles);
+    assertPackManifestValid(packFiles);
   } catch (error) {
     console.error(
       chalk.red(
