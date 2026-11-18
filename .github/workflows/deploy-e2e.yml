@@ -293,6 +293,20 @@ jobs:
             --retry-delay 10000
           echo "E2E_DOCTOR_SECONDS=$(( $(date +%s) - START ))" >> "$GITHUB_ENV"
 
+      # FRA-111: la SPA React compilada se sirve en "/" y /api/health responde 200.
+      - name: Verificar SPA compilada y /api/health por HTTPS
+        run: |
+          set -euo pipefail
+          URL="https://$FRACTAL_E2E_DOMAIN"
+          HTML="$(curl -ksS -m 15 "$URL/")"
+          JS_PATH="$(printf '%s' "$HTML" | grep -oE '/build/assets/app\.js' | head -1 || true)"
+          if [ -z "$JS_PATH" ]; then echo "✗ '/' no referencia el bundle de la SPA"; exit 1; fi
+          CODE="$(curl -ksS -m 15 -o /dev/null -w '%{http_code}' "$URL$JS_PATH")"
+          if [ "$CODE" != "200" ]; then echo "✗ El bundle devolvió HTTP $CODE"; exit 1; fi
+          CODE="$(curl -ksS -m 15 -o /dev/null -w '%{http_code}' "$URL/api/health")"
+          if [ "$CODE" != "200" ]; then echo "✗ /api/health devolvió HTTP $CODE"; exit 1; fi
+          echo "✓ SPA cargada y /api/health responde 200"
+
       - name: Probar que un cambio llega a producción (redeploy + refresco de volumen, FRA-73)
         working-directory: ${{ env.FRACTAL_E2E_PROJECT_DIR }}
         env:
