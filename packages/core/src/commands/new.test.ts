@@ -101,7 +101,7 @@ beforeEach(() => {
                   manifestVersion: '1',
                   project: { name: payload.name },
                   framework: { adapter: 'test', name: 'Test Stack' },
-                  topology: 'single-service',
+                  topology: payload.topology,
                   conventions: 'AGENTS.md',
                   data: { fdl: 'fractal/domain.fdl.json' },
                   prompts: ['fractal/prompts/add-entity.md'],
@@ -303,6 +303,42 @@ describe('newCommand', () => {
       expect(gitignore).toContain('node_modules/');
     });
     
+    it.each(['monolith', 'monorepo', 'multirepo'] as const)(
+      'FRA-109: el manifiesto declara la topología %s y está en el repo correcto',
+      { timeout: 30000 },
+      async (topology) => {
+        const projectName = `pack-${topology}`;
+        const originalCwd = process.cwd();
+        process.chdir(TEST_DIR);
+        await newCommand(projectName, { topology });
+        process.chdir(originalCwd);
+
+        const root = join(
+          TEST_DIR,
+          topology === 'multirepo' ? `${projectName}-api` : projectName
+        );
+        for (const f of [
+          'AGENTS.md',
+          'fractal/domain.fdl.json',
+          'fractal/prompts/add-entity.md',
+          'fractal/manifest.json',
+        ]) {
+          expect(existsSync(join(root, f))).toBe(true);
+        }
+        const manifest = JSON.parse(
+          readFileSync(join(root, 'fractal/manifest.json'), 'utf-8')
+        );
+        expect(manifest.topology).toBe(topology);
+
+        if (topology === 'multirepo') {
+          // El pack queda commiteado en el repo API, no en el web.
+          const tracked = execSync('git ls-files', { cwd: root }).toString();
+          expect(tracked).toContain('fractal/manifest.json');
+          expect(existsSync(join(TEST_DIR, `${projectName}-web`, 'AGENTS.md'))).toBe(false);
+        }
+      }
+    );
+
     it('inicializa dos repos para multirepo', { timeout: 30000 }, async () => {
       const projectName = 'git-multi';
       

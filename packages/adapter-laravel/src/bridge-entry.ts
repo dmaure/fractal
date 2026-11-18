@@ -16,7 +16,7 @@
 import { createProject } from './commands/create-project.js';
 import { getPack } from './commands/get-pack.js';
 import { getAdapterContract } from './contract.js';
-import type { CreateProjectPayload, DeployTarget } from '@fractal/core';
+import { isValidTopology, type CreateProjectPayload, type DeployTarget, type ProjectTopology } from '@fractal/core';
 
 interface BridgeAction {
   action: string;
@@ -222,9 +222,20 @@ async function main(): Promise<void> {
           break;
         }
 
+        if (!isValidTopology(String(payload.topology))) {
+          response = {
+            success: false,
+            error: {
+              message: 'El campo "topology" debe ser monolith, monorepo o multirepo',
+              step: 'validación',
+            },
+          };
+          break;
+        }
+
         response = {
           success: true,
-          data: getPack(payload.name),
+          data: getPack(payload.name, payload.topology as ProjectTopology),
         };
         break;
       }

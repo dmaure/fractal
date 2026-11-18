@@ -36,7 +36,7 @@ describe('getPack', () => {
     expect(manifest.project.name).toBe('mi-proyecto');
     expect(manifest.framework.adapter).toBe('laravel');
     expect(typeof manifest.framework.name).toBe('string');
-    expect(manifest.topology).toBe('single-service');
+    expect(manifest.topology).toBe('monolith');
 
     // Cross-check: las rutas declaradas existen entre los archivos del pack.
     expect(paths).toContain(manifest.conventions);
@@ -48,6 +48,17 @@ describe('getPack', () => {
     // El manifiesto se serializa con 2 espacios y newline final (determinista).
     expect(manifestText.endsWith('\n')).toBe(true);
   });
+
+  it.each(['monolith', 'monorepo', 'multirepo'] as const)(
+    'FRA-109: el manifiesto declara la topología %s',
+    (topology) => {
+      const { files } = getPack('mi-proyecto', topology);
+      const manifest = JSON.parse(
+        files.find((f) => f.path === 'fractal/manifest.json')!.contents
+      );
+      expect(manifest.topology).toBe(topology);
+    }
+  );
 
   it('el AGENTS.md documenta el mapeo del FDL y referencia el FDL + el prompt (AC-2)', () => {
     const { files } = getPack('mi-proyecto');
