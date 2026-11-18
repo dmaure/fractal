@@ -148,8 +148,12 @@ Orden de lectura recomendado:
 
 Decisiones técnicas en [`docs/adr/`](docs/adr/).
 Especificaciones de capabilities en [`docs/specs/`](docs/specs/).
-Guías de usuario de cada comando en [`docs/guides/`](docs/guides/) — por ejemplo
-[`fractal new`](docs/guides/fractal-new.md) y [FDL](docs/guides/fdl.md).
+Guías de usuario de cada comando en [`docs/guides/`](docs/guides/):
+[`fractal new`](docs/guides/fractal-new.md),
+[`fractal deploy`](docs/guides/fractal-deploy.md),
+[`fractal doctor`](docs/guides/fractal-doctor.md),
+[Pack de convenciones](docs/guides/pack-de-convenciones.md) y
+[FDL](docs/guides/fdl.md).
 Contrato del bridge para desarrolladores de adapters en [`packages/core/docs/bridge-contract-v0.md`](packages/core/docs/bridge-contract-v0.md).
 
 ---
