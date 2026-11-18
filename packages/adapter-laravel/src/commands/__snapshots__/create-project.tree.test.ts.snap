@@ -6,6 +6,7 @@ exports[`árbol generado por createProject (estructura + contenido) > monolith >
 node_modules
 vendor
 dist
+public/build
 storage/logs/*.log
 .env
 .env.*
@@ -72,7 +73,16 @@ Thumbs.db
 .fractal.lock
 ",
   "demo/Dockerfile": "# Dockerfile generado por Fractal
-# Imagen php-fpm para producción. Se construye en el VPS durante el deploy.
+# Etapa 1: compila el SPA React con Vite (public/build).
+FROM node:22-alpine AS assets
+WORKDIR /app
+COPY package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+COPY index.html vite.config.ts ./
+COPY resources ./resources
+RUN npm run build
+
+# Etapa 2: imagen php-fpm para producción. Se construye en el VPS durante el deploy.
 FROM php:8.3-fpm
 
 # Dependencias de sistema y extensiones PHP requeridas por Laravel + PostgreSQL.
@@ -93,6 +103,9 @@ WORKDIR /var/www/html
 
 # Copiar el código de la aplicación.
 COPY . /var/www/html
+
+# Assets compilados del SPA (etapa Node).
+COPY --from=assets /app/public/build /var/www/html/public/build
 
 # Instalar dependencias de producción.
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
@@ -693,10 +706,20 @@ import ReactDOM from 'react-dom/client';
 import '../css/app.css';
 
 function App() {
+  const [health, setHealth] = React.useState('consultando /api/health…');
+
+  React.useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => setHealth(\`/api/health: \${data.status}\`))
+      .catch(() => setHealth('/api/health: sin respuesta'));
+  }, []);
+
   return (
     <div className="container">
       <h1>Fractal Laravel App</h1>
       <p>Tu aplicación está lista para desarrollar.</p>
+      <p data-testid="health">{health}</p>
     </div>
   );
 }
@@ -739,8 +762,12 @@ if (root) {
         p { color: #94a3b8; line-height: 1.7; }
         code { background: #1e293b; color: #38bdf8; padding: 0.15rem 0.4rem; border-radius: 0.3rem; }
     </style>
+    @if (file_exists(public_path('build/assets/app.css')))
+    <link rel="stylesheet" href="/build/assets/app.css?v={{ filemtime(public_path('build/assets/app.css')) }}">
+    @endif
 </head>
 <body>
+    <div id="root">
     <div class="card">
         <span class="badge">Fractal</span>
         <h1>{{ config('app.name') }} está corriendo 🎉</h1>
@@ -749,6 +776,10 @@ if (root) {
             La API de salud responde en <code>/api/health</code>.
         </p>
     </div>
+    </div>
+    @if (file_exists(public_path('build/assets/app.js')))
+    <script type="module" src="/build/assets/app.js?v={{ filemtime(public_path('build/assets/app.js')) }}"></script>
+    @endif
 </body>
 </html>
 ",
@@ -829,6 +860,16 @@ export default defineConfig({
     // ya ignorado en .gitignore).
     outDir: 'public/build',
     emptyOutDir: true,
+    // Nombres fijos (sin hash) para que la vista Blade los referencie sin
+    // manifest; el cache-busting lo hace la vista con ?v=filemtime.
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/app.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: (asset) =>
+          asset.name?.endsWith('.css') ? 'assets/app.css' : 'assets/[name][extname]',
+      },
+    },
   },
   server: {
     port: 3000,

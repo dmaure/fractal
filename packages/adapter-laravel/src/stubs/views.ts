@@ -1,9 +1,11 @@
 /**
  * Generador de la vista raíz (resources/views/app.blade.php) del monolito.
  *
- * Página de inicio self-contained: renderiza sin assets compilados (sin Vite),
- * de modo que `/` responde 200 apenas se corre `php artisan serve`, sin requerir
- * `npm install` ni `npm run build`.
+ * Shell del SPA React. El landing estático vive dentro de `#root` y siempre se
+ * renderiza (así `/` responde 200 con `php artisan serve` sin `npm run build`).
+ * Si existen los assets compilados (`public/build/assets/app.js`, los genera el
+ * Dockerfile en producción) se cargan y React reemplaza el landing por la SPA,
+ * que consume `/api/health`.
  */
 export function generateAppBladeView(): string {
   return `<!DOCTYPE html>
@@ -39,8 +41,12 @@ export function generateAppBladeView(): string {
         p { color: #94a3b8; line-height: 1.7; }
         code { background: #1e293b; color: #38bdf8; padding: 0.15rem 0.4rem; border-radius: 0.3rem; }
     </style>
+    @if (file_exists(public_path('build/assets/app.css')))
+    <link rel="stylesheet" href="/build/assets/app.css?v={{ filemtime(public_path('build/assets/app.css')) }}">
+    @endif
 </head>
 <body>
+    <div id="root">
     <div class="card">
         <span class="badge">Fractal</span>
         <h1>{{ config('app.name') }} está corriendo 🎉</h1>
@@ -49,6 +55,10 @@ export function generateAppBladeView(): string {
             La API de salud responde en <code>/api/health</code>.
         </p>
     </div>
+    </div>
+    @if (file_exists(public_path('build/assets/app.js')))
+    <script type="module" src="/build/assets/app.js?v={{ filemtime(public_path('build/assets/app.js')) }}"></script>
+    @endif
 </body>
 </html>
 `;

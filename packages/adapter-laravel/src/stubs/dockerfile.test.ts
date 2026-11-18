@@ -11,6 +11,14 @@ describe('dockerfile', () => {
       expect(result).toContain('FROM php:8.3-fpm');
     });
 
+    it('compila el SPA en una etapa Node y copia public/build', () => {
+      const result = generateDockerfile();
+      expect(result).toContain('FROM node:22-alpine AS assets');
+      expect(result).toContain('npm ci');
+      expect(result).toContain('npm run build');
+      expect(result).toContain('COPY --from=assets /app/public/build');
+    });
+
     it('instala dependencias de producción con Composer', () => {
       const result = generateDockerfile();
       expect(result).toContain('composer install --no-dev --optimize-autoloader');

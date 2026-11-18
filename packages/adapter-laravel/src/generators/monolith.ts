@@ -115,9 +115,9 @@ async function generateBaseStructure(
  * las devDependencies del monolito) y emite los assets a `public/build`, el
  * directorio idiomático de Laravel (ya ignorado en `.gitignore`).
  *
- * Esto NO afecta las rutas PHP `/` ni `/api/health`: la raíz la sirve la vista
- * Blade self-contained (`resources/views/app.blade.php`) vía `routes/web.php`,
- * independiente de los assets compilados por Vite.
+ * La raíz la sirve la vista Blade (`resources/views/app.blade.php`) vía
+ * `routes/web.php`: carga el SPA compilado en `public/build` si existe (en
+ * producción lo compila el Dockerfile) y si no, muestra la landing estática.
  */
 async function generateFrontendBuildConfig(
   projectPath: string,
@@ -337,10 +337,20 @@ import ReactDOM from 'react-dom/client';
 import '../css/app.css';
 
 function App() {
+  const [health, setHealth] = React.useState('consultando /api/health…');
+
+  React.useEffect(() => {
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => setHealth(\`/api/health: \${data.status}\`))
+      .catch(() => setHealth('/api/health: sin respuesta'));
+  }, []);
+
   return (
     <div className="container">
       <h1>Fractal Laravel App</h1>
       <p>Tu aplicación está lista para desarrollar.</p>
+      <p data-testid="health">{health}</p>
     </div>
   );
 }
@@ -400,6 +410,16 @@ export default defineConfig({
     // ya ignorado en .gitignore).
     outDir: 'public/build',
     emptyOutDir: true,
+    // Nombres fijos (sin hash) para que la vista Blade los referencie sin
+    // manifest; el cache-busting lo hace la vista con ?v=filemtime.
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/app.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: (asset) =>
+          asset.name?.endsWith('.css') ? 'assets/app.css' : 'assets/[name][extname]',
+      },
+    },
   },
   server: {
     port: 3000,

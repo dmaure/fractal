@@ -16,6 +16,12 @@ describe('views', () => {
       expect(result).toContain("config('app.name')");
     });
 
+    it('monta el SPA en #root y carga el bundle compilado si existe', () => {
+      const result = generateAppBladeView();
+      expect(result).toContain('id="root"');
+      expect(result).toContain('/build/assets/app.js');
+    });
+
     it('referencia el endpoint de salud', () => {
       const result = generateAppBladeView();
       expect(result).toContain('/api/health');

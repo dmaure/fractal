@@ -1,14 +1,10 @@
 /**
  * Generador del Dockerfile del proyecto Laravel generado.
  *
- * Imagen php-fpm de una sola etapa, pensada para ser construida en el VPS
- * durante el primer deploy (FRA-70). Instala las extensiones PHP necesarias,
- * instala dependencias con Composer en modo producción, copia la app a
- * /var/www/html y ajusta permisos sobre storage y bootstrap/cache.
- *
- * Nota: la vista raíz del monolito es self-contained (FRA-69), por lo que `/`
- * responde 200 sin assets compilados; por eso esta imagen no corre un build de
- * front-end (el proyecto generado aún no incluye configuración de Vite usable).
+ * Imagen php-fpm construida en el VPS durante el deploy (FRA-70). Una etapa
+ * Node compila el SPA con Vite (FRA-111) y la etapa PHP instala las extensiones,
+ * dependencias de Composer en modo producción, copia la app a /var/www/html
+ * junto con `public/build` y ajusta permisos sobre storage y bootstrap/cache.
  *
  * El servicio php-fpm resultante escucha en el puerto 9000 y nginx (en su
  * propio contenedor) le hace fastcgi_pass; ver nginx-conf.ts.
@@ -17,7 +13,16 @@ import { PHP_DOCKER_IMAGE } from './php-version.js';
 
 export function generateDockerfile(): string {
   return `# Dockerfile generado por Fractal
-# Imagen php-fpm para producción. Se construye en el VPS durante el deploy.
+# Etapa 1: compila el SPA React con Vite (public/build).
+FROM node:22-alpine AS assets
+WORKDIR /app
+COPY package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+COPY index.html vite.config.ts ./
+COPY resources ./resources
+RUN npm run build
+
+# Etapa 2: imagen php-fpm para producción. Se construye en el VPS durante el deploy.
 FROM ${PHP_DOCKER_IMAGE}
 
 # Dependencias de sistema y extensiones PHP requeridas por Laravel + PostgreSQL.
@@ -38,6 +43,9 @@ WORKDIR /var/www/html
 
 # Copiar el código de la aplicación.
 COPY . /var/www/html
+
+# Assets compilados del SPA (etapa Node).
+COPY --from=assets /app/public/build /var/www/html/public/build
 
 # Instalar dependencias de producción.
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
@@ -68,6 +76,7 @@ export function generateDockerignore(): string {
 node_modules
 vendor
 dist
+public/build
 storage/logs/*.log
 .env
 .env.*
