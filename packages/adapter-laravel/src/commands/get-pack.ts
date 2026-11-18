@@ -28,6 +28,7 @@ import {
   PACK_MANIFEST_VERSION,
   type PackFile,
   type PackManifest,
+  type ProjectTopology,
 } from '@fractal/core';
 
 /** Rutas del pack que referencia el manifiesto (fuente única). */
@@ -217,12 +218,12 @@ estos pasos. No escribas nada hasta que el contrato valide.
  * de los otros archivos del pack. El core lo valida (campos requeridos +
  * cross-check de rutas) y lo serializa de forma determinista.
  */
-function buildManifest(projectName: string): PackManifest {
+function buildManifest(projectName: string, topology: ProjectTopology): PackManifest {
   return {
     manifestVersion: PACK_MANIFEST_VERSION,
     project: { name: projectName },
     framework: { adapter: 'laravel', name: 'Laravel + React (Vite)' },
-    topology: 'single-service',
+    topology,
     conventions: CONVENTIONS_PATH,
     data: { fdl: DOMAIN_FDL_PATH },
     prompts: [ADD_ENTITY_PROMPT_PATH],
@@ -235,15 +236,19 @@ function buildManifest(projectName: string): PackManifest {
  * Determinista y offline: mismas entradas ⇒ mismos archivos byte a byte.
  *
  * @param projectName - Nombre del proyecto (se inyecta en el FDL y los docs).
+ * @param topology - Topología elegida en el wizard (se declara en el manifiesto).
  * @returns Los archivos del pack con rutas relativas al root del proyecto.
  */
-export function getPack(projectName: string): GetPackResponse {
+export function getPack(
+  projectName: string,
+  topology: ProjectTopology = 'monolith'
+): GetPackResponse {
   return {
     files: [
       { path: CONVENTIONS_PATH, contents: buildAgentsMd(projectName) },
       { path: DOMAIN_FDL_PATH, contents: buildDomainFdl(projectName) },
       { path: ADD_ENTITY_PROMPT_PATH, contents: buildAddEntityPrompt() },
-      serializePackManifest(buildManifest(projectName)),
+      serializePackManifest(buildManifest(projectName, topology)),
     ],
   };
 }

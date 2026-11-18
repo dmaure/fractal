@@ -224,7 +224,12 @@ async function main(): Promise<void> {
 
         response = {
           success: true,
-          data: getPack(payload.name),
+          data: getPack(
+            payload.name,
+            payload.topology === 'monorepo' || payload.topology === 'multirepo'
+              ? payload.topology
+              : 'monolith'
+          ),
         };
         break;
       }

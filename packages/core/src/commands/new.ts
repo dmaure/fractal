@@ -1,9 +1,9 @@
-import { resolve, dirname, basename } from 'node:path';
+import { resolve, dirname, basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import type { DeployParams } from '../types/deploy-command.js';
 import type { NewCommandOptions, NewWizardParams, ValidatedNewParams } from '../types/new-command.js';
-import { isValidTopology, DEFAULT_TOPOLOGY } from '../types/topology.js';
+import { isValidTopology, DEFAULT_TOPOLOGY, type ProjectTopology } from '../types/topology.js';
 import { validateTargetDirectory } from '../utils/directory-validator.js';
 import { validateProjectName } from '../utils/param-validators.js';
 import { promptTopology } from '../utils/prompts.js';
@@ -111,7 +111,11 @@ export async function newCommand(
   // AC-1) y su manifiesto (FRA-104) e imprime los paths que se escribirían; sale
   // 0 y deja el destino vacío.
   if (options.dryRun) {
-    await runPackDryRun(derivedProjectName, targetDir);
+    const dryRunTopology =
+      options.topology && isValidTopology(options.topology)
+        ? options.topology
+        : DEFAULT_TOPOLOGY;
+    await runPackDryRun(derivedProjectName, targetDir, dryRunTopology);
     return;
   }
 
@@ -268,11 +272,13 @@ export async function newCommand(
  */
 async function fetchPack(
   adapterCommand: string[],
-  projectName: string
+  projectName: string,
+  topology: ProjectTopology
 ): Promise<PackFile[]> {
   const result = await invokeAdapter(adapterCommand, {
     action: 'get-pack',
     name: projectName,
+    topology,
   });
 
   if (!result.success) {
@@ -292,13 +298,29 @@ async function fetchPack(
 }
 
 /**
+ * Repo donde vive el pack. En monolith/monorepo es `targetDir`; en multirepo
+ * no existe `targetDir` sino `<name>-api` y `<name>-web` (hermanos): el pack
+ * (AGENTS.md, FDL, prompts, manifiesto) va en el repo del API.
+ */
+function packRootDir(
+  projectName: string,
+  targetDir: string,
+  topology: ProjectTopology
+): string {
+  return topology === 'multirepo'
+    ? join(dirname(targetDir), `${projectName}-api`)
+    : targetDir;
+}
+
+/**
  * SPEC-0007 AC-6: inspección del pack con `--dry-run`. Resuelve el adapter,
  * obtiene el pack, valida su FDL (gate AC-1) y su manifiesto (FRA-104) e imprime
  * los paths que se escribirían; no toca disco y deja el directorio destino vacío.
  */
 async function runPackDryRun(
   projectName: string,
-  targetDir: string
+  targetDir: string,
+  topology: ProjectTopology
 ): Promise<void> {
   console.log(
     chalk.blue('\n🔍 Dry-run: pack de convenciones (no se escribe nada en disco)\n')
@@ -310,7 +332,7 @@ async function runPackDryRun(
   try {
     const adapter = resolveSingleAdapter(cliPath);
     console.log(chalk.dim(`   Adapter: ${adapter.target}`));
-    packFiles = await fetchPack(adapter.command, projectName);
+    packFiles = await fetchPack(adapter.command, projectName, topology);
     assertPackFdlValid(packFiles);
     assertPackManifestValid(packFiles);
   } catch (error) {
@@ -322,7 +344,9 @@ async function runPackDryRun(
     process.exit(1);
   }
 
-  const planned = await writePack(targetDir, packFiles, { dryRun: true });
+  const planned = await writePack(packRootDir(projectName, targetDir, topology), packFiles, {
+    dryRun: true,
+  });
 
   console.log(chalk.green('\n✅ Se escribirían estos archivos del pack:'));
   for (const packPath of planned) {
@@ -433,7 +457,7 @@ async function generateProject(
 
   let packFiles: PackFile[];
   try {
-    packFiles = await fetchPack(adapter.command, params.projectName);
+    packFiles = await fetchPack(adapter.command, params.projectName, params.topology);
     assertPackFdlValid(packFiles);
     assertPackManifestValid(packFiles);
   } catch (error) {
@@ -445,7 +469,11 @@ async function generateProject(
     process.exit(1);
   }
 
-  const writtenPack = await writePack(params.targetDir, packFiles, { dryRun: false });
+  const writtenPack = await writePack(
+    packRootDir(params.projectName, params.targetDir, params.topology),
+    packFiles,
+    { dryRun: false }
+  );
   console.log(chalk.green('   ✓ Pack de convenciones escrito'));
   for (const packPath of writtenPack) {
     console.log(chalk.dim(`     ${packPath}`));

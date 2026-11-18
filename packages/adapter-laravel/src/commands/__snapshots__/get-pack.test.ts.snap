@@ -156,7 +156,7 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
     "adapter": "laravel",
     "name": "Laravel + React (Vite)"
   },
-  "topology": "single-service",
+  "topology": "monolith",
   "conventions": "AGENTS.md",
   "data": {
     "fdl": "fractal/domain.fdl.json"
