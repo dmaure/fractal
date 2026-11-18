@@ -206,7 +206,7 @@ en FRA-102 (#117):
 | AC-9 — `fractal doctor` (chequeo determinista post-deploy, contrato de exit codes) | FRA-103 | #119 | Mergeado |
 | Manifiesto de configuración del pack/proyecto | FRA-104 | — | Pendiente |
 | Medición de TTS y TTP en el e2e (`fractal doctor` cableado en `deploy-e2e.yml`) | FRA-105 | #123 | En revisión |
-| Documentación de usuario del pack y de `fractal doctor` | FRA-107 | — | Pendiente |
+| Documentación de usuario del pack y de `fractal doctor` | FRA-107 | #125 | En revisión |
 
 > Tabla alineada con los títulos de Linear (fuente de verdad de los tickets) el
 > 2026-11-13. El cableado de `fractal doctor` en el e2e, diferido en #119, quedó
