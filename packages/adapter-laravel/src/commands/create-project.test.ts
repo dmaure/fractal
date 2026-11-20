@@ -7,7 +7,7 @@ import { mkdir, rm, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createProject } from './create-project.js';
-import type { CreateProjectPayload } from '@fractal/core';
+import { computeLayout, type CreateProjectPayload } from '@fractal/core';
 
 describe('createProject', () => {
   let testDir: string;
@@ -158,7 +158,7 @@ describe('createProject', () => {
       const projectPath = join(testDir, 'test-monorepo');
       const files = await readdir(projectPath);
       expect(files).toContain('api');
-      expect(files).toContain('web');
+      expect(files).not.toContain('web'); // lo genera el adapter frontend
       expect(files).toContain('turbo.json');
       expect(files).toContain('package.json');
     });
@@ -181,22 +181,35 @@ describe('createProject', () => {
       expect(files).toContain('routes');
     });
 
-    it('genera el package web/ con estructura Vite', async () => {
+    it('el root declara los workspaces del layout', async () => {
       const payload: CreateProjectPayload = {
-        name: 'test-monorepo-web',
+        name: 'test-ws',
         topology: 'monorepo',
         destinationPath: testDir,
         target: 'laravel',
+        layout: computeLayout('monorepo', 'test-ws', [{ target: 'react-vite', platform: 'web' }]),
       };
 
       await createProject(payload);
 
-      const webPath = join(testDir, 'test-monorepo-web', 'web');
-      const files = await readdir(webPath);
-      expect(files).toContain('package.json');
-      expect(files).toContain('vite.config.ts');
-      expect(files).toContain('src');
-      expect(files).toContain('index.html');
+      const root = join(testDir, 'test-ws');
+      expect(JSON.parse(await readFile(join(root, 'package.json'), 'utf-8')).workspaces).toEqual(['web']);
+      expect(await readFile(join(root, 'pnpm-workspace.yaml'), 'utf-8')).toContain("- 'web'");
+    });
+
+    it('escribe el backend en layout.backend.path (sin hardcodear api/)', async () => {
+      const layout = computeLayout('monorepo', 'test-lay');
+      layout.backend.path = 'backend';
+      await createProject({
+        name: 'test-lay',
+        topology: 'monorepo',
+        destinationPath: testDir,
+        target: 'laravel',
+        layout,
+      });
+
+      expect(await readdir(join(testDir, 'test-lay'))).toContain('backend');
+      expect(await readdir(join(testDir, 'test-lay'))).not.toContain('api');
     });
   });
 
@@ -219,7 +232,7 @@ describe('createProject', () => {
 
       const files = await readdir(testDir);
       expect(files).toContain('test-multirepo-api');
-      expect(files).toContain('test-multirepo-web');
+      expect(files).not.toContain('test-multirepo-web'); // lo genera el adapter frontend
     });
 
     it('NO incluye manifiestos fractal.project.yml (responsabilidad del core)', async () => {
@@ -233,27 +246,9 @@ describe('createProject', () => {
       await createProject(payload);
 
       const apiFiles = await readdir(join(testDir, 'test-manifest-api'));
-      const webFiles = await readdir(join(testDir, 'test-manifest-web'));
 
       // El adapter ya no escribe fractal.project.yml (ADR-0012)
       expect(apiFiles).not.toContain('fractal.project.yml');
-      expect(webFiles).not.toContain('fractal.project.yml');
-    });
-
-    it('genera health.txt en el package web/', async () => {
-      const payload: CreateProjectPayload = {
-        name: 'test-health',
-        topology: 'multirepo',
-        destinationPath: testDir,
-        target: 'laravel',
-      };
-
-      await createProject(payload);
-
-      const webPublicFiles = await readdir(
-        join(testDir, 'test-health-web', 'public')
-      );
-      expect(webPublicFiles).toContain('health.txt');
     });
   });
 

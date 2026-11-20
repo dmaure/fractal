@@ -155,10 +155,14 @@ export function generateWebCss(): string {
 }
 
 /** Escribe todo el frontend en `destinationPath`. */
-export async function writeFrontendFiles(destinationPath: string, name: string): Promise<void> {
+export async function writeFrontendFiles(
+  destinationPath: string,
+  name: string,
+  mode: 'embedded' | 'standalone' = 'embedded'
+): Promise<void> {
   await mkdir(join(destinationPath, 'src', 'lib'), { recursive: true });
 
-  await writeFile(join(destinationPath, 'package.json'), generatePackageJson(name));
+  await writeFile(join(destinationPath, 'package.json'), generatePackageJson(`${name}-web`));
   await writeFile(join(destinationPath, 'vite.config.ts'), generateWebViteConfig());
   await writeFile(join(destinationPath, 'index.html'), generateWebIndexHtml(name));
   await writeFile(join(destinationPath, 'tsconfig.json'), generateWebTsconfig());
@@ -166,4 +170,15 @@ export async function writeFrontendFiles(destinationPath: string, name: string):
   await writeFile(join(destinationPath, 'src', 'App.tsx'), generateWebApp());
   await writeFile(join(destinationPath, 'src', 'App.css'), generateWebCss());
   await writeFile(join(destinationPath, 'src', 'lib', 'api.ts'), generateWebApiLib());
+
+  if (mode === 'standalone') {
+    // Repo/package propio: health.txt lo usa el healthcheck del deploy estático.
+    await mkdir(join(destinationPath, 'public'), { recursive: true });
+    await writeFile(join(destinationPath, 'public', 'health.txt'), 'ok');
+    await writeFile(join(destinationPath, '.gitignore'), 'node_modules\ndist\n.env\n.env.production\n');
+    await writeFile(
+      join(destinationPath, 'README.md'),
+      `# ${name}-web\n\nFrontend React + Vite de ${name}.\n\n- \`npm install\` y \`npm run dev\` (puerto 3000, \`/api\` se proxea a localhost:8000)\n- \`npm run build\` genera \`dist/\`\n- La URL de la API se configura con \`VITE_API_URL\`\n`
+    );
+  }
 }

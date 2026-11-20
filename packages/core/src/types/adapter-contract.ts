@@ -1,4 +1,4 @@
-import type { BackendFrontendRef } from './frontend-contract.js';
+import type { BackendFrontendRef, ProjectLayout } from './frontend-contract.js';
 
 /**
  * Contrato del adapter v0 — Tipos compartidos entre core y adapters.
@@ -80,6 +80,13 @@ export interface CreateProjectPayload {
    * armar su build multi-stage y su servidor web. Ausente/vacío: sin frontend.
    */
   frontends?: BackendFrontendRef[];
+
+  /**
+   * Layout calculado por core (`computeLayout`, FRA-117). El backend escribe
+   * en `layout.backend.path` (relativo a la raíz del layout) en vez de
+   * hardcodear `api/` o `<name>-api`. Ausente: el adapter calcula el default.
+   */
+  layout?: ProjectLayout;
 }
 
 /**

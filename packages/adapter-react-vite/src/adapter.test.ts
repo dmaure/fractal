@@ -19,6 +19,15 @@ describe('get-contract', () => {
     expect(c.dev).toEqual({ command: 'npm run dev', port: 3000, apiProxy: '/api' });
     expect(c.apiBaseEnv).toBe('VITE_API_URL');
   });
+
+  it('declara el runtime de deploy nginx-only del frontend estático (ex adapter-laravel)', () => {
+    expect(getContract().deployRuntime).toEqual({
+      services: ['nginx'],
+      buildCommand: 'npm run build',
+      port: 80,
+      healthcheck: { path: '/health.txt' },
+    });
+  });
 });
 
 describe('create-frontend', () => {
@@ -32,10 +41,25 @@ describe('create-frontend', () => {
     expect((await readdir(dest)).sort()).toEqual(['index.html', 'package.json', 'src', 'tsconfig.json', 'vite.config.ts']);
     expect((await readdir(join(dest, 'src'))).sort()).toEqual(['App.css', 'App.tsx', 'lib', 'main.tsx']);
     const pkg = JSON.parse(await readFile(join(dest, 'package.json'), 'utf-8'));
-    expect(pkg.name).toBe('my-app');
+    expect(pkg.name).toBe('my-app-web');
     expect(pkg.scripts.build).toBe('vite build');
     expect(await readFile(join(dest, 'vite.config.ts'), 'utf-8')).toContain("'/api': 'http://localhost:8000'");
     expect(await readFile(join(dest, 'src', 'lib', 'api.ts'), 'utf-8')).toContain("import.meta.env.VITE_API_URL ?? ''");
+  });
+});
+
+describe('create-frontend standalone', () => {
+  it('agrega health.txt, .gitignore y README, y mantiene el sufijo -web', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'rv-'));
+    dirs.push(root);
+    const dest = join(root, 'shop-web');
+    const res = await createFrontend({ name: 'shop', destinationPath: dest, mode: 'standalone' });
+    expect(res.success).toBe(true);
+    expect((await readdir(dest)).sort()).toEqual([
+      '.gitignore', 'README.md', 'index.html', 'package.json', 'public', 'src', 'tsconfig.json', 'vite.config.ts',
+    ]);
+    expect(await readFile(join(dest, 'public', 'health.txt'), 'utf-8')).toBe('ok');
+    expect(JSON.parse(await readFile(join(dest, 'package.json'), 'utf-8')).name).toBe('shop-web');
   });
 });
 

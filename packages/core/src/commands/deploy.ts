@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
 import type { AdapterContract } from '../types/adapter-contract.js';
-import { resolveSingleAdapter } from '../adapter-resolver.js';
+import { resolveSingleAdapter, listFrontendAdapters } from '../adapter-resolver.js';
 import { invokeAdapter } from '../adapter-bridge.js';
 import { promptDeployParams, loadDeployParamsFromEnv, loadUploadTimeoutMsFromEnv, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
 import {
@@ -689,7 +689,16 @@ export async function deployCommand(
   const cliPath = dirname(fileURLToPath(import.meta.url));
   let adapter;
   try {
-    adapter = resolveSingleAdapter(cliPath);
+    // FRA-117: el rol web le pide el contrato al adapter frontend (web), no al backend.
+    if (currentRole === 'web') {
+      const frontend = listFrontendAdapters(cliPath).find((a) => a.platform === 'web');
+      if (!frontend) {
+        throw new Error('No hay un adapter frontend web instalado para desplegar el rol web');
+      }
+      adapter = frontend;
+    } else {
+      adapter = resolveSingleAdapter(cliPath);
+    }
     console.log(chalk.dim(`   Adapter: ${adapter.target}`));
   } catch (error) {
     console.error(
