@@ -16,7 +16,7 @@
 import { createProject } from './commands/create-project.js';
 import { getPack } from './commands/get-pack.js';
 import { getAdapterContract } from './contract.js';
-import { isValidTopology, type CreateProjectPayload, type DeployTarget, type ProjectTopology } from '@fractal/core';
+import { isValidTopology, type CreateProjectPayload, type ProjectTopology } from '@fractal/core';
 
 interface BridgeAction {
   action: string;
@@ -113,27 +113,19 @@ async function main(): Promise<void> {
     
     switch (payload.action) {
       case 'get-contract': {
-        // El target es opcional; si está presente debe ser uno de los valores
-        // válidos de DeployTarget. Si está ausente, se usa el default
-        // ('backend-full') de getAdapterContract.
-        let target: DeployTarget | undefined;
-
+        // El target es opcional; este adapter solo declara 'backend-full'.
         if (payload.target !== undefined) {
-          if (
-            payload.target !== 'backend-full' &&
-            payload.target !== 'frontend-static'
-          ) {
+          if (payload.target !== 'backend-full') {
             response = {
               success: false,
               error: {
                 message:
-                  'El campo "target" debe ser "backend-full" o "frontend-static"',
+                  'El campo "target" debe ser "backend-full" (el frontend estático lo declara su adapter frontend)',
                 step: 'validación',
               },
             };
             break;
           }
-          target = payload.target;
         }
 
         const domain =
@@ -144,7 +136,7 @@ async function main(): Promise<void> {
             : undefined;
         response = {
           success: true,
-          data: getAdapterContract(target, { domain, projectName }),
+          data: getAdapterContract({ domain, projectName }),
         };
         break;
       }
@@ -205,6 +197,10 @@ async function main(): Promise<void> {
           frontends: Array.isArray(payload.frontends)
             ? (payload.frontends as CreateProjectPayload['frontends'])
             : undefined,
+          layout:
+            payload.layout && typeof payload.layout === 'object'
+              ? (payload.layout as CreateProjectPayload['layout'])
+              : undefined,
         };
         
         // Invocar createProject

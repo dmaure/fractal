@@ -99,21 +99,14 @@ describe('bridge-entry', () => {
       ]);
     });
 
-    it('con target frontend-static retorna el runtime nginx-only', async () => {
+    it('rechaza target frontend-static: lo declara el adapter frontend', async () => {
       const result = await invokeBridgeEntry({
         action: 'get-contract',
         target: 'frontend-static',
       });
 
-      expect(result.exitCode).toBe(0);
-      const response = result.response as {
-        success: boolean;
-        data: { deployRuntime: { services: string[]; port: number; healthcheck: { path: string } } };
-      };
-      expect(response.success).toBe(true);
-      expect(response.data.deployRuntime.services).toEqual(['nginx']);
-      expect(response.data.deployRuntime.port).toBe(80);
-      expect(response.data.deployRuntime.healthcheck.path).toBe('/health.txt');
+      expect(result.exitCode).toBe(1);
+      expect((result.response as { success: boolean }).success).toBe(false);
     });
 
     it('con target backend-full retorna el runtime de backend', async () => {
@@ -149,6 +142,31 @@ describe('bridge-entry', () => {
   });
 
   describe('create-project', () => {
+    it('respeta el layout del payload (backend en layout.backend.path)', async () => {
+      const { mkdtemp, readdir, rm } = await import('node:fs/promises');
+      const { tmpdir } = await import('node:os');
+      const dest = await mkdtemp(resolve(tmpdir(), 'bridge-layout-'));
+      try {
+        const result = await invokeBridgeEntry({
+          action: 'create-project',
+          name: 'demo',
+          topology: 'monorepo',
+          destinationPath: dest,
+          target: 'laravel',
+          layout: {
+            backend: { path: 'backend' },
+            frontends: [{ target: 'react-vite', platform: 'web', dir: 'web', path: 'web' }],
+          },
+        });
+        expect(result.exitCode).toBe(0);
+        const files = await readdir(resolve(dest, 'demo'));
+        expect(files).toContain('backend');
+        expect(files).toContain('pnpm-workspace.yaml');
+      } finally {
+        await rm(dest, { recursive: true, force: true });
+      }
+    });
+
     it('retorna error si falta el campo name', async () => {
       const result = await invokeBridgeEntry({
         action: 'create-project',

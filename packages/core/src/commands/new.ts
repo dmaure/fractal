@@ -565,6 +565,7 @@ async function generateProject(
     destinationPath,
     target: adapter.target,
     contractVersion: '0',
+    layout: frontendLayout,
     ...(frontendContracts.length > 0 && {
       frontends: frontendContracts.map((contract, i) => ({
         dir: frontendLayout.frontends[i].path,

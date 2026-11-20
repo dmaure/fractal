@@ -10,7 +10,6 @@ import type {
   AdapterContract,
   RuntimeRequirements,
   DeployRuntime,
-  DeployTarget,
 } from '@fractal/core';
 
 /**
@@ -92,38 +91,18 @@ export const LARAVEL_BACKEND_DEPLOY_RUNTIME: DeployRuntime = {
 };
 
 /**
- * Runtime de deploy para frontend estático en multirepo (package web/).
- * 
- * @see SPEC-0006 AC-3
- * @see ADR-0013 — runtime nginx-only
- */
-export const LARAVEL_FRONTEND_DEPLOY_RUNTIME: DeployRuntime = {
-  services: ['nginx'],
-  buildCommand: 'npm run build',
-  port: 80,
-  healthcheck: {
-    path: '/health.txt',
-  },
-};
-
-/**
- * Obtiene el contrato del adapter Laravel para el target de deploy pedido.
- *
- * El `deployRuntime` devuelto corresponde al target solicitado:
- * - 'backend-full' (default): backend Laravel completo
- *   (LARAVEL_BACKEND_DEPLOY_RUNTIME).
- * - 'frontend-static': frontend estático nginx-only del repo web/ en
- *   multirepo (LARAVEL_FRONTEND_DEPLOY_RUNTIME, ADR-0013).
+ * Obtiene el contrato del adapter Laravel (target 'backend-full': backend
+ * Laravel completo, LARAVEL_BACKEND_DEPLOY_RUNTIME). El runtime del frontend estático (`frontend-static`) lo declara el adapter
+ * frontend (FRA-117); el deploy del rol web le pide el contrato a él.
  *
  * El runtime de backend incluye además una `secretEnv` con una APP_KEY
  * generada fresca en cada invocación (una por deploy), inyectada luego por la
  * capa de deploy en los servicios de aplicación. El frontend estático
  * (nginx-only) no corre la app, por lo que no lleva secretEnv.
  *
- * @param target Target de deploy cuyo runtime se pide (default 'backend-full')
  * @param options.generateAppKey Generador de APP_KEY inyectable (para tests);
  *   por default genera una clave aleatoria fresca.
- * @returns Contrato del adapter Laravel con el runtime del target pedido
+ * @returns Contrato del adapter Laravel con el runtime del backend
  */
 /**
  * Construye las variables de entorno de producción del backend Laravel que la
@@ -165,22 +144,12 @@ function buildBackendSecretEnv(
 }
 
 export function getAdapterContract(
-  target: DeployTarget = 'backend-full',
   options: {
     generateAppKey?: () => string;
     domain?: string;
     projectName?: string;
   } = {}
 ): LaravelAdapterContract {
-  if (target === 'frontend-static') {
-    return {
-      name: 'laravel',
-      version: '0',
-      runtimeRequirements: LARAVEL_RUNTIME_REQUIREMENTS,
-      deployRuntime: LARAVEL_FRONTEND_DEPLOY_RUNTIME,
-    };
-  }
-
   const appKey = (options.generateAppKey ?? generateAppKey)();
   const deployRuntime: DeployRuntime = {
     ...LARAVEL_BACKEND_DEPLOY_RUNTIME,

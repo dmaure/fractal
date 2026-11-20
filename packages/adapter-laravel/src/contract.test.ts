@@ -9,7 +9,6 @@ import {
   LARAVEL_APP_KEY_ENV,
   LARAVEL_RUNTIME_REQUIREMENTS,
   LARAVEL_BACKEND_DEPLOY_RUNTIME,
-  LARAVEL_FRONTEND_DEPLOY_RUNTIME,
 } from './contract.js';
 
 describe('getAdapterContract', () => {
@@ -61,7 +60,7 @@ describe('getAdapterContract', () => {
   });
 
   it('con target backend-full retorna el runtime de backend', () => {
-    const contract = getAdapterContract('backend-full');
+    const contract = getAdapterContract();
 
     expect(contract.deployRuntime.services).toEqual(
       LARAVEL_BACKEND_DEPLOY_RUNTIME.services
@@ -70,7 +69,7 @@ describe('getAdapterContract', () => {
   });
 
   it('inyecta una APP_KEY fresca con formato base64: en el runtime de backend', () => {
-    const contract = getAdapterContract('backend-full');
+    const contract = getAdapterContract();
 
     expect(contract.deployRuntime.secretEnv).toBeDefined();
     const appKey = contract.deployRuntime.secretEnv?.[LARAVEL_APP_KEY_ENV];
@@ -80,8 +79,8 @@ describe('getAdapterContract', () => {
   });
 
   it('genera una APP_KEY distinta en cada invocación (fresca por deploy)', () => {
-    const a = getAdapterContract('backend-full');
-    const b = getAdapterContract('backend-full');
+    const a = getAdapterContract();
+    const b = getAdapterContract();
 
     expect(a.deployRuntime.secretEnv?.[LARAVEL_APP_KEY_ENV]).not.toBe(
       b.deployRuntime.secretEnv?.[LARAVEL_APP_KEY_ENV]
@@ -89,7 +88,7 @@ describe('getAdapterContract', () => {
   });
 
   it('permite inyectar el generador de APP_KEY (determinismo en tests)', () => {
-    const contract = getAdapterContract('backend-full', {
+    const contract = getAdapterContract({
       generateAppKey: () => 'base64:FIXED-TEST-KEY',
     });
 
@@ -98,38 +97,24 @@ describe('getAdapterContract', () => {
     );
   });
 
-  it('el frontend estático (nginx-only) no lleva secretEnv', () => {
-    const contract = getAdapterContract('frontend-static');
-
-    expect(contract.deployRuntime.secretEnv).toBeUndefined();
-  });
-
-  it('con target frontend-static retorna el runtime de frontend (nginx-only)', () => {
-    const contract = getAdapterContract('frontend-static');
-
-    expect(contract.deployRuntime).toBe(LARAVEL_FRONTEND_DEPLOY_RUNTIME);
-    expect(contract.deployRuntime.services).toEqual(['nginx']);
-    expect(contract.deployRuntime.port).toBe(80);
-    expect(contract.deployRuntime.healthcheck.path).toBe('/health.txt');
-  });
 });
 
 describe('env vars de producción del backend (FRA-72)', () => {
   it('inyecta APP_ENV=production y APP_DEBUG=false', () => {
-    const c = getAdapterContract('backend-full');
+    const c = getAdapterContract();
     expect(c.deployRuntime.secretEnv?.APP_ENV).toBe('production');
     expect(c.deployRuntime.secretEnv?.APP_DEBUG).toBe('false');
   });
 
   it('inyecta session/cache/queue en file/sync (sin tablas de BD en el primer deploy)', () => {
-    const c = getAdapterContract('backend-full');
+    const c = getAdapterContract();
     expect(c.deployRuntime.secretEnv?.SESSION_DRIVER).toBe('file');
     expect(c.deployRuntime.secretEnv?.CACHE_STORE).toBe('file');
     expect(c.deployRuntime.secretEnv?.QUEUE_CONNECTION).toBe('sync');
   });
 
   it('inyecta la conexión a PostgreSQL del compose', () => {
-    const c = getAdapterContract('backend-full', { projectName: 'miapp' });
+    const c = getAdapterContract({ projectName: 'miapp' });
     const env = c.deployRuntime.secretEnv ?? {};
     expect(env.DB_CONNECTION).toBe('pgsql');
     expect(env.DB_PORT).toBe('5432');
@@ -140,7 +125,7 @@ describe('env vars de producción del backend (FRA-72)', () => {
   });
 
   it('inyecta APP_URL con el dominio del deploy cuando se provee', () => {
-    const c = getAdapterContract('backend-full', {
+    const c = getAdapterContract({
       domain: 'prueba.codigofractal.dev',
       projectName: 'miapp',
     });
@@ -148,13 +133,8 @@ describe('env vars de producción del backend (FRA-72)', () => {
   });
 
   it('omite APP_URL si no se conoce el dominio', () => {
-    const c = getAdapterContract('backend-full');
+    const c = getAdapterContract();
     expect(c.deployRuntime.secretEnv?.APP_URL).toBeUndefined();
-  });
-
-  it('el frontend estático no lleva env de producción', () => {
-    const c = getAdapterContract('frontend-static', { domain: 'x.example.com' });
-    expect(c.deployRuntime.secretEnv).toBeUndefined();
   });
 });
 
@@ -237,29 +217,5 @@ describe('LARAVEL_BACKEND_DEPLOY_RUNTIME', () => {
       'php artisan view:clear',
       'php artisan cache:clear',
     ]);
-  });
-});
-
-describe('LARAVEL_FRONTEND_DEPLOY_RUNTIME', () => {
-  it('incluye solo nginx como servicio', () => {
-    expect(LARAVEL_FRONTEND_DEPLOY_RUNTIME.services).toEqual(['nginx']);
-  });
-
-  it('declara comando de build npm', () => {
-    expect(LARAVEL_FRONTEND_DEPLOY_RUNTIME.buildCommand).toBe('npm run build');
-  });
-
-  it('no declara comando de migración', () => {
-    expect(LARAVEL_FRONTEND_DEPLOY_RUNTIME.migrateCommand).toBeUndefined();
-  });
-
-  it('expone puerto 80', () => {
-    expect(LARAVEL_FRONTEND_DEPLOY_RUNTIME.port).toBe(80);
-  });
-
-  it('declara healthcheck en /health.txt', () => {
-    expect(LARAVEL_FRONTEND_DEPLOY_RUNTIME.healthcheck.path).toBe(
-      '/health.txt'
-    );
   });
 });

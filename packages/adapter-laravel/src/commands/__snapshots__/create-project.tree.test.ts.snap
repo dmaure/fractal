@@ -1363,6 +1363,7 @@ services.json
   "name": "demo",
   "version": "0.0.0",
   "private": true,
+  "workspaces": [],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -1373,6 +1374,9 @@ services.json
   },
   "packageManager": "pnpm@9.0.0"
 }",
+  "demo/pnpm-workspace.yaml": "packages:
+
+",
   "demo/turbo.json": "{
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
@@ -1396,89 +1400,6 @@ services.json
     }
   }
 }",
-  "demo/web/index.html": "<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>demo</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
-",
-  "demo/web/package.json": "{
-  "name": "demo-web",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.0.0",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0"
-  }
-}",
-  "demo/web/src/App.css": "body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-}
-
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-",
-  "demo/web/src/App.tsx": "import React from 'react';
-import './App.css';
-
-function App() {
-  return (
-    <div className="container">
-      <h1>Fractal Laravel App (Monorepo)</h1>
-      <p>Tu aplicación está lista para desarrollar.</p>
-    </div>
-  );
-}
-
-export default App;
-",
-  "demo/web/src/main.tsx": "import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-
-const root = document.getElementById('root');
-if (root) {
-  ReactDOM.createRoot(root).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}
-",
-  "demo/web/vite.config.ts": "import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 3000,
-  },
-});
-",
 }
 `;
 
@@ -1534,16 +1455,8 @@ exports[`árbol generado por createProject (estructura + contenido) > monorepo >
   "demo/api/storage/logs/",
   "demo/api/storage/logs/.gitignore",
   "demo/package.json",
+  "demo/pnpm-workspace.yaml",
   "demo/turbo.json",
-  "demo/web/",
-  "demo/web/index.html",
-  "demo/web/package.json",
-  "demo/web/public/",
-  "demo/web/src/",
-  "demo/web/src/App.css",
-  "demo/web/src/App.tsx",
-  "demo/web/src/main.tsx",
-  "demo/web/vite.config.ts",
 ]
 `;
 
@@ -2114,156 +2027,6 @@ services.json
   "demo-api/storage/logs/.gitignore": "*
 !.gitignore
 ",
-  "demo-web/.gitignore": "# Laravel
-/vendor
-/node_modules
-/public/hot
-/public/storage
-/public/build
-/storage/*.key
-.env
-.env.backup
-.phpunit.result.cache
-Homestead.json
-Homestead.yaml
-npm-debug.log
-yarn-error.log
-
-# IDE
-.idea
-.vscode
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Fractal
-.fractal.lock
-",
-  "demo-web/README.md": "# demo-web
-
-Frontend (SPA React) del proyecto multirepo, generado por Fractal.
-
-## Instalación
-
-\`\`\`bash
-npm install
-\`\`\`
-
-## Desarrollo
-
-\`\`\`bash
-npm run dev
-\`\`\`
-
-La aplicación estará disponible en http://localhost:3000
-
-## Build
-
-\`\`\`bash
-npm run build
-\`\`\`
-
-
-## Deploy
-
-Este proyecto está configurado para desplegarse con \`fractal deploy\`.
-
-## Documentación
-
-- [Fractal](https://github.com/dmaure/fractal)
-- [Laravel](https://laravel.com/docs)
-",
-  "demo-web/index.html": "<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>demo</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
-",
-  "demo-web/package.json": "{
-  "name": "demo-web",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.0.0",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0"
-  }
-}",
-  "demo-web/public/health.txt": "ok",
-  "demo-web/src/App.css": "body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-}
-
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-",
-  "demo-web/src/App.tsx": "import React from 'react';
-import './App.css';
-
-function App() {
-  return (
-    <div className="container">
-      <h1>Fractal Laravel App (Multirepo - Web)</h1>
-      <p>Tu aplicación está lista para desarrollar.</p>
-    </div>
-  );
-}
-
-export default App;
-",
-  "demo-web/src/main.tsx": "import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-
-const root = document.getElementById('root');
-if (root) {
-  ReactDOM.createRoot(root).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}
-",
-  "demo-web/vite.config.ts": "import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 3000,
-  },
-  build: {
-    outDir: 'dist',
-  },
-});
-",
 }
 `;
 
@@ -2317,17 +2080,5 @@ exports[`árbol generado por createProject (estructura + contenido) > multirepo 
   "demo-api/storage/framework/views/.gitignore",
   "demo-api/storage/logs/",
   "demo-api/storage/logs/.gitignore",
-  "demo-web/",
-  "demo-web/.gitignore",
-  "demo-web/README.md",
-  "demo-web/index.html",
-  "demo-web/package.json",
-  "demo-web/public/",
-  "demo-web/public/health.txt",
-  "demo-web/src/",
-  "demo-web/src/App.css",
-  "demo-web/src/App.tsx",
-  "demo-web/src/main.tsx",
-  "demo-web/vite.config.ts",
 ]
 `;

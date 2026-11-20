@@ -26,7 +26,7 @@ export async function createProject(
   payload: CreateProjectPayload
 ): Promise<CreateProjectResponse> {
   try {
-    const { name, topology, destinationPath, frontends } = payload;
+    const { name, topology, destinationPath, frontends, layout } = payload;
 
     let projectPath: string;
 
@@ -36,11 +36,11 @@ export async function createProject(
         break;
 
       case 'monorepo':
-        projectPath = await generateMonorepo(name, destinationPath);
+        projectPath = await generateMonorepo(name, destinationPath, layout);
         break;
 
       case 'multirepo':
-        projectPath = await generateMultirepo(name, destinationPath);
+        projectPath = await generateMultirepo(name, destinationPath, layout);
         break;
 
       default:

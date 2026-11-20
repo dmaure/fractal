@@ -9,7 +9,7 @@ export async function createFrontend(
   payload: CreateFrontendPayload
 ): Promise<{ success: true; data: { path: string } } | { success: false; error: { message: string; step?: string } }> {
   try {
-    await writeFrontendFiles(payload.destinationPath, payload.name);
+    await writeFrontendFiles(payload.destinationPath, payload.name, payload.mode);
     return { success: true, data: { path: payload.destinationPath } };
   } catch (error) {
     return {
