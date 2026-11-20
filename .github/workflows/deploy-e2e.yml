@@ -4,8 +4,9 @@ name: Deploy E2E (VPS efímero)
 #
 # Provisiona un VPS Vultr efímero (Ubuntu LTS), crea un registro DNS DNS-only en
 # Cloudflare (subdominio de codigofractal.dev), y corre el CLI de verdad:
-#   1. `fractal new` genera un proyecto monolito, y se levanta en local
-#      (`composer install` + `php artisan serve`) para medir el TTS.
+#   1. `fractal new` genera el proyecto (matriz de topologías: monolito y
+#      monorepo, FRA-114), y se levanta en local (`composer install` +
+#      `php artisan serve`) para medir el TTS.
 #   2. `fractal deploy --non-interactive` lo despliega en el VPS (SSL Let's Encrypt
 #      staging), y `fractal doctor` verifica la app por HTTPS, su contenido y la
 #      redirección HTTP→HTTPS (cierra el TTP).
@@ -26,6 +27,7 @@ on:
       - 'packages/deploy/**'
       - 'packages/core/**'
       - 'packages/adapter-laravel/**'
+      - 'packages/adapter-react-vite/**'
       - '.github/workflows/deploy-e2e.yml'
       - 'scripts/e2e-metrics.js'
       - 'docs/specs/0003-*'
@@ -38,11 +40,28 @@ concurrency:
 
 jobs:
   deploy-e2e:
-    name: deploy e2e contra VPS efímero
+    name: deploy e2e contra VPS efímero (${{ matrix.topology }})
     runs-on: ubuntu-latest
     environment: dev
     timeout-minutes: 45
+    # FRA-114: una corrida por topología, cada una con su VPS, su dominio y su
+    # teardown (label/dominio llevan la topología para no pisarse entre sí).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - topology: monolith
+            backend_dir: '.'
+            # El monolito responde texto plano en '/' cuando no hay SPA servida.
+            tts_path: /
+            tts_expect: Laravel configurado y funcionando
+          - topology: monorepo
+            backend_dir: api
+            # En monorepo el backend solo expone /api (la SPA vive en web/).
+            tts_path: /api/health
+            tts_expect: '"status":"healthy"'
     env:
+      E2E_TOPOLOGY: ${{ matrix.topology }}
       VULTR_REGION: ewr
       # vc2-2c-4gb (2 vCPU / 4 GB / 80 GB): supera el mínimo de 2 GB de RAM de
       # ServerValidator con margen. vc2-1c-2gb reporta ~1.9 GB usables y no pasa.
@@ -81,7 +100,7 @@ jobs:
           set -euo pipefail
           API="https://api.vultr.com/v2"
           AUTH="Authorization: Bearer $VULTR_API_KEY"
-          LABEL="fra64-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          LABEL="fra64-e2e-${GITHUB_RUN_ID}-${E2E_TOPOLOGY}-${GITHUB_RUN_ATTEMPT}"
           echo "VULTR_LABEL=$LABEL" >> "$GITHUB_ENV"
 
           echo "→ Subiendo clave pública a Vultr..."
@@ -169,7 +188,7 @@ jobs:
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: |
           set -euo pipefail
-          DOMAIN="e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.codigofractal.dev"
+          DOMAIN="e2e-${E2E_TOPOLOGY}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.codigofractal.dev"
           echo "FRACTAL_E2E_DOMAIN=$DOMAIN" >> "$GITHUB_ENV"
 
           echo "→ Creando A $DOMAIN → $FRACTAL_E2E_VPS_IP (proxied:false, TTL 60)..."
@@ -195,7 +214,7 @@ jobs:
           extensions: mbstring, xml, ctype, json, sqlite3, pdo_sqlite
           tools: composer:v2
 
-      - name: fractal new — generar el proyecto monolito
+      - name: fractal new — generar el proyecto (${{ matrix.topology }})
         run: |
           set -euo pipefail
           # fractal new inicializa git: necesita una identidad configurada.
@@ -212,22 +231,27 @@ jobs:
           cd "$WORK"
           # FRA-105: el reloj de TTS y TTP arranca con `fractal new`.
           START="$(date +%s)"
-          node "$FRACTAL" new fractale2e --topology monolith --force
+          node "$FRACTAL" new fractale2e --topology "$E2E_TOPOLOGY" --force
           echo "E2E_NEW_SECONDS=$(( $(date +%s) - START ))" >> "$GITHUB_ENV"
           echo "FRACTAL_E2E_PROJECT_DIR=$WORK/fractale2e" >> "$GITHUB_ENV"
 
       # FRA-105 — tramo local del TTS: los pasos del README del proyecto generado
-      # hasta que Laravel responde en local (respuesta mínima de '/', sin SPA servida). Corre sobre una COPIA para no
+      # hasta que Laravel responde en local (monolito: respuesta mínima de '/', sin
+      # SPA servida; monorepo: /api/health desde api/). Corre sobre una COPIA para no
       # dejar vendor/ ni .env en el proyecto que después se despliega. No suma al
       # TTP (quien despliega no necesita levantar el proyecto en local antes).
       - name: TTS — levantar el scaffold en local (composer install + php artisan serve)
+        env:
+          BACKEND_DIR: ${{ matrix.backend_dir }}
+          TTS_PATH: ${{ matrix.tts_path }}
+          TTS_EXPECT: ${{ matrix.tts_expect }}
         run: |
           set -euo pipefail
           START="$(date +%s)"
           LOCAL="$RUNNER_TEMP/fractal-e2e-tts"
           rm -rf "$LOCAL"
           cp -a "$FRACTAL_E2E_PROJECT_DIR" "$LOCAL"
-          cd "$LOCAL"
+          cd "$LOCAL/$BACKEND_DIR"
           cp .env.example .env
           composer install --no-interaction --no-progress
           php artisan key:generate --no-interaction
@@ -238,14 +262,14 @@ jobs:
 
           OK=0
           for i in $(seq 1 30); do
-            CODE="$(curl -sS -m 5 -o "$RUNNER_TEMP/fractal-e2e-local.html" -w '%{http_code}' http://127.0.0.1:8765/ || echo 000)"
-            if [ "$CODE" = "200" ] && grep -q 'Laravel configurado y funcionando' "$RUNNER_TEMP/fractal-e2e-local.html"; then
+            CODE="$(curl -sS -m 5 -o "$RUNNER_TEMP/fractal-e2e-local.html" -w '%{http_code}' "http://127.0.0.1:8765${TTS_PATH}" || echo 000)"
+            if [ "$CODE" = "200" ] && grep -qF "$TTS_EXPECT" "$RUNNER_TEMP/fractal-e2e-local.html"; then
               OK=1; break
             fi
             sleep 1
           done
           if [ "$OK" != "1" ]; then
-            echo "✗ El scaffold no respondió 200 con 'Laravel configurado y funcionando' en local"
+            echo "✗ El scaffold no respondió 200 con '$TTS_EXPECT' en $TTS_PATH (local)"
             cat "$RUNNER_TEMP/fractal-e2e-serve.log"
             exit 1
           fi
@@ -375,7 +399,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-metrics
+          name: e2e-metrics-${{ matrix.topology }}
           path: ${{ runner.temp }}/e2e-metrics.json
           if-no-files-found: ignore
 
@@ -391,13 +415,13 @@ jobs:
           #
           # FRA-106: el teardown NO depende de que el provisionado haya guardado el
           # id ni la label de la instancia. Busca y borra por el PREFIJO
-          # determinista `fra64-e2e-<run_id>-*`, armado con GITHUB_RUN_ID (variable
-          # siempre disponible), así limpia aunque el provisionado falle antes de
+          # determinista `fra64-e2e-<run_id>-<topología>-*`, armado con GITHUB_RUN_ID
+          # y la topología de la matriz (siempre disponibles; FRA-114), así limpia aunque el provisionado falle antes de
           # persistir VULTR_INSTANCE_ID / VULTR_LABEL (caso del run 43272106007).
           set +e
           API="https://api.vultr.com/v2"
           AUTH="Authorization: Bearer $VULTR_API_KEY"
-          LABEL_PREFIX="fra64-e2e-${GITHUB_RUN_ID}-"
+          LABEL_PREFIX="fra64-e2e-${GITHUB_RUN_ID}-${E2E_TOPOLOGY}-"
 
           # FRA-106 (failsafe): lista instancias del run distinguiendo
           # "la API respondió una lista (posiblemente vacía)" de "la consulta falló".
@@ -491,7 +515,7 @@ jobs:
 
           # DNS: el dominio es determinista (run_id + run_attempt); no depende de
           # que el step de DNS haya llegado a correr. Se borra el nombre y su www.
-          DOMAIN="${FRACTAL_E2E_DOMAIN:-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.codigofractal.dev}"
+          DOMAIN="${FRACTAL_E2E_DOMAIN:-e2e-${E2E_TOPOLOGY}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.codigofractal.dev}"
           echo "→ Eliminando registro(s) DNS de Cloudflare para $DOMAIN..."
           if [ -n "${CLOUDFLARE_ZONE_ID:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
             for name in "$DOMAIN" "www.$DOMAIN"; do
@@ -525,7 +549,7 @@ jobs:
           set +e
           API="https://api.vultr.com/v2"
           AUTH="Authorization: Bearer $VULTR_API_KEY"
-          LABEL_PREFIX="fra64-e2e-${GITHUB_RUN_ID}-"
+          LABEL_PREFIX="fra64-e2e-${GITHUB_RUN_ID}-${E2E_TOPOLOGY}-"
 
           # FRA-106 (failsafe): lista instancias del run distinguiendo
           # "la API respondió una lista (posiblemente vacía)" de "la consulta falló".

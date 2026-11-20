@@ -134,9 +134,13 @@ async function main(): Promise<void> {
           typeof payload.projectName === 'string'
             ? payload.projectName
             : undefined;
+        // FRA-114: la topología (opcional) decide dónde está el Dockerfile.
+        const topology = isValidTopology(String(payload.topology))
+          ? (payload.topology as ProjectTopology)
+          : undefined;
         response = {
           success: true,
-          data: getAdapterContract({ domain, projectName }),
+          data: getAdapterContract({ domain, projectName, topology }),
         };
         break;
       }

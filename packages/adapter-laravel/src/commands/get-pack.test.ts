@@ -80,6 +80,25 @@ describe('getPack', () => {
     expect(agents).not.toContain('resources/js');
   });
 
+  it('en monorepo el AGENTS.md usa las rutas api/ y web/src (FRA-114)', () => {
+    const { files } = getPack('p', 'monorepo');
+    const agents = files.find((f) => f.path === 'AGENTS.md')!.contents;
+    expect(agents).toContain('api/database/migrations');
+    expect(agents).toContain('api/app/Models');
+    expect(agents).toContain('api/app/Http/Controllers/Api');
+    expect(agents).toContain('api/routes/api.php');
+    expect(agents).toContain('web/src');
+    expect(agents).not.toContain('resources/js');
+  });
+
+  it('en monolito el AGENTS.md mantiene las rutas en la raíz', () => {
+    const { files } = getPack('p', 'monolith');
+    const agents = files.find((f) => f.path === 'AGENTS.md')!.contents;
+    expect(agents).toContain('(app/Models)');
+    expect(agents).not.toContain('api/app/Models');
+    expect(agents).not.toContain('web/src');
+  });
+
   it('el prompt add-entity es parametrizable y referencia el FDL y AGENTS.md (AC-3)', () => {
     const { files } = getPack('mi-proyecto');
     const prompt = files.find((f) => f.path === 'fractal/prompts/add-entity.md')!

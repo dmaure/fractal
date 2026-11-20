@@ -36,7 +36,7 @@ import { mkdtemp, rm, readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createProject } from './create-project.js';
-import type { CreateProjectPayload } from '@fractal/core';
+import { computeLayout, type BackendFrontendRef, type CreateProjectPayload } from '@fractal/core';
 
 const tempDirs: string[] = [];
 
@@ -128,5 +128,60 @@ describe('árbol generado por createProject (estructura + contenido)', () => {
     const { structure, contents } = await generateTree('multirepo', 'demo');
     expect(structure).toMatchSnapshot('estructura');
     expect(contents).toMatchSnapshot('contenido');
+  });
+});
+
+describe('monorepo con frontend estático (FRA-114)', () => {
+  const frontend: BackendFrontendRef = {
+    dir: 'web',
+    contract: {
+      version: '0',
+      kind: 'frontend',
+      target: 'x',
+      platform: 'web',
+      runtimeRequirements: { binaries: [] },
+      build: {
+        image: 'node:22-alpine',
+        dependencyManifests: 'package*.json',
+        installCommand: 'npm ci',
+        buildCommand: 'npm run build',
+        outputDir: 'dist',
+      },
+      serve: 'static',
+      dev: { command: 'npm run dev', port: 3000 },
+      apiBaseEnv: 'API_URL',
+    },
+  };
+
+  it('genera api/Dockerfile que compila web/, nginx en la raíz y api/public/index.php', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fractal-tree-'));
+    tempDirs.push(root);
+
+    const response = await createProject({
+      name: 'demo',
+      topology: 'monorepo',
+      destinationPath: root,
+      target: 'laravel',
+      layout: computeLayout('monorepo', 'demo', [{ target: 'x', platform: 'web' }]),
+      frontends: [frontend],
+    });
+    expect(response.success).toBe(true);
+
+    const { contents } = await readTree(root);
+    const dockerfile = contents['demo/api/Dockerfile'];
+    expect(dockerfile).toContain('AS web-build');
+    expect(dockerfile).toContain('COPY web/ ./');
+    expect(dockerfile).toContain('COPY api/ /var/www/html');
+    expect(dockerfile).toContain('/var/www/html/public/spa');
+    expect(contents['demo/Dockerfile']).toBeUndefined();
+
+    expect(contents['demo/docker/nginx/nginx.conf']).toContain('root /var/www/html/public/spa;');
+    expect(contents['demo/docker/nginx/nginx.conf']).toContain('location /api/');
+    expect(contents['demo/docker/nginx/ssl/.gitkeep']).toBe('');
+    expect(contents['demo/docker/nginx/certbot/.gitkeep']).toBe('');
+    expect(contents['demo/api/public/index.php']).toContain("bootstrap/app.php");
+    expect(contents['demo/.dockerignore']).toContain('web/node_modules');
+    expect(contents['demo/.gitignore']).toContain('/api/vendor');
+    expect(contents['demo/.gitignore']).toContain('/web/node_modules');
   });
 });

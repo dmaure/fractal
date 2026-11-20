@@ -73,6 +73,27 @@ describe('dockerfile', () => {
     });
   });
 
+  describe('monorepo (backendDir api, FRA-114)', () => {
+    it('copia solo api/ a la app y compila web/ desde la raíz del contexto', () => {
+      const result = generateDockerfile([frontend], { backendDir: 'api' });
+      expect(result).toContain('COPY api/ /var/www/html');
+      expect(result).not.toContain('COPY . /var/www/html');
+      expect(result).toContain('FROM node:22-alpine AS web-build');
+      expect(result).toContain('COPY web/package*.json ./');
+      expect(result).toContain('COPY web/ ./');
+      expect(result).toContain('COPY --from=web-build /app/web/dist /var/www/html/public/spa');
+    });
+
+    it('el .dockerignore excluye los artefactos de api/ y web/', () => {
+      const result = generateDockerignore([frontend], { backendDir: 'api' });
+      expect(result).toContain('api/vendor');
+      expect(result).toContain('api/.env');
+      expect(result).toContain('api/storage/logs/*.log');
+      expect(result).toContain('web/node_modules');
+      expect(result).toContain('web/dist');
+    });
+  });
+
   describe('generateDockerignore', () => {
     it('excluye artefactos que se regeneran en el build', () => {
       const result = generateDockerignore([frontend]);

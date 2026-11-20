@@ -6,6 +6,8 @@ import chalk from 'chalk';
 import type { DeployCommandOptions } from '../types/deploy-command.js';
 import type { AdapterContract } from '../types/adapter-contract.js';
 import { resolveSingleAdapter, listFrontendAdapters } from '../adapter-resolver.js';
+import { PACK_MANIFEST_PATH } from '../pack/manifest.js';
+import { isValidTopology, type ProjectTopology } from '../types/topology.js';
 import { invokeAdapter } from '../adapter-bridge.js';
 import { promptDeployParams, loadDeployParamsFromEnv, loadUploadTimeoutMsFromEnv, confirmDeploy, confirmUnknownHost } from '../utils/deploy-prompts.js';
 import {
@@ -63,6 +65,23 @@ async function determineProjectName(projectDir: string): Promise<string> {
   }
   
   return basename(projectDir);
+}
+
+/**
+ * Lee la topología declarada en el manifiesto del pack (`fractal/manifest.json`)
+ * que deja `fractal new`. El adapter la usa para ubicar su build (FRA-114: en
+ * monorepo el archivo de build vive en el directorio del backend). Sin
+ * manifiesto, ilegible o con una topología desconocida ⇒ undefined y el adapter
+ * usa su default.
+ */
+export async function readProjectTopology(projectDir: string): Promise<ProjectTopology | undefined> {
+  try {
+    const content = await readFile(resolve(projectDir, PACK_MANIFEST_PATH), 'utf-8');
+    const topology = (JSON.parse(content) as { topology?: unknown }).topology;
+    return typeof topology === 'string' && isValidTopology(topology) ? topology : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -709,9 +728,20 @@ export async function deployCommand(
     process.exit(1);
   }
 
+  const topology = await readProjectTopology(projectDir);
+  if (topology) {
+    console.log(chalk.dim(`   Topología: ${topology}`));
+  }
+
   const contractResult = await invokeAdapter(
     adapter.command,
-    { action: 'get-contract', target: targetType, domain: params.domain, projectName }
+    {
+      action: 'get-contract',
+      target: targetType,
+      domain: params.domain,
+      projectName,
+      ...(topology && { topology }),
+    }
   );
 
   if (!contractResult.success) {

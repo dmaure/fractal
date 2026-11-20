@@ -6,10 +6,12 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import type {
-  AdapterContract,
-  RuntimeRequirements,
-  DeployRuntime,
+import {
+  computeLayout,
+  type AdapterContract,
+  type RuntimeRequirements,
+  type DeployRuntime,
+  type ProjectTopology,
 } from '@fractal/core';
 
 /**
@@ -143,16 +145,34 @@ function buildBackendSecretEnv(
   return secretEnv;
 }
 
+/**
+ * Build del backend según la topología (FRA-114). El contexto es siempre la
+ * raíz del repo (la etapa Node compila el frontend desde ahí); en monorepo el
+ * Dockerfile vive en el directorio del backend (`api/Dockerfile`).
+ */
+export function backendBuildFor(
+  topology?: ProjectTopology
+): NonNullable<DeployRuntime['build']> {
+  if (topology === 'monorepo') {
+    const backendDir = computeLayout('monorepo', 'app').backend.path;
+    return { context: '.', dockerfile: `${backendDir}/Dockerfile` };
+  }
+  return LARAVEL_BACKEND_DEPLOY_RUNTIME.build!;
+}
+
 export function getAdapterContract(
   options: {
     generateAppKey?: () => string;
     domain?: string;
     projectName?: string;
+    /** Topología del proyecto desplegado (de fractal/manifest.json). */
+    topology?: ProjectTopology;
   } = {}
 ): LaravelAdapterContract {
   const appKey = (options.generateAppKey ?? generateAppKey)();
   const deployRuntime: DeployRuntime = {
     ...LARAVEL_BACKEND_DEPLOY_RUNTIME,
+    build: backendBuildFor(options.topology),
     secretEnv: buildBackendSecretEnv(appKey, options.domain, options.projectName),
   };
 

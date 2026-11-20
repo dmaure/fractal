@@ -268,7 +268,9 @@ como secreto: no la commitees, rotá si se filtra, y restringí quién lee
 ## Multirepo (api / web)
 
 En las topologías monolito y monorepo, un solo `fractal deploy` cubre todo el
-proyecto. En **multirepo** (ADR-0010) hay dos repositorios independientes, y
+proyecto (en monorepo, desde la raíz: la topología sale de
+`fractal/manifest.json` y el build usa `api/Dockerfile`, que también compila
+`web/`). En **multirepo** (ADR-0010) hay dos repositorios independientes, y
 `fractal deploy` se ejecuta **una vez dentro de cada uno** (`mi-app-api/` y
 `mi-app-web/`). Cada ejecución es independiente: su propio VPS, dominio y
 pipeline; ningún pipeline dispara ni coordina al otro (ADR-0012).
