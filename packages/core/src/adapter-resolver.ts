@@ -13,6 +13,9 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** Rol de un adapter: backend (uno por proyecto) o frontend (0..N). */
+export type AdapterKind = 'backend' | 'frontend';
+
 /**
  * Metadata del adapter declarada en su package.json.
  */
@@ -26,6 +29,17 @@ export interface AdapterMetadata {
    * Identificador del framework/target (e.g., "framework-a", "framework-b").
    */
   target: string;
+
+  /**
+   * Rol del adapter (FRA-115). Si falta en el package.json ⇒ 'backend'
+   * (retrocompatible con los adapters existentes).
+   */
+  kind: AdapterKind;
+
+  /**
+   * Plataforma del adapter ('web', 'mobile', ...). Default: 'web'.
+   */
+  platform: string;
   
   /**
    * Path relativo al entry point del bridge desde la raíz del paquete.
@@ -46,6 +60,12 @@ export interface ResolvedAdapter {
    * Identificador del framework/target.
    */
   target: string;
+
+  /** Rol del adapter (FRA-115). */
+  kind: AdapterKind;
+
+  /** Plataforma del adapter ('web', 'mobile', ...). */
+  platform: string;
   
   /**
    * Path absoluto al directorio del paquete.
@@ -156,9 +176,20 @@ function readAdapterMetadata(packageJsonPath: string): AdapterMetadata | null {
       return null;
     }
     
+    const kind = fractalMeta.kind ?? 'backend';
+    if (kind !== 'backend' && kind !== 'frontend') {
+      return null;
+    }
+    const platform = fractalMeta.platform ?? 'web';
+    if (typeof platform !== 'string') {
+      return null;
+    }
+
     return {
       adapter: true,
       target: fractalMeta.target,
+      kind,
+      platform,
       bridge: fractalMeta.bridge,
     };
   } catch {
@@ -243,6 +274,8 @@ export function resolveAdapters(cliPath: string): AdapterResolutionResult {
     adapters.push({
       packageName: `@fractal/${pkg}`,
       target: metadata.target,
+      kind: metadata.kind,
+      platform: metadata.platform,
       packagePath,
       bridgeEntryPath,
       command: [process.execPath, bridgeEntryPath],
@@ -255,37 +288,84 @@ export function resolveAdapters(cliPath: string): AdapterResolutionResult {
 }
 
 /**
- * Resuelve un adapter único, fallando si no hay exactamente uno disponible.
- * 
- * Si hay un único adapter disponible, se usa sin preguntar (SPEC-0001 AC-1).
- * Si hay múltiples adapters, esta función falla (el prompt de selección es M4).
- * 
- * @param cliPath - Path del CLI actual
- * @returns Adapter resuelto
- * @throws Error si no hay adapters o hay múltiples
+ * Resuelve el adapter backend (FRA-115). Ignora los adapters frontend.
+ *
+ * - Si se indica `target`, devuelve el backend con ese target (o falla).
+ * - Si no, exige exactamente un backend (SPEC-0001 AC-1); la selección entre
+ *   varios backends llega con M4.
+ *
+ * @throws Error si no hay backend, el target no existe o hay varios sin target
  */
-export function resolveSingleAdapter(cliPath: string): ResolvedAdapter {
+export function resolveBackendAdapter(cliPath: string, target?: string): ResolvedAdapter {
   const result = resolveAdapters(cliPath);
-  
+
   if (result.error) {
     throw new Error(result.error);
   }
-  
-  if (result.adapters.length === 0) {
+
+  const backends = result.adapters.filter(a => a.kind === 'backend');
+
+  if (target !== undefined) {
+    const found = backends.find(a => a.target === target);
+    if (!found) {
+      const disponibles = backends.map(a => a.target).join(', ') || 'ninguno';
+      throw new Error(`No se encontró el adapter backend '${target}' (disponibles: ${disponibles}).`);
+    }
+    return found;
+  }
+
+  if (backends.length === 0) {
     throw new Error(
       'No se encontró ningún adapter instalado. ' +
       'Asegúrate de que haya un paquete @fractal/adapter-* con metadata válida en su package.json.'
     );
   }
-  
-  if (result.adapters.length > 1) {
-    const targets = result.adapters.map(a => a.target).join(', ');
+
+  if (backends.length > 1) {
+    const targets = backends.map(a => a.target).join(', ');
     throw new Error(
       `Se encontraron múltiples adapters (${targets}). ` +
       'La selección interactiva de adapter se implementará en M4. ' +
       'Por ahora, solo debe haber un adapter instalado.'
     );
   }
-  
-  return result.adapters[0];
+
+  return backends[0];
+}
+
+/**
+ * Lista los adapters frontend instalados (FRA-115). Vacío si no hay ninguno.
+ */
+export function listFrontendAdapters(cliPath: string): ResolvedAdapter[] {
+  return resolveAdapters(cliPath).adapters.filter(a => a.kind === 'frontend');
+}
+
+/**
+ * Resuelve los adapters frontend pedidos por target, en el orden dado y sin
+ * duplicados (FRA-115). Con `targets` vacío devuelve [].
+ *
+ * @throws Error si algún target no está instalado como adapter frontend
+ */
+export function resolveFrontendAdapters(cliPath: string, targets: string[]): ResolvedAdapter[] {
+  if (targets.length === 0) {
+    return [];
+  }
+  const installed = listFrontendAdapters(cliPath);
+  const resolved: ResolvedAdapter[] = [];
+  for (const target of new Set(targets)) {
+    const found = installed.find(a => a.target === target);
+    if (!found) {
+      const disponibles = installed.map(a => a.target).join(', ') || 'ninguno';
+      throw new Error(`No se encontró el adapter frontend '${target}' (disponibles: ${disponibles}).`);
+    }
+    resolved.push(found);
+  }
+  return resolved;
+}
+
+/**
+ * Alias retrocompatible de {@link resolveBackendAdapter} (FRA-115).
+ */
+export function resolveSingleAdapter(cliPath: string): ResolvedAdapter {
+  return resolveBackendAdapter(cliPath);
 }
