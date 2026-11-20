@@ -72,14 +72,11 @@ describe('getPack', () => {
     expect(agents).toContain('Modelo');
   });
 
-  it.each([
-    ['monolith', 'web/src'],
-    ['monorepo', 'web/src'],
-    ['multirepo', 'src, en el repo web'],
-  ] as const)('el AGENTS.md indica el path del frontend en %s', (topology, path) => {
-    const { files } = getPack('p', topology);
+  it('el AGENTS.md no nombra el frontend: remite a fractal/frontends/', () => {
+    const { files } = getPack('p', 'monolith');
     const agents = files.find((f) => f.path === 'AGENTS.md')!.contents;
-    expect(agents).toContain(`### Frontend (${path}, React + Vite)`);
+    expect(agents).toContain('fractal/frontends/');
+    expect(agents).not.toContain('React');
     expect(agents).not.toContain('resources/js');
   });
 

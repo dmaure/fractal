@@ -126,6 +126,7 @@ packages/
 ├── core/              CLI, FDL, orquestación. Agnóstico.
 ├── adapter-laravel/   Todo el conocimiento de PHP/Laravel
 ├── adapter-rails/     Todo el conocimiento de Ruby/Rails
+├── adapter-react-vite/ Frontend React + Vite (kind: frontend, platform: web)
 └── deploy/            Provisioning y CI/CD. Agnóstico.
 ```
 

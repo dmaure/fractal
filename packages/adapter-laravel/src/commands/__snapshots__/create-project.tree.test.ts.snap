@@ -6,8 +6,6 @@ exports[`árbol generado por createProject (estructura + contenido) > monolith >
 node_modules
 vendor
 dist
-web/node_modules
-web/dist
 storage/logs/*.log
 .env
 .env.*
@@ -50,8 +48,6 @@ MAIL_FROM_NAME="\${APP_NAME}"
 /public/hot
 /public/storage
 /public/build
-/web/node_modules
-/web/dist
 /storage/*.key
 .env
 .env.backup
@@ -76,15 +72,7 @@ Thumbs.db
 .fractal.lock
 ",
   "demo/Dockerfile": "# Dockerfile generado por Fractal
-# Etapa 1: compila el SPA React con Vite (web/dist).
-FROM node:22-alpine AS web-build
-WORKDIR /app/web
-COPY web/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-COPY web/ ./
-RUN npm run build
-
-# Etapa 2: imagen php-fpm para producción. Se construye en el VPS durante el deploy.
+# imagen php-fpm para producción. Se construye en el VPS durante el deploy.
 FROM php:8.3-fpm
 
 # Dependencias de sistema y extensiones PHP requeridas por Laravel + PostgreSQL.
@@ -106,8 +94,6 @@ WORKDIR /var/www/html
 # Copiar el código de la aplicación.
 COPY . /var/www/html
 
-# SPA compilado (etapa Node); nginx lo sirve desde public/spa.
-COPY --from=web-build /app/web/dist /var/www/html/public/spa
 
 # Instalar dependencias de producción.
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
@@ -630,10 +616,9 @@ http {
             try_files $uri /index.php?$query_string;
         }
 
-        # SPA React compilada (web/dist copiada a public/spa).
+        # Sin frontend: todo lo que no es estático lo resuelve Laravel.
         location / {
-            root /var/www/html/public/spa;
-            try_files $uri /index.html;
+            try_files $uri /index.php?$query_string;
         }
 
         location = /favicon.ico { access_log off; log_not_found off; }
@@ -737,121 +722,6 @@ services.json
   "demo/storage/logs/.gitignore": "*
 !.gitignore
 ",
-  "demo/web/index.html": "<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>demo</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
-",
-  "demo/web/package.json": "{
-  "name": "demo",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0"
-  }
-}",
-  "demo/web/src/App.css": "body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-}
-
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-",
-  "demo/web/src/App.tsx": "import React from 'react';
-import { API_BASE } from './lib/api';
-
-export default function App() {
-  const [health, setHealth] = React.useState('consultando /api/health…');
-
-  React.useEffect(() => {
-    fetch(\`\${API_BASE}/api/health\`)
-      .then((res) => {
-        if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
-        return res.json();
-      })
-      .then((data) => setHealth(\`/api/health: \${data.status}\`))
-      .catch(() => setHealth('/api/health: sin respuesta'));
-  }, []);
-
-  return (
-    <div className="container">
-      <h1>Fractal Laravel App</h1>
-      <p>Tu aplicación está lista para desarrollar.</p>
-      <p data-testid="health">{health}</p>
-    </div>
-  );
-}
-",
-  "demo/web/src/lib/api.ts": "export const API_BASE: string = import.meta.env.VITE_API_URL ?? '';
-",
-  "demo/web/src/main.tsx": "import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import './App.css';
-
-const root = document.getElementById('root');
-if (root) {
-  ReactDOM.createRoot(root).render(<App />);
-}
-",
-  "demo/web/tsconfig.json": "{
-  "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "strict": true,
-    "types": ["vite/client"]
-  },
-  "include": ["src"]
-}
-",
-  "demo/web/vite.config.ts": "import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-  plugins: [react()],
-  base: '/',
-  server: {
-    port: 3000,
-    // En desarrollo, /api va al Laravel local (php artisan serve).
-    proxy: {
-      '/api': 'http://localhost:8000',
-    },
-  },
-});
-",
 }
 `;
 
@@ -918,17 +788,6 @@ exports[`árbol generado por createProject (estructura + contenido) > monolith >
   "demo/storage/framework/views/.gitignore",
   "demo/storage/logs/",
   "demo/storage/logs/.gitignore",
-  "demo/web/",
-  "demo/web/index.html",
-  "demo/web/package.json",
-  "demo/web/src/",
-  "demo/web/src/App.css",
-  "demo/web/src/App.tsx",
-  "demo/web/src/lib/",
-  "demo/web/src/lib/api.ts",
-  "demo/web/src/main.tsx",
-  "demo/web/tsconfig.json",
-  "demo/web/vite.config.ts",
 ]
 `;
 

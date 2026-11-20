@@ -5,7 +5,7 @@ exports[`getPack > snapshot del contenido del pack (fuente de verdad estable, AC
   "AGENTS.md": "# Convenciones de agente — demo
 
 Este proyecto usa un contrato de dominio en **FDL** (Fractal Definition Language)
-y un stack **Laravel + React (Vite)**. Cuando agregues o modifiques una entidad,
+y un backend **Laravel**. Cuando agregues o modifiques una entidad,
 el FDL en \`fractal/domain.fdl.json\` es la fuente de verdad: primero se actualiza
 y se valida el contrato, y recién después se escribe el código de cada capa
 siguiendo estas convenciones.
@@ -52,10 +52,10 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
   modificadores del FDL (\`required\` si no es \`nullable\`, \`max\` desde
   \`maxLength\`, \`unique\`, \`in\` desde los \`values\` del enum).
 
-### Frontend (web/src, React + Vite)
+### Frontend
 
-- Tipos TypeScript y vistas/CRUD para la entidad que consumen las rutas \`/api\`.
-- Formularios que reflejan las mismas validaciones que el backend.
+- El frontend es un módulo aparte; sus convenciones están en
+  \`fractal/frontends/\` (un archivo por frontend). Consume las rutas \`/api\`.
 
 ### Tests
 
@@ -154,7 +154,7 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
   },
   "framework": {
     "adapter": "laravel",
-    "name": "Laravel + React (Vite)"
+    "name": "Laravel"
   },
   "topology": "monolith",
   "conventions": "AGENTS.md",

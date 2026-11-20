@@ -360,14 +360,19 @@ function packRootDir(
  */
 /**
  * FRA-115: convierte la selección de frontends (lista separada por coma) en
- * targets de adapters frontend instalados. Sin adapters frontend instalados
+ * targets de adapters frontend instalados (default: el primero). Sin adapters frontend instalados
  * devuelve [] (se ignora el valor legacy). Un target desconocido es un error.
  */
 export function selectFrontendTargets(cliPath: string, requested: string | undefined): string[] {
-  if (listFrontendAdapters(cliPath).length === 0 || !requested || requested === 'none') {
+  const installed = listFrontendAdapters(cliPath);
+  if (installed.length === 0 || requested === 'none') {
     return [];
   }
-  const targets = requested.split(',').map((v) => v.trim()).filter(Boolean);
+  // Sin selección explícita (modo sin wizard) rige el mismo default que el
+  // wizard: el primer adapter frontend instalado (FRA-116).
+  const targets = requested
+    ? requested.split(',').map((v) => v.trim()).filter(Boolean)
+    : [installed[0].target];
   return resolveFrontendAdapters(cliPath, targets).map((a) => a.target);
 }
 
@@ -431,19 +436,6 @@ async function generateFrontends(
   for (const [i, adapter] of frontends.entries()) {
     const entry = layout.frontends[i];
 
-    const contractResult = await invokeAdapter(adapter.command, { action: 'get-contract' });
-    if (!contractResult.success) {
-      console.error(
-        chalk.red(`\n❌ Error al obtener contrato del frontend ${adapter.target}: ${contractResult.error.message}`)
-      );
-      process.exit(1);
-    }
-    const contract = contractResult.data as FrontendContract;
-    if (contract.kind !== 'frontend') {
-      console.error(chalk.red(`\n❌ El adapter ${adapter.target} no declara kind 'frontend' en su contrato.`));
-      process.exit(1);
-    }
-
     const payload: CreateFrontendPayload = {
       name: params.projectName,
       destinationPath: join(root, entry.path),
@@ -462,6 +454,31 @@ async function generateFrontends(
   }
 
   return manifest;
+}
+
+/**
+ * FRA-116: pide el contrato (`get-contract`) de cada adapter frontend. Se hace
+ * antes de `create-project` para que el backend arme su build desde el contrato.
+ * Termina el proceso ante un error.
+ */
+async function fetchFrontendContracts(frontends: ResolvedAdapter[]): Promise<FrontendContract[]> {
+  const contracts: FrontendContract[] = [];
+  for (const adapter of frontends) {
+    const contractResult = await invokeAdapter(adapter.command, { action: 'get-contract' });
+    if (!contractResult.success) {
+      console.error(
+        chalk.red(`\n❌ Error al obtener contrato del frontend ${adapter.target}: ${contractResult.error.message}`)
+      );
+      process.exit(1);
+    }
+    const contract = contractResult.data as FrontendContract;
+    if (contract.kind !== 'frontend') {
+      console.error(chalk.red(`\n❌ El adapter ${adapter.target} no declara kind 'frontend' en su contrato.`));
+      process.exit(1);
+    }
+    contracts.push(contract);
+  }
+  return contracts;
 }
 
 async function generateProject(
@@ -532,12 +549,28 @@ async function generateProject(
 
   const destinationPath = dirname(params.targetDir);
 
+  // FRA-116: contratos de los frontends elegidos, para que el backend arme su
+  // build y su servidor web desde ellos.
+  const frontendAdapters = resolveFrontendAdapters(cliPath, params.frontends ?? []);
+  const frontendContracts = await fetchFrontendContracts(frontendAdapters);
+  const frontendLayout = computeLayout(
+    params.topology,
+    params.projectName,
+    frontendAdapters.map((f) => ({ target: f.target, platform: f.platform }))
+  );
+
   const createProjectPayload: CreateProjectPayload = {
     name: params.projectName,
     topology: params.topology,
     destinationPath,
     target: adapter.target,
     contractVersion: '0',
+    ...(frontendContracts.length > 0 && {
+      frontends: frontendContracts.map((contract, i) => ({
+        dir: frontendLayout.frontends[i].path,
+        contract,
+      })),
+    }),
   };
 
   const createResult = await invokeAdapter(
@@ -557,7 +590,6 @@ async function generateProject(
   console.log(chalk.green('   ✓ Estructura generada'));
 
   // FRA-115: componer los frontends (0..N) sobre el layout de la topología.
-  const frontendAdapters = resolveFrontendAdapters(cliPath, params.frontends ?? []);
   const manifestFrontends: PackManifestFrontend[] = [];
   if (frontendAdapters.length > 0) {
     console.log(chalk.blue('\n🖼️  Generando frontends...'));
@@ -572,10 +604,13 @@ async function generateProject(
 
   let packFiles: PackFile[];
   try {
-    packFiles = withManifestFrontends(
-      await fetchPack(adapter.command, params.projectName, params.topology),
-      manifestFrontends
-    );
+    const backendPack = await fetchPack(adapter.command, params.projectName, params.topology);
+    // FRA-116: cada frontend aporta sus propias convenciones al pack.
+    const frontendPacks: PackFile[] = [];
+    for (const frontend of frontendAdapters) {
+      frontendPacks.push(...(await fetchPack(frontend.command, params.projectName, params.topology)));
+    }
+    packFiles = withManifestFrontends([...backendPack, ...frontendPacks], manifestFrontends);
     assertPackFdlValid(packFiles);
     assertPackManifestValid(packFiles);
   } catch (error) {

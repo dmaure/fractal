@@ -1,0 +1,46 @@
+{
+  "name": "@fractal/adapter-react-vite",
+  "version": "0.0.0",
+  "description": "Adapter frontend React + Vite (platform: web)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "fractal-adapter-react-vite": "./dist/bridge-entry.js"
+  },
+  "fractal": {
+    "adapter": true,
+    "target": "react-vite",
+    "kind": "frontend",
+    "platform": "web",
+    "bridge": "dist/bridge-entry.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@fractal/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [
+    "fractal",
+    "adapter",
+    "frontend",
+    "react",
+    "vite"
+  ],
+  "author": "Fractal",
+  "license": "MIT"
+}

@@ -39,6 +39,11 @@ beforeEach(() => {
     command: [process.execPath, '/fake/path/bridge.js'],
   });
   
+  // Aislar el test de los adapters frontend reales del workspace (FRA-116):
+  // por defecto no hay frontends; los tests de FRA-115 instalan el suyo.
+  vi.spyOn(adapterResolver, 'listFrontendAdapters').mockReturnValue([]);
+  vi.spyOn(adapterResolver, 'resolveFrontendAdapters').mockReturnValue([]);
+
   // Mockear invokeAdapter para simular respuestas exitosas
   vi.spyOn(adapterBridge, 'invokeAdapter').mockImplementation(async (command, payload: any) => {
     if (payload.action === 'get-contract') {
@@ -281,6 +286,9 @@ describe('newCommand', () => {
           if (payload.action === 'get-contract') {
             return { success: true, data: { version: '0', kind: 'frontend', target: 'fake-web', platform: 'web' } };
           }
+          if (payload.action === 'get-pack') {
+            return { success: true, data: { files: [{ path: 'fractal/frontends/fake-web.md', contents: '# fake' }] } };
+          }
           mkdirSync(payload.destinationPath, { recursive: true });
           writeFileSync(join(payload.destinationPath, 'index.html'), '<html></html>');
           return { success: true, data: {} };
@@ -317,6 +325,21 @@ describe('newCommand', () => {
         mode: 'embedded',
         destinationPath: join(TEST_DIR, 'app', 'web'),
       });
+    });
+
+    it('monolith: create-project recibe el contrato del frontend y el pack suma el suyo (FRA-116)', async () => {
+      const calls = withFakeFrontend();
+      await run('monolith', 'fake-web');
+      const backendCreate = vi
+        .mocked(adapterBridge.invokeAdapter)
+        .mock.calls.map((c) => c[1] as any)
+        .find((p) => p.action === 'create-project');
+      expect(backendCreate.frontends).toEqual([
+        { dir: 'web', contract: expect.objectContaining({ kind: 'frontend', target: 'fake-web' }) },
+      ]);
+      // el contrato se pide antes de crear el backend
+      expect(calls.map((c) => c.action).slice(0, 1)).toEqual(['get-contract']);
+      expect(calls.some((c) => c.action === 'get-pack')).toBe(true);
     });
 
     it('multirepo: repo hermano <nombre>-web', async () => {

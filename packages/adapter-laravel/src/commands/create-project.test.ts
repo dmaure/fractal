@@ -41,7 +41,6 @@ describe('createProject', () => {
       const projectPath = join(testDir, 'test-monolith');
       const files = await readdir(projectPath);
       expect(files).toContain('composer.json');
-      expect(files).toContain('web');
       expect(files).toContain('.env.example');
       expect(files).toContain('.gitignore');
       expect(files).toContain('README.md');
@@ -64,10 +63,10 @@ describe('createProject', () => {
       expect(files).toContain('routes');
     });
 
-    // El frontend del monolito vive íntegro en web/ (FRA-111): Vite corre con
-    // cwd = web/ y no hay Blade ni resources/js en la raíz.
-    describe('frontend en web/ (FRA-91, FRA-111)', () => {
-      it('emite el frontend completo dentro de web/ y nada en la raíz', async () => {
+    // El frontend ya no lo genera este adapter (FRA-116): lo crea el adapter
+    // frontend en web/. Acá solo se verifica que no haya nada en la raíz.
+    describe('sin frontend propio (FRA-116)', () => {
+      it('no emite web/ ni archivos del frontend en la raíz', async () => {
         await createProject({
           name: 'test-vite-entry',
           topology: 'monolith',
@@ -77,53 +76,45 @@ describe('createProject', () => {
 
         const projectPath = join(testDir, 'test-vite-entry');
         const rootFiles = await readdir(projectPath);
-        for (const f of ['index.html', 'vite.config.ts', 'package.json']) {
+        for (const f of ['index.html', 'vite.config.ts', 'package.json', 'web']) {
           expect(rootFiles).not.toContain(f);
         }
-        expect(await readdir(join(projectPath, 'resources')).catch(() => [])).toEqual([]);
-
-        const web = await readdir(join(projectPath, 'web'));
-        for (const f of ['package.json', 'vite.config.ts', 'index.html', 'tsconfig.json', 'src']) {
-          expect(web).toContain(f);
-        }
-        const src = await readdir(join(projectPath, 'web', 'src'));
-        for (const f of ['main.tsx', 'App.tsx', 'App.css', 'lib']) {
-          expect(src).toContain(f);
-        }
-
-        const indexHtml = await readFile(join(projectPath, 'web', 'index.html'), 'utf-8');
-        expect(indexHtml).toContain('src="/src/main.tsx"');
-        expect(indexHtml).toContain('<div id="root"></div>');
-
-        const app = await readFile(join(projectPath, 'web', 'src', 'App.tsx'), 'utf-8');
-        expect(app).toContain('res.ok');
-        expect(app).toContain('API_BASE');
-        const api = await readFile(join(projectPath, 'web', 'src', 'lib', 'api.ts'), 'utf-8');
-        expect(api).toContain("import.meta.env.VITE_API_URL ?? ''");
+        const dockerfile = await readFile(join(projectPath, 'Dockerfile'), 'utf-8');
+        expect(dockerfile).not.toContain('web-build');
       });
 
-      it('emite vite.config.ts con base /, outDir por defecto y proxy /api', async () => {
+      it('con un frontend en el payload arma Dockerfile y nginx desde su contrato', async () => {
         await createProject({
-          name: 'test-vite-config',
+          name: 'test-with-frontend',
           topology: 'monolith',
           destinationPath: testDir,
           target: 'laravel',
+          frontends: [
+            {
+              dir: 'web',
+              contract: {
+                version: '0',
+                kind: 'frontend',
+                target: 'x',
+                platform: 'web',
+                runtimeRequirements: { binaries: [] },
+                build: { image: 'node:22-alpine', installCommand: 'npm ci', buildCommand: 'npm run build', outputDir: 'dist' },
+                serve: 'static',
+                dev: { command: 'npm run dev', port: 3000 },
+                apiBaseEnv: 'API_URL',
+              },
+            },
+          ],
         });
 
-        const projectPath = join(testDir, 'test-vite-config');
-        const viteConfig = await readFile(join(projectPath, 'web', 'vite.config.ts'), 'utf-8');
-        expect(viteConfig).toContain('@vitejs/plugin-react');
-        expect(viteConfig).toContain("base: '/'");
-        expect(viteConfig).toContain("'/api': 'http://localhost:8000'");
-        expect(viteConfig).not.toContain('outDir');
-        expect(viteConfig).not.toContain('entryFileNames');
-
-        const pkg = JSON.parse(
-          await readFile(join(projectPath, 'web', 'package.json'), 'utf-8')
-        );
-        expect(pkg.devDependencies).toHaveProperty('@vitejs/plugin-react');
-        expect(pkg.devDependencies).toHaveProperty('vite');
-        expect(pkg.scripts.build).toBe('vite build');
+        const projectPath = join(testDir, 'test-with-frontend');
+        const dockerfile = await readFile(join(projectPath, 'Dockerfile'), 'utf-8');
+        expect(dockerfile).toContain('FROM node:22-alpine AS web-build');
+        expect(dockerfile).toContain('COPY --from=web-build /app/web/dist /var/www/html/public/spa');
+        const nginx = await readFile(join(projectPath, 'docker', 'nginx', 'nginx.conf'), 'utf-8');
+        expect(nginx).toContain('root /var/www/html/public/spa;');
+        const gitignore = await readFile(join(projectPath, '.gitignore'), 'utf-8');
+        expect(gitignore).toContain('/web/dist');
       });
 
       it('/ responde sin vista Blade y conserva /api/health', async () => {

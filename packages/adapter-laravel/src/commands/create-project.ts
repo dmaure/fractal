@@ -26,13 +26,13 @@ export async function createProject(
   payload: CreateProjectPayload
 ): Promise<CreateProjectResponse> {
   try {
-    const { name, topology, destinationPath } = payload;
+    const { name, topology, destinationPath, frontends } = payload;
 
     let projectPath: string;
 
     switch (topology) {
       case 'monolith':
-        projectPath = await generateMonolith(name, destinationPath);
+        projectPath = await generateMonolith(name, destinationPath, frontends);
         break;
 
       case 'monorepo':

@@ -29,7 +29,8 @@
   "author": "Fractal",
   "license": "MIT",
   "dependencies": {
-    "@fractal/adapter-laravel": "workspace:*"
+    "@fractal/adapter-laravel": "workspace:*",
+    "@fractal/adapter-react-vite": "workspace:*"
   },
   "devDependencies": {
     "@fractal/core": "workspace:*",

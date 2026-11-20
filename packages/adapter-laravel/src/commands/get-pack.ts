@@ -98,16 +98,11 @@ function buildDomainFdl(projectName: string): string {
  * Son documentos del proyecto (Artículo V): el proyecto es autónomo y el usuario
  * es dueño del código; no hay lenguaje del tipo "no toques esto".
  */
-function frontendPath(topology: ProjectTopology): string {
-  // monolito y monorepo: el frontend vive en web/; multirepo: raíz del repo web.
-  return topology === 'multirepo' ? 'src, en el repo web' : 'web/src';
-}
-
-function buildAgentsMd(projectName: string, topology: ProjectTopology): string {
+function buildAgentsMd(projectName: string): string {
   return `# Convenciones de agente — ${projectName}
 
 Este proyecto usa un contrato de dominio en **FDL** (Fractal Definition Language)
-y un stack **Laravel + React (Vite)**. Cuando agregues o modifiques una entidad,
+y un backend **Laravel**. Cuando agregues o modifiques una entidad,
 el FDL en \`fractal/domain.fdl.json\` es la fuente de verdad: primero se actualiza
 y se valida el contrato, y recién después se escribe el código de cada capa
 siguiendo estas convenciones.
@@ -154,10 +149,10 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
   modificadores del FDL (\`required\` si no es \`nullable\`, \`max\` desde
   \`maxLength\`, \`unique\`, \`in\` desde los \`values\` del enum).
 
-### Frontend (${frontendPath(topology)}, React + Vite)
+### Frontend
 
-- Tipos TypeScript y vistas/CRUD para la entidad que consumen las rutas \`/api\`.
-- Formularios que reflejan las mismas validaciones que el backend.
+- El frontend es un módulo aparte; sus convenciones están en
+  \`fractal/frontends/\` (un archivo por frontend). Consume las rutas \`/api\`.
 
 ### Tests
 
@@ -227,7 +222,7 @@ function buildManifest(projectName: string, topology: ProjectTopology): PackMani
   return {
     manifestVersion: PACK_MANIFEST_VERSION,
     project: { name: projectName },
-    framework: { adapter: 'laravel', name: 'Laravel + React (Vite)' },
+    framework: { adapter: 'laravel', name: 'Laravel' },
     topology,
     conventions: CONVENTIONS_PATH,
     data: { fdl: DOMAIN_FDL_PATH },
@@ -250,7 +245,7 @@ export function getPack(
 ): GetPackResponse {
   return {
     files: [
-      { path: CONVENTIONS_PATH, contents: buildAgentsMd(projectName, topology) },
+      { path: CONVENTIONS_PATH, contents: buildAgentsMd(projectName) },
       { path: DOMAIN_FDL_PATH, contents: buildDomainFdl(projectName) },
       { path: ADD_ENTITY_PROMPT_PATH, contents: buildAddEntityPrompt() },
       serializePackManifest(buildManifest(projectName, topology)),

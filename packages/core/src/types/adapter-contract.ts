@@ -1,3 +1,5 @@
+import type { BackendFrontendRef } from './frontend-contract.js';
+
 /**
  * Contrato del adapter v0 — Tipos compartidos entre core y adapters.
  * 
@@ -72,6 +74,12 @@ export interface CreateProjectPayload {
    * Permite al adapter validar compatibilidad si es necesario.
    */
   contractVersion?: AdapterContractVersion;
+
+  /**
+   * Frontends elegidos con su contrato (FRA-116). El backend los usa para
+   * armar su build multi-stage y su servidor web. Ausente/vacío: sin frontend.
+   */
+  frontends?: BackendFrontendRef[];
 }
 
 /**
