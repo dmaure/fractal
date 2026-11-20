@@ -11,6 +11,9 @@ importers:
       '@fractal/adapter-laravel':
         specifier: workspace:*
         version: link:packages/adapter-laravel
+      '@fractal/adapter-react-vite':
+        specifier: workspace:*
+        version: link:packages/adapter-react-vite
     devDependencies:
       '@fractal/core':
         specifier: workspace:*
@@ -42,6 +45,22 @@ importers:
         version: 3.2.7(@types/node@22.20.1)
 
   packages/adapter-rails: {}
+
+  packages/adapter-react-vite:
+    dependencies:
+      '@fractal/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.1)
 
   packages/core:
     dependencies:

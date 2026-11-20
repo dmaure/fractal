@@ -1,5 +1,27 @@
 import { describe, it, expect } from 'vitest';
+import type { BackendFrontendRef } from '@fractal/core';
 import { generateDockerfile, generateDockerignore } from './dockerfile.js';
+
+const frontend: BackendFrontendRef = {
+  dir: 'web',
+  contract: {
+    version: '0',
+    kind: 'frontend',
+    target: 'x',
+    platform: 'web',
+    runtimeRequirements: { binaries: [] },
+    build: {
+      image: 'node:22-alpine',
+      dependencyManifests: 'package*.json',
+      installCommand: 'npm ci',
+      buildCommand: 'npm run build',
+      outputDir: 'dist',
+    },
+    serve: 'static',
+    dev: { command: 'npm run dev', port: 3000 },
+    apiBaseEnv: 'API_URL',
+  },
+};
 
 // El contenido completo del stub se cubre en el snapshot del árbol
 // (create-project.tree.test.ts); aquí solo aserciones de comportamiento.
@@ -11,12 +33,18 @@ describe('dockerfile', () => {
       expect(result).toContain('FROM php:8.3-fpm');
     });
 
-    it('compila web/ en una etapa Node y copia el dist a public/spa', () => {
+    it('sin frontend no hay etapa de build ni copia del SPA', () => {
       const result = generateDockerfile();
+      expect(result).not.toContain('web-build');
+      expect(result).not.toContain('public/spa');
+    });
+
+    it('compila el frontend del contrato y copia su salida a public/spa', () => {
+      const result = generateDockerfile([frontend]);
       expect(result).toContain('FROM node:22-alpine AS web-build');
       expect(result).toContain('WORKDIR /app/web');
       expect(result).toContain('COPY web/package*.json ./');
-      expect(result).toContain('npm ci');
+      expect(result).toContain('RUN npm ci');
       expect(result).toContain('npm run build');
       expect(result).toContain('COPY --from=web-build /app/web/dist /var/www/html/public/spa');
     });
@@ -47,7 +75,7 @@ describe('dockerfile', () => {
 
   describe('generateDockerignore', () => {
     it('excluye artefactos que se regeneran en el build', () => {
-      const result = generateDockerignore();
+      const result = generateDockerignore([frontend]);
       expect(result).toContain('node_modules');
       expect(result).toContain('vendor');
       expect(result).toContain('.git');

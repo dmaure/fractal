@@ -10,7 +10,6 @@ El adapter genera un proyecto Laravel 12 ejecutable con:
 
 ### Archivos de configuración
 - `composer.json` — dependencias Laravel 12 (laravel/framework ^12.0, laravel/sanctum ^4.0)
-- `package.json` — dependencias del SPA React + Vite
 - `.env.example` — variables de entorno sin credenciales reales
 - `.gitignore` — incluye `.env`, `vendor/`, `node_modules/`, etc.
 - `README.md` — instrucciones de inicio
@@ -30,13 +29,14 @@ El adapter genera un proyecto Laravel 12 ejecutable con:
 - `database/seeders/` — directorio de seeders (vacío inicialmente)
 - `storage/` — estructura completa con .gitignore en cada subdirectorio
 
-### Frontend (topología monolito)
-- `web/src/App.tsx` — componente React principal
-- `web/src/main.tsx` — entry point React
-- `web/src/App.css` — estilos base
-- `web/src/lib/api.ts` — `API_BASE` (`VITE_API_URL`)
-- `web/vite.config.ts`, `web/index.html`, `web/package.json`, `web/tsconfig.json`
 - `public/index.php` — entry point Laravel
+
+### Frontend (topología monolito)
+Este adapter ya no genera el frontend (FRA-116): lo crea un adapter frontend
+(`packages/adapter-react-vite`, `kind: frontend`) en `web/`. El core le pasa a
+`create-project` el contrato de cada frontend (`frontends` en el payload) y el
+Dockerfile multi-stage, el `.dockerignore`, el `.gitignore` y el nginx se arman
+desde ese contrato. Sin frontend, no hay etapa de build y nginx deja todo a Laravel.
 
 ### Frontend (topologías monorepo/multirepo)
 - `web/src/App.tsx` — componente React principal

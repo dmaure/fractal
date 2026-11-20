@@ -202,6 +202,9 @@ async function main(): Promise<void> {
           destinationPath: payload.destinationPath,
           target: payload.target,
           contractVersion: payload.contractVersion as '0' | undefined,
+          frontends: Array.isArray(payload.frontends)
+            ? (payload.frontends as CreateProjectPayload['frontends'])
+            : undefined,
         };
         
         // Invocar createProject

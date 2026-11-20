@@ -4,9 +4,15 @@
  * Incluye .env para cumplir con Artículo VI (sin secrets comprometidos).
  */
 
-export function generateGitignore(options: { webDir?: boolean } = {}): string {
-  // Monolito: el frontend vive en web/ (node_modules y build fuera del repo).
-  const web = options.webDir ? '/web/node_modules\n/web/dist\n' : '';
+import type { BackendFrontendRef } from '@fractal/core';
+import { pickStaticFrontend } from './dockerfile.js';
+
+export function generateGitignore(options: { frontends?: BackendFrontendRef[] } = {}): string {
+  // Monolito: el frontend vive en su dir (dependencias y build fuera del repo).
+  const frontend = pickStaticFrontend(options.frontends);
+  const web = frontend
+    ? `/${frontend.dir}/node_modules\n/${frontend.dir}/${frontend.build.outputDir}\n`
+    : '';
   return `# Laravel
 /vendor
 /node_modules

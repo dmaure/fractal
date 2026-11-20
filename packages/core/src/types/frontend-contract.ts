@@ -24,10 +24,14 @@ export interface FrontendContract {
   target: string;
   /** Plataforma: 'web', 'mobile', ... */
   platform: string;
+  /** Descripción legible del frontend, para comentarios de los archivos del backend. */
+  description?: string;
   runtimeRequirements: RuntimeRequirements;
   /** Build, relativo al directorio del frontend. Ausente si `serve` es 'none'. */
   build?: {
     image: string;
+    /** Glob de los manifiestos de dependencias, copiados antes que el resto (cache de capas). */
+    dependencyManifests?: string;
     installCommand: string;
     buildCommand: string;
     outputDir: string;
@@ -52,6 +56,17 @@ export interface CreateFrontendPayload {
   mode: FrontendMode;
   /** URL de la API (solo en modo standalone). */
   apiUrl?: string;
+}
+
+/**
+ * Frontend que el core le informa al adapter backend en `create-project`
+ * (FRA-116): su directorio en el layout y su contrato. Con esto el backend
+ * arma su Dockerfile/nginx sin conocer el stack del frontend.
+ */
+export interface BackendFrontendRef {
+  /** Path del frontend relativo a la raíz del layout (p. ej. `web`). */
+  dir: string;
+  contract: FrontendContract;
 }
 
 /** Un frontend elegido: su adapter y la plataforma que declara. */

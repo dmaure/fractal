@@ -1,13 +1,42 @@
 /**
- * Frontend (SPA React + Vite) del monolito, generado dentro de `web/`.
- *
- * Todo el código del frontend vive en este directorio, separado del generador
- * del monolito, para poder moverlo tal cual a un adapter de frontend propio
+ * Archivos del frontend (SPA React + Vite). Salen de adapter-laravel (FRA-116)
  * sin cambiar el output generado.
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { generatePackageJson } from '../stubs/package.js';
+
+export function generatePackageJson(name: string): string {
+  const packageName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-+/g, '-');
+
+  return JSON.stringify(
+    {
+      name: packageName,
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      scripts: {
+        dev: 'vite',
+        build: 'vite build',
+      },
+      dependencies: {},
+      devDependencies: {
+        '@vitejs/plugin-react': '^4.0.0',
+        react: '^18.2.0',
+        'react-dom': '^18.2.0',
+        '@types/react': '^18.2.0',
+        '@types/react-dom': '^18.2.0',
+        typescript: '^5.0.0',
+        vite: '^5.0.0',
+      },
+    },
+    null,
+    2
+  );
+}
 
 export function generateWebIndexHtml(name: string): string {
   return `<!DOCTYPE html>
@@ -125,20 +154,16 @@ export function generateWebCss(): string {
 `;
 }
 
-/** Escribe todo el frontend del monolito en `<projectPath>/web`. */
-export async function generateMonolithWeb(
-  projectPath: string,
-  name: string
-): Promise<void> {
-  const webPath = join(projectPath, 'web');
-  await mkdir(join(webPath, 'src', 'lib'), { recursive: true });
+/** Escribe todo el frontend en `destinationPath`. */
+export async function writeFrontendFiles(destinationPath: string, name: string): Promise<void> {
+  await mkdir(join(destinationPath, 'src', 'lib'), { recursive: true });
 
-  await writeFile(join(webPath, 'package.json'), generatePackageJson(name, 'monolith'));
-  await writeFile(join(webPath, 'vite.config.ts'), generateWebViteConfig());
-  await writeFile(join(webPath, 'index.html'), generateWebIndexHtml(name));
-  await writeFile(join(webPath, 'tsconfig.json'), generateWebTsconfig());
-  await writeFile(join(webPath, 'src', 'main.tsx'), generateWebMain());
-  await writeFile(join(webPath, 'src', 'App.tsx'), generateWebApp());
-  await writeFile(join(webPath, 'src', 'App.css'), generateWebCss());
-  await writeFile(join(webPath, 'src', 'lib', 'api.ts'), generateWebApiLib());
+  await writeFile(join(destinationPath, 'package.json'), generatePackageJson(name));
+  await writeFile(join(destinationPath, 'vite.config.ts'), generateWebViteConfig());
+  await writeFile(join(destinationPath, 'index.html'), generateWebIndexHtml(name));
+  await writeFile(join(destinationPath, 'tsconfig.json'), generateWebTsconfig());
+  await writeFile(join(destinationPath, 'src', 'main.tsx'), generateWebMain());
+  await writeFile(join(destinationPath, 'src', 'App.tsx'), generateWebApp());
+  await writeFile(join(destinationPath, 'src', 'App.css'), generateWebCss());
+  await writeFile(join(destinationPath, 'src', 'lib', 'api.ts'), generateWebApiLib());
 }

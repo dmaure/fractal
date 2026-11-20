@@ -1,8 +1,9 @@
 /**
  * Generador de proyecto Laravel en topología monolito.
  * 
- * Un repositorio sin packages separados. El SPA (React + Vite) vive
- * en web/ y consume rutas bajo /api del mismo Laravel.
+ * Un repositorio sin packages separados. El frontend (adapter frontend,
+ * FRA-116) vive en web/ y consume rutas bajo /api del mismo Laravel; este
+ * generador solo arma el Dockerfile y el nginx desde el contrato del frontend.
  * 
  * @see ADR-0010 — topología monolito
  * @see ADR-0005 — frontend React + Vite + Sanctum Bearer
@@ -11,7 +12,7 @@
 import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { generateComposerJson } from '../stubs/composer.js';
-import { generateMonolithWeb } from '../frontend/monolith-web.js';
+import type { BackendFrontendRef } from '@fractal/core';
 import { generateEnvExample } from '../stubs/env.js';
 import { generateGitignore } from '../stubs/gitignore.js';
 import { generateReadme } from '../stubs/readme.js';
@@ -44,15 +45,15 @@ import { generateNginxConf } from '../stubs/nginx-conf.js';
  */
 export async function generateMonolith(
   name: string,
-  destinationPath: string
+  destinationPath: string,
+  frontends: BackendFrontendRef[] = []
 ): Promise<string> {
   const projectPath = join(destinationPath, name);
 
   try {
     await mkdir(projectPath, { recursive: true });
 
-    await generateBaseStructure(projectPath, name);
-    await generateMonolithWeb(projectPath, name);
+    await generateBaseStructure(projectPath, name, frontends);
     await generateBootstrapDirectory(projectPath);
     await generateConfigDirectory(projectPath);
     await generateAppDirectory(projectPath);
@@ -60,7 +61,7 @@ export async function generateMonolith(
     await generateStorageDirectory(projectPath);
     await generatePublicDirectory(projectPath);
     await generateRoutesDirectory(projectPath);
-    await generateDockerAssets(projectPath);
+    await generateDockerAssets(projectPath, frontends);
 
     return projectPath;
   } catch (error) {
@@ -73,7 +74,8 @@ export async function generateMonolith(
 
 async function generateBaseStructure(
   projectPath: string,
-  name: string
+  name: string,
+  frontends: BackendFrontendRef[]
 ): Promise<void> {
   await writeFile(
     join(projectPath, 'composer.json'),
@@ -82,7 +84,7 @@ async function generateBaseStructure(
 
   await writeFile(join(projectPath, '.env.example'), generateEnvExample(name));
 
-  await writeFile(join(projectPath, '.gitignore'), generateGitignore({ webDir: true }));
+  await writeFile(join(projectPath, '.gitignore'), generateGitignore({ frontends }));
 
   await writeFile(
     join(projectPath, 'README.md'),
@@ -239,13 +241,16 @@ async function generateRoutesDirectory(projectPath: string): Promise<void> {
  * Ambos directorios se crean como placeholders (los usan los montajes del
  * compose) con un .gitkeep.
  */
-async function generateDockerAssets(projectPath: string): Promise<void> {
-  await writeFile(join(projectPath, 'Dockerfile'), generateDockerfile());
-  await writeFile(join(projectPath, '.dockerignore'), generateDockerignore());
+async function generateDockerAssets(
+  projectPath: string,
+  frontends: BackendFrontendRef[]
+): Promise<void> {
+  await writeFile(join(projectPath, 'Dockerfile'), generateDockerfile(frontends));
+  await writeFile(join(projectPath, '.dockerignore'), generateDockerignore(frontends));
 
   const nginxPath = join(projectPath, 'docker', 'nginx');
   await mkdir(nginxPath, { recursive: true });
-  await writeFile(join(nginxPath, 'nginx.conf'), generateNginxConf());
+  await writeFile(join(nginxPath, 'nginx.conf'), generateNginxConf(frontends));
 
   const sslPath = join(nginxPath, 'ssl');
   await mkdir(sslPath, { recursive: true });

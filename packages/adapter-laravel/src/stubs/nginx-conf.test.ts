@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest';
+import type { BackendFrontendRef } from '@fractal/core';
 import { generateNginxConf } from './nginx-conf.js';
+
+const frontend: BackendFrontendRef = {
+  dir: 'web',
+  contract: {
+    version: '0',
+    kind: 'frontend',
+    target: 'x',
+    platform: 'web',
+    runtimeRequirements: { binaries: [] },
+    build: { image: 'node:22-alpine', installCommand: 'npm ci', buildCommand: 'npm run build', outputDir: 'dist' },
+    serve: 'static',
+    dev: { command: 'npm run dev', port: 3000 },
+    apiBaseEnv: 'API_URL',
+  },
+};
 
 // El contenido completo del stub se cubre en el snapshot del árbol
 // (create-project.tree.test.ts); aquí solo aserciones de comportamiento.
@@ -34,8 +50,13 @@ describe('nginx-conf', () => {
       expect(result).toContain('return 301 https://$host$request_uri;');
     });
 
-    it('/api/ va a Laravel y / sirve el SPA estático con fallback a index.html', () => {
+    it('sin frontend, / lo resuelve Laravel', () => {
       const result = generateNginxConf();
+      expect(result).not.toContain('public/spa');
+    });
+
+    it('/api/ va a Laravel y / sirve el frontend estático con fallback a index.html', () => {
+      const result = generateNginxConf([frontend]);
       expect(result).toContain('location /api/ {');
       expect(result).toContain('try_files $uri /index.php?$query_string;');
       expect(result).toContain('root /var/www/html/public/spa;');

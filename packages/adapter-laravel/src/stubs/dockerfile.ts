@@ -9,19 +9,44 @@
  * El servicio php-fpm resultante escucha en el puerto 9000 y nginx (en su
  * propio contenedor) le hace fastcgi_pass; ver nginx-conf.ts.
  */
+import type { BackendFrontendRef } from '@fractal/core';
 import { PHP_DOCKER_IMAGE } from './php-version.js';
 
-export function generateDockerfile(): string {
-  return `# Dockerfile generado por Fractal
-# Etapa 1: compila el SPA React con Vite (web/dist).
-FROM node:22-alpine AS web-build
-WORKDIR /app/web
-COPY web/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-COPY web/ ./
-RUN npm run build
+/**
+ * Frontend estático que el backend sirve: el primero cuyo contrato es
+ * `serve: 'static'` y declara build (FRA-116). Sin frontend ⇒ undefined.
+ */
+export function pickStaticFrontend(
+  frontends: BackendFrontendRef[] = []
+): (BackendFrontendRef & { build: NonNullable<BackendFrontendRef['contract']['build']> }) | undefined {
+  for (const f of frontends) {
+    if (f.contract.serve === 'static' && f.contract.build) {
+      return { ...f, build: f.contract.build };
+    }
+  }
+  return undefined;
+}
 
-# Etapa 2: imagen php-fpm para producción. Se construye en el VPS durante el deploy.
+function generateFrontendStage(frontend: ReturnType<typeof pickStaticFrontend>): string {
+  if (!frontend) return '';
+  const { dir, build, contract } = frontend;
+  const manifests = build.dependencyManifests
+    ? `COPY ${dir}/${build.dependencyManifests} ./\n`
+    : '';
+  return `# Etapa 1: compila el ${contract.description ?? contract.target} (${dir}/${build.outputDir}).
+FROM ${build.image} AS web-build
+WORKDIR /app/${dir}
+${manifests}RUN ${build.installCommand}
+COPY ${dir}/ ./
+RUN ${build.buildCommand}
+
+`;
+}
+
+export function generateDockerfile(frontends: BackendFrontendRef[] = []): string {
+  const frontend = pickStaticFrontend(frontends);
+  return `# Dockerfile generado por Fractal
+${generateFrontendStage(frontend)}${frontend ? '# Etapa 2: ' : '# '}imagen php-fpm para producción. Se construye en el VPS durante el deploy.
 FROM ${PHP_DOCKER_IMAGE}
 
 # Dependencias de sistema y extensiones PHP requeridas por Laravel + PostgreSQL.
@@ -43,9 +68,9 @@ WORKDIR /var/www/html
 # Copiar el código de la aplicación.
 COPY . /var/www/html
 
-# SPA compilado (etapa Node); nginx lo sirve desde public/spa.
-COPY --from=web-build /app/web/dist /var/www/html/public/spa
-
+${frontend ? `# SPA compilado (etapa Node); nginx lo sirve desde public/spa.
+COPY --from=web-build /app/${frontend.dir}/${frontend.build.outputDir} /var/www/html/public/spa
+` : ''}
 # Instalar dependencias de producción.
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
 
@@ -70,14 +95,16 @@ CMD ["php-fpm"]
  * Genera el .dockerignore del proyecto para acelerar el build y evitar copiar
  * artefactos que se regeneran dentro de la imagen.
  */
-export function generateDockerignore(): string {
+export function generateDockerignore(frontends: BackendFrontendRef[] = []): string {
+  const frontend = pickStaticFrontend(frontends);
+  const frontendIgnores = frontend
+    ? `${frontend.dir}/node_modules\n${frontend.dir}/${frontend.build.outputDir}\n`
+    : '';
   return `.git
 node_modules
 vendor
 dist
-web/node_modules
-web/dist
-storage/logs/*.log
+${frontendIgnores}storage/logs/*.log
 .env
 .env.*
 `;

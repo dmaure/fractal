@@ -9,19 +9,9 @@ import { generatePackageJson } from './package.js';
 // (create-project.tree.test.ts); aquí solo aserciones de comportamiento.
 describe('generatePackageJson', () => {
   it('normaliza nombres de proyecto', () => {
-    const result = generatePackageJson('Test Project!', 'monolith');
+    const result = generatePackageJson('Test Project!', 'monorepo-web');
     const parsed = JSON.parse(result);
     expect(parsed.name).toBe('test-project');
-  });
-
-  it('incluye React y Vite en devDependencies para monolith', () => {
-    const result = generatePackageJson('test', 'monolith');
-    const parsed = JSON.parse(result);
-
-    expect(parsed.devDependencies.react).toBeTruthy();
-    expect(parsed.devDependencies['react-dom']).toBeTruthy();
-    expect(parsed.devDependencies.vite).toBeTruthy();
-    expect(parsed.devDependencies['@vitejs/plugin-react']).toBeTruthy();
   });
 
   it('incluye React como dependency para web packages', () => {
@@ -33,7 +23,7 @@ describe('generatePackageJson', () => {
   });
 
   it('configura scripts de Vite', () => {
-    const result = generatePackageJson('test', 'monolith');
+    const result = generatePackageJson('test', 'monorepo-web');
     const parsed = JSON.parse(result);
 
     expect(parsed.scripts.dev).toBe('vite');
