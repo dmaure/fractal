@@ -98,7 +98,12 @@ function buildDomainFdl(projectName: string): string {
  * Son documentos del proyecto (Artículo V): el proyecto es autónomo y el usuario
  * es dueño del código; no hay lenguaje del tipo "no toques esto".
  */
-function buildAgentsMd(projectName: string): string {
+function frontendPath(topology: ProjectTopology): string {
+  // monolito y monorepo: el frontend vive en web/; multirepo: raíz del repo web.
+  return topology === 'multirepo' ? 'src, en el repo web' : 'web/src';
+}
+
+function buildAgentsMd(projectName: string, topology: ProjectTopology): string {
   return `# Convenciones de agente — ${projectName}
 
 Este proyecto usa un contrato de dominio en **FDL** (Fractal Definition Language)
@@ -149,7 +154,7 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
   modificadores del FDL (\`required\` si no es \`nullable\`, \`max\` desde
   \`maxLength\`, \`unique\`, \`in\` desde los \`values\` del enum).
 
-### Frontend (resources/js, React + Vite)
+### Frontend (${frontendPath(topology)}, React + Vite)
 
 - Tipos TypeScript y vistas/CRUD para la entidad que consumen las rutas \`/api\`.
 - Formularios que reflejan las mismas validaciones que el backend.
@@ -245,7 +250,7 @@ export function getPack(
 ): GetPackResponse {
   return {
     files: [
-      { path: CONVENTIONS_PATH, contents: buildAgentsMd(projectName) },
+      { path: CONVENTIONS_PATH, contents: buildAgentsMd(projectName, topology) },
       { path: DOMAIN_FDL_PATH, contents: buildDomainFdl(projectName) },
       { path: ADD_ENTITY_PROMPT_PATH, contents: buildAddEntityPrompt() },
       serializePackManifest(buildManifest(projectName, topology)),

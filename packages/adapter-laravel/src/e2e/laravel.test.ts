@@ -159,8 +159,8 @@ describe('E2E con PHP y Composer reales', () => {
           expect(health.timestamp).toBeDefined();
           console.log('   ✅ /api/health respondió 200 con payload correcto');
 
-          // Probar que la raíz / renderiza la landing (regresión del 500 por
-          // view('app') sin resources/views/app.blade.php — FRA-69).
+          // La raíz / responde la respuesta mínima sin vista (sin Blade, FRA-111);
+          // con nginx la sirve el SPA estático.
           console.log('   Probando GET /...');
           const { stdout: rootResponse } = await execAsync(
             'curl -s -w "\\n%{http_code}" http://localhost:8765/'
@@ -169,9 +169,8 @@ describe('E2E con PHP y Composer reales', () => {
           const rootStatus = rootLines[rootLines.length - 1];
           const rootBody = rootLines.slice(0, -1).join('\n');
           expect(rootStatus).toBe('200');
-          expect(rootBody).toContain('<!DOCTYPE html>');
-          expect(rootBody).toContain('/api/health');
-          console.log('   ✅ / respondió 200 con la landing blade');
+          expect(rootBody).toContain('Laravel configurado y funcionando');
+          console.log('   ✅ / respondió 200 con la respuesta mínima');
         } finally {
           // Detener el servidor y ESPERAR a que termine antes de limpiar.
           // `php artisan serve` sigue escribiendo en storage/ (logs, framework)

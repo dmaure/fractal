@@ -67,7 +67,7 @@ Laravel + React/Vite:
 - **API / controlador / rutas** — un controlador API por entidad con las acciones
   REST, rutas bajo `/api`, y validación en servidor derivada de los modificadores
   del FDL.
-- **Frontend (`resources/js`, React + Vite)** — tipos TypeScript y vistas/CRUD
+- **Frontend (`web/src` en monolito y monorepo, `src` del repo web en multirepo; React + Vite)** — tipos TypeScript y vistas/CRUD
   que consumen `/api`, con las mismas validaciones que el backend.
 - **Tests** — cada entidad incluye sus tests (feature tests de la API y tests del
   modelo), camino feliz y validaciones.

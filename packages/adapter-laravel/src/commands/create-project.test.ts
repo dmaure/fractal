@@ -41,7 +41,7 @@ describe('createProject', () => {
       const projectPath = join(testDir, 'test-monolith');
       const files = await readdir(projectPath);
       expect(files).toContain('composer.json');
-      expect(files).toContain('package.json');
+      expect(files).toContain('web');
       expect(files).toContain('.env.example');
       expect(files).toContain('.gitignore');
       expect(files).toContain('README.md');
@@ -60,109 +60,89 @@ describe('createProject', () => {
       const projectPath = join(testDir, 'test-structure');
       const files = await readdir(projectPath);
       expect(files).toContain('app');
-      expect(files).toContain('resources');
       expect(files).toContain('public');
       expect(files).toContain('routes');
     });
 
-    // Regresión FRA-91: `npm run build` (vite build) corre desde la raíz del
-    // proyecto (cwd = projectPath) y Vite resuelve su módulo de entrada desde
-    // el index.html ubicado en esa raíz (su `root` por defecto). Sin index.html
-    // el build abortaba con "Could not resolve entry module index.html".
-    // Este test asegura que el scaffold emita el index.html en la raíz de Vite,
-    // apuntando al entry del SPA, y un vite.config.ts que compile JSX/TSX.
-    describe('build del frontend (FRA-91)', () => {
-      it('emite index.html en la raíz (root de Vite) apuntando al entry del SPA', async () => {
-        const payload: CreateProjectPayload = {
+    // El frontend del monolito vive íntegro en web/ (FRA-111): Vite corre con
+    // cwd = web/ y no hay Blade ni resources/js en la raíz.
+    describe('frontend en web/ (FRA-91, FRA-111)', () => {
+      it('emite el frontend completo dentro de web/ y nada en la raíz', async () => {
+        await createProject({
           name: 'test-vite-entry',
           topology: 'monolith',
           destinationPath: testDir,
           target: 'laravel',
-        };
-
-        await createProject(payload);
+        });
 
         const projectPath = join(testDir, 'test-vite-entry');
-        const files = await readdir(projectPath);
-        // El index.html vive junto al package.json (root por defecto de Vite),
-        // que es el cwd desde el que corre `npm run build`.
-        expect(files).toContain('index.html');
-        expect(files).toContain('package.json');
+        const rootFiles = await readdir(projectPath);
+        for (const f of ['index.html', 'vite.config.ts', 'package.json']) {
+          expect(rootFiles).not.toContain(f);
+        }
+        expect(await readdir(join(projectPath, 'resources')).catch(() => [])).toEqual([]);
 
-        const indexHtml = await readFile(
-          join(projectPath, 'index.html'),
-          'utf-8'
-        );
-        // El módulo de entrada que Vite debe resolver.
-        expect(indexHtml).toContain('src="/resources/js/app.tsx"');
+        const web = await readdir(join(projectPath, 'web'));
+        for (const f of ['package.json', 'vite.config.ts', 'index.html', 'tsconfig.json', 'src']) {
+          expect(web).toContain(f);
+        }
+        const src = await readdir(join(projectPath, 'web', 'src'));
+        for (const f of ['main.tsx', 'App.tsx', 'App.css', 'lib']) {
+          expect(src).toContain(f);
+        }
+
+        const indexHtml = await readFile(join(projectPath, 'web', 'index.html'), 'utf-8');
+        expect(indexHtml).toContain('src="/src/main.tsx"');
         expect(indexHtml).toContain('<div id="root"></div>');
 
-        // El entry referenciado existe realmente en el scaffold.
-        const entryStat = await readFile(
-          join(projectPath, 'resources', 'js', 'app.tsx'),
-          'utf-8'
-        );
-        expect(entryStat).toContain('document.getElementById');
+        const app = await readFile(join(projectPath, 'web', 'src', 'App.tsx'), 'utf-8');
+        expect(app).toContain('res.ok');
+        expect(app).toContain('API_BASE');
+        const api = await readFile(join(projectPath, 'web', 'src', 'lib', 'api.ts'), 'utf-8');
+        expect(api).toContain("import.meta.env.VITE_API_URL ?? ''");
       });
 
-      it('emite vite.config.ts que compila JSX/TSX y preserva el web root de Laravel', async () => {
-        const payload: CreateProjectPayload = {
+      it('emite vite.config.ts con base /, outDir por defecto y proxy /api', async () => {
+        await createProject({
           name: 'test-vite-config',
           topology: 'monolith',
           destinationPath: testDir,
           target: 'laravel',
-        };
-
-        await createProject(payload);
+        });
 
         const projectPath = join(testDir, 'test-vite-config');
-        const files = await readdir(projectPath);
-        expect(files).toContain('vite.config.ts');
-
-        const viteConfig = await readFile(
-          join(projectPath, 'vite.config.ts'),
-          'utf-8'
-        );
-        // plugin-react (ya declarado en devDependencies) compila el JSX/TSX.
+        const viteConfig = await readFile(join(projectPath, 'web', 'vite.config.ts'), 'utf-8');
         expect(viteConfig).toContain('@vitejs/plugin-react');
-        // publicDir desactivado: public/ es el web root de Laravel, no los
-        // assets estáticos de Vite; evita que Vite copie public/index.php.
-        expect(viteConfig).toContain('publicDir: false');
-        // FRA-94: base '/build/' para que el HTML referencie /build/assets/...
-        // (los assets viven en public/build) en vez de /assets/... (404).
-        expect(viteConfig).toContain("base: '/build/'");
+        expect(viteConfig).toContain("base: '/'");
+        expect(viteConfig).toContain("'/api': 'http://localhost:8000'");
+        expect(viteConfig).not.toContain('outDir');
+        expect(viteConfig).not.toContain('entryFileNames');
 
-        // La dependencia que usa el vite.config está declarada en package.json.
         const pkg = JSON.parse(
-          await readFile(join(projectPath, 'package.json'), 'utf-8')
+          await readFile(join(projectPath, 'web', 'package.json'), 'utf-8')
         );
         expect(pkg.devDependencies).toHaveProperty('@vitejs/plugin-react');
         expect(pkg.devDependencies).toHaveProperty('vite');
         expect(pkg.scripts.build).toBe('vite build');
       });
 
-      it('preserva las rutas PHP / y /api/health (topología monolito intacta)', async () => {
-        const payload: CreateProjectPayload = {
+      it('/ responde sin vista Blade y conserva /api/health', async () => {
+        await createProject({
           name: 'test-php-routes',
           topology: 'monolith',
           destinationPath: testDir,
           target: 'laravel',
-        };
-
-        await createProject(payload);
+        });
 
         const projectPath = join(testDir, 'test-php-routes');
-        const apiRoutes = await readFile(
-          join(projectPath, 'routes', 'api.php'),
-          'utf-8'
-        );
+        const apiRoutes = await readFile(join(projectPath, 'routes', 'api.php'), 'utf-8');
         expect(apiRoutes).toContain("Route::get('/health'");
 
-        const webRoutes = await readFile(
-          join(projectPath, 'routes', 'web.php'),
-          'utf-8'
-        );
-        expect(webRoutes).toContain("view('app')");
+        const webRoutes = await readFile(join(projectPath, 'routes', 'web.php'), 'utf-8');
+        expect(webRoutes).not.toContain('view(');
+        expect(webRoutes).toContain('Laravel configurado y funcionando');
+        const files = await readdir(projectPath);
+        expect(files).not.toContain('resources');
       });
     });
   });

@@ -2,7 +2,7 @@
  * Generador de proyecto Laravel en topología monolito.
  * 
  * Un repositorio sin packages separados. El SPA (React + Vite) vive
- * en resources/js y consume rutas bajo /api del mismo Laravel.
+ * en web/ y consume rutas bajo /api del mismo Laravel.
  * 
  * @see ADR-0010 — topología monolito
  * @see ADR-0005 — frontend React + Vite + Sanctum Bearer
@@ -11,7 +11,7 @@
 import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { generateComposerJson } from '../stubs/composer.js';
-import { generatePackageJson } from '../stubs/package.js';
+import { generateMonolithWeb } from '../frontend/monolith-web.js';
 import { generateEnvExample } from '../stubs/env.js';
 import { generateGitignore } from '../stubs/gitignore.js';
 import { generateReadme } from '../stubs/readme.js';
@@ -32,7 +32,6 @@ import {
   generateStorageLogsGitignore,
 } from '../stubs/storage.js';
 import { generateConsoleRoutes } from '../stubs/routes.js';
-import { generateAppBladeView } from '../stubs/views.js';
 import { generateDockerfile, generateDockerignore } from '../stubs/dockerfile.js';
 import { generateNginxConf } from '../stubs/nginx-conf.js';
 
@@ -53,13 +52,12 @@ export async function generateMonolith(
     await mkdir(projectPath, { recursive: true });
 
     await generateBaseStructure(projectPath, name);
-    await generateFrontendBuildConfig(projectPath, name);
+    await generateMonolithWeb(projectPath, name);
     await generateBootstrapDirectory(projectPath);
     await generateConfigDirectory(projectPath);
     await generateAppDirectory(projectPath);
     await generateDatabaseDirectory(projectPath);
     await generateStorageDirectory(projectPath);
-    await generateResourcesDirectory(projectPath);
     await generatePublicDirectory(projectPath);
     await generateRoutesDirectory(projectPath);
     await generateDockerAssets(projectPath);
@@ -82,14 +80,9 @@ async function generateBaseStructure(
     generateComposerJson(name, 'monolith')
   );
 
-  await writeFile(
-    join(projectPath, 'package.json'),
-    generatePackageJson(name, 'monolith')
-  );
-
   await writeFile(join(projectPath, '.env.example'), generateEnvExample(name));
 
-  await writeFile(join(projectPath, '.gitignore'), generateGitignore());
+  await writeFile(join(projectPath, '.gitignore'), generateGitignore({ webDir: true }));
 
   await writeFile(
     join(projectPath, 'README.md'),
@@ -99,32 +92,6 @@ async function generateBaseStructure(
   const artisanPath = join(projectPath, 'artisan');
   await writeFile(artisanPath, generateArtisan());
   await chmod(artisanPath, 0o755);
-}
-
-/**
- * Genera la configuración de build del frontend (Vite) en la raíz del proyecto.
- *
- * `package.json` del monolito expone `build: vite build`, que corre desde la
- * raíz del proyecto (cwd = projectPath). Vite usa esa raíz como `root` por
- * defecto y resuelve su módulo de entrada desde el `index.html` ahí ubicado.
- * Sin ese `index.html`, `vite build` aborta con
- * "Could not resolve entry module index.html" (FRA-91).
- *
- * El `index.html` apunta al entry del SPA en `resources/js/app.tsx` y el
- * `vite.config.ts` compila JSX/TSX con @vitejs/plugin-react (ya declarado en
- * las devDependencies del monolito) y emite los assets a `public/build`, el
- * directorio idiomático de Laravel (ya ignorado en `.gitignore`).
- *
- * Esto NO afecta las rutas PHP `/` ni `/api/health`: la raíz la sirve la vista
- * Blade self-contained (`resources/views/app.blade.php`) vía `routes/web.php`,
- * independiente de los assets compilados por Vite.
- */
-async function generateFrontendBuildConfig(
-  projectPath: string,
-  name: string
-): Promise<void> {
-  await writeFile(join(projectPath, 'index.html'), generateIndexHtml(name));
-  await writeFile(join(projectPath, 'vite.config.ts'), generateViteConfig());
 }
 
 async function generateBootstrapDirectory(projectPath: string): Promise<void> {
@@ -247,28 +214,6 @@ async function generateAppDirectory(projectPath: string): Promise<void> {
   );
 }
 
-async function generateResourcesDirectory(projectPath: string): Promise<void> {
-  const resourcesPath = join(projectPath, 'resources');
-  await mkdir(join(resourcesPath, 'js'), { recursive: true });
-  await mkdir(join(resourcesPath, 'css'), { recursive: true });
-
-  await writeFile(
-    join(resourcesPath, 'js', 'app.tsx'),
-    generateReactApp()
-  );
-
-  await writeFile(
-    join(resourcesPath, 'css', 'app.css'),
-    generateAppCss()
-  );
-
-  await mkdir(join(resourcesPath, 'views'), { recursive: true });
-  await writeFile(
-    join(resourcesPath, 'views', 'app.blade.php'),
-    generateAppBladeView()
-  );
-}
-
 async function generatePublicDirectory(projectPath: string): Promise<void> {
   const publicPath = join(projectPath, 'public');
   await mkdir(publicPath, { recursive: true });
@@ -331,83 +276,6 @@ class HealthController
 `;
 }
 
-function generateReactApp(): string {
-  return `import React from 'react';
-import ReactDOM from 'react-dom/client';
-import '../css/app.css';
-
-function App() {
-  return (
-    <div className="container">
-      <h1>Fractal Laravel App</h1>
-      <p>Tu aplicación está lista para desarrollar.</p>
-    </div>
-  );
-}
-
-const root = document.getElementById('root');
-if (root) {
-  ReactDOM.createRoot(root).render(<App />);
-}
-`;
-}
-
-function generateAppCss(): string {
-  return `body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-}
-
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-`;
-}
-
-function generateIndexHtml(name: string): string {
-  return `<!DOCTYPE html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${name}</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/resources/js/app.tsx"></script>
-  </body>
-</html>
-`;
-}
-
-function generateViteConfig(): string {
-  return `import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-  plugins: [react()],
-  // Los assets compilados se sirven desde /build/ (public/build), así el HTML
-  // referencia /build/assets/... en vez de /assets/... (que daría 404).
-  base: '/build/',
-  // En el monolito, public/ es el web root de Laravel (sirve public/index.php),
-  // no el directorio de assets estáticos de Vite. Se desactiva publicDir para
-  // que Vite no lo copie dentro del build ni lo trate como suyo.
-  publicDir: false,
-  build: {
-    // Los assets compilados viven en public/build (idiomático de Laravel,
-    // ya ignorado en .gitignore).
-    outDir: 'public/build',
-    emptyOutDir: true,
-  },
-  server: {
-    port: 3000,
-  },
-});
-`;
-}
-
 function generateIndexPhp(): string {
   return `<?php
 
@@ -444,8 +312,11 @@ function generateWebRoutes(): string {
 
 use Illuminate\\Support\\Facades\\Route;
 
-Route::get('/{any}', function () {
-    return view('app');
-})->where('any', '.*');
+// Sin vistas (Blade no se usa). El SPA (web/) lo sirve nginx como estático; esta
+// respuesta mínima solo se ve cuando no hay SPA servida (p. ej. \`php artisan serve\`).
+Route::get('/', function () {
+    return response('Laravel configurado y funcionando', 200)
+        ->header('Content-Type', 'text/plain; charset=utf-8');
+});
 `;
 }

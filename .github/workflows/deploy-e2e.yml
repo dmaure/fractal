@@ -217,7 +217,7 @@ jobs:
           echo "FRACTAL_E2E_PROJECT_DIR=$WORK/fractale2e" >> "$GITHUB_ENV"
 
       # FRA-105 — tramo local del TTS: los pasos del README del proyecto generado
-      # hasta que la landing responde en local. Corre sobre una COPIA para no
+      # hasta que Laravel responde en local (respuesta mínima de '/', sin SPA servida). Corre sobre una COPIA para no
       # dejar vendor/ ni .env en el proyecto que después se despliega. No suma al
       # TTP (quien despliega no necesita levantar el proyecto en local antes).
       - name: TTS — levantar el scaffold en local (composer install + php artisan serve)
@@ -239,13 +239,13 @@ jobs:
           OK=0
           for i in $(seq 1 30); do
             CODE="$(curl -sS -m 5 -o "$RUNNER_TEMP/fractal-e2e-local.html" -w '%{http_code}' http://127.0.0.1:8765/ || echo 000)"
-            if [ "$CODE" = "200" ] && grep -q 'está corriendo' "$RUNNER_TEMP/fractal-e2e-local.html"; then
+            if [ "$CODE" = "200" ] && grep -q 'Laravel configurado y funcionando' "$RUNNER_TEMP/fractal-e2e-local.html"; then
               OK=1; break
             fi
             sleep 1
           done
           if [ "$OK" != "1" ]; then
-            echo "✗ El scaffold no respondió 200 con 'está corriendo' en local"
+            echo "✗ El scaffold no respondió 200 con 'Laravel configurado y funcionando' en local"
             cat "$RUNNER_TEMP/fractal-e2e-serve.log"
             exit 1
           fi
@@ -278,7 +278,7 @@ jobs:
 
       # FRA-105: el TTP cierra cuando `fractal doctor` declara sana la producción
       # (exit 0). Mismos checks que antes hacía curl: HTTPS 200 + contenido de la
-      # landing + redirección HTTP→HTTPS. --insecure por el cert de staging de LE.
+      # SPA (index.html estático) + redirección HTTP→HTTPS. --insecure por el cert de staging de LE.
       # Misma ventana de espera que el loop anterior: 30 intentos cada 10 s.
       - name: fractal doctor — verificar producción sana (cierra el TTP)
         run: |
@@ -287,11 +287,29 @@ jobs:
           node "$FRACTAL_CLI" doctor "https://$FRACTAL_E2E_DOMAIN/" \
             --insecure \
             --check-redirect \
-            --expect-content 'está corriendo' \
+            --expect-content '<div id="root">' \
             --timeout 15000 \
             --retries 30 \
             --retry-delay 10000
           echo "E2E_DOCTOR_SECONDS=$(( $(date +%s) - START ))" >> "$GITHUB_ENV"
+
+      # FRA-111: "/" sirve el index.html estático de la SPA (nginx), su bundle
+      # responde 200 y /api/health (Laravel) responde 200.
+      - name: Verificar SPA compilada y /api/health por HTTPS
+        run: |
+          set -euo pipefail
+          URL="https://$FRACTAL_E2E_DOMAIN"
+          HTML="$(curl -ksS -m 15 "$URL/")"
+          if ! printf '%s' "$HTML" | grep -q '<div id="root">'; then
+            echo "✗ '/' no devuelve el HTML de la SPA (<div id=\"root\">)"; exit 1
+          fi
+          JS_PATH="$(printf '%s' "$HTML" | grep -oE '<script[^>]*type="module"[^>]*src="[^"]+"' | head -1 | grep -oE 'src="[^"]+"' | sed -E 's/^src="(.*)"$/\1/' || true)"
+          if [ -z "$JS_PATH" ]; then echo "✗ '/' no referencia ningún <script type=\"module\" src=...>"; exit 1; fi
+          CODE="$(curl -ksS -m 15 -o /dev/null -w '%{http_code}' "$URL$JS_PATH")"
+          if [ "$CODE" != "200" ]; then echo "✗ El bundle $JS_PATH devolvió HTTP $CODE"; exit 1; fi
+          CODE="$(curl -ksS -m 15 -o /dev/null -w '%{http_code}' "$URL/api/health")"
+          if [ "$CODE" != "200" ]; then echo "✗ /api/health devolvió HTTP $CODE"; exit 1; fi
+          echo "✓ SPA cargada ($JS_PATH) y /api/health responde 200"
 
       - name: Probar que un cambio llega a producción (redeploy + refresco de volumen, FRA-73)
         working-directory: ${{ env.FRACTAL_E2E_PROJECT_DIR }}
@@ -313,8 +331,8 @@ jobs:
           set -euo pipefail
           MARKER="fractal-redeploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "→ Marcador: $MARKER"
-          # Introducir un cambio verificable en la landing generada.
-          sed -i "s#está corriendo#está corriendo ${MARKER}#" resources/views/app.blade.php
+          # Introducir un cambio verificable en el index.html estático de la SPA.
+          sed -i "s#</title># ${MARKER}</title>#" web/index.html
 
           echo "→ Redeploy (debe refrescar el volumen app_code y servir el código nuevo)..."
           node "$FRACTAL_CLI" deploy --non-interactive 2>&1 | tee "$RUNNER_TEMP/fractal-e2e-redeploy.log"

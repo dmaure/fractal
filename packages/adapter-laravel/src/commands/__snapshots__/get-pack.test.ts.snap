@@ -52,7 +52,7 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
   modificadores del FDL (\`required\` si no es \`nullable\`, \`max\` desde
   \`maxLength\`, \`unique\`, \`in\` desde los \`values\` del enum).
 
-### Frontend (resources/js, React + Vite)
+### Frontend (web/src, React + Vite)
 
 - Tipos TypeScript y vistas/CRUD para la entidad que consumen las rutas \`/api\`.
 - Formularios que reflejan las mismas validaciones que el backend.

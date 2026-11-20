@@ -72,6 +72,17 @@ describe('getPack', () => {
     expect(agents).toContain('Modelo');
   });
 
+  it.each([
+    ['monolith', 'web/src'],
+    ['monorepo', 'web/src'],
+    ['multirepo', 'src, en el repo web'],
+  ] as const)('el AGENTS.md indica el path del frontend en %s', (topology, path) => {
+    const { files } = getPack('p', topology);
+    const agents = files.find((f) => f.path === 'AGENTS.md')!.contents;
+    expect(agents).toContain(`### Frontend (${path}, React + Vite)`);
+    expect(agents).not.toContain('resources/js');
+  });
+
   it('el prompt add-entity es parametrizable y referencia el FDL y AGENTS.md (AC-3)', () => {
     const { files } = getPack('mi-proyecto');
     const prompt = files.find((f) => f.path === 'fractal/prompts/add-entity.md')!

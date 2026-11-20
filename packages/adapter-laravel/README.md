@@ -24,15 +24,18 @@ El adapter genera un proyecto Laravel 12 ejecutable con:
 - `app/Providers/AppServiceProvider.php` — service provider base
 - `app/Http/Controllers/Api/HealthController.php` — endpoint /api/health
 - `routes/api.php` — rutas API (incluye /api/health)
-- `routes/web.php` — rutas web (SPA catch-all)
+- `routes/web.php` — ruta `/` mínima, sin vistas (el SPA lo sirve nginx)
 - `routes/console.php` — comandos Artisan custom
 - `database/migrations/` — directorio de migraciones (vacío inicialmente)
 - `database/seeders/` — directorio de seeders (vacío inicialmente)
 - `storage/` — estructura completa con .gitignore en cada subdirectorio
 
 ### Frontend (topología monolito)
-- `resources/js/app.tsx` — componente React principal
-- `resources/css/app.css` — estilos base
+- `web/src/App.tsx` — componente React principal
+- `web/src/main.tsx` — entry point React
+- `web/src/App.css` — estilos base
+- `web/src/lib/api.ts` — `API_BASE` (`VITE_API_URL`)
+- `web/vite.config.ts`, `web/index.html`, `web/package.json`, `web/tsconfig.json`
 - `public/index.php` — entry point Laravel
 
 ### Frontend (topologías monorepo/multirepo)
