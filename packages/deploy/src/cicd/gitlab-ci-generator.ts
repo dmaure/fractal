@@ -258,8 +258,9 @@ deploy:
     - chmod 644 ~/.ssh/known_hosts
   script:
     - |
-      ssh -o StrictHostKeyChecking=yes $SSH_USER@$SSH_HOST << ENDSSH
-        set -e
+      ssh -o StrictHostKeyChecking=yes $SSH_USER@$SSH_HOST \\
+        "IMAGE_TAG='$CI_COMMIT_SHORT_SHA' COMMIT_SHA='$CI_COMMIT_SHA' GIT_BRANCH='$CI_COMMIT_REF_NAME' bash -s" << 'ENDSSH'
+        set -euo pipefail
         
         cd /var/www/${config.projectName}
         
@@ -277,7 +278,7 @@ deploy:
         fi
         
         # Actualizar compose con nueva imagen (IMAGE_TAG pasa desde CI)
-        export IMAGE_TAG=$CI_COMMIT_SHORT_SHA
+        export IMAGE_TAG
         docker compose pull
         docker compose up -d --no-build
         
@@ -288,7 +289,7 @@ deploy:
     if (commands.migrate) {
       pipeline += `
         # Ejecutar migraciones
-        docker compose exec -T app ${commands.migrate}
+        docker compose exec -T app ${commands.migrate} < /dev/null
 `;
     }
 
@@ -297,7 +298,7 @@ deploy:
         # Comandos post-deploy
 `;
       commands.cacheClear.forEach((cmd) => {
-        pipeline += `        docker compose exec -T app ${cmd}\n`;
+        pipeline += `        docker compose exec -T app ${cmd} < /dev/null\n`;
       });
     }
 
@@ -332,8 +333,8 @@ deploy:
           fi
           
           # Agregar entrada al historial
-          NEW_ENTRY='{"imageTag":"$CI_COMMIT_SHORT_SHA","timestamp":"'\$TIMESTAMP'","healthcheck":"passed","commitSha":"$CI_COMMIT_SHA","branch":"$CI_COMMIT_REF_NAME"}'
-          UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "import sys, json; state = json.load(sys.stdin); state['updatedAt'] = '\$TIMESTAMP'; state['currentImageTag'] = '$CI_COMMIT_SHORT_SHA'; state['lastSuccessfulImageTag'] = '$CI_COMMIT_SHORT_SHA'; state['deployHistory'].insert(0, \$NEW_ENTRY); state['deployHistory'] = state['deployHistory'][:10]; print(json.dumps(state, indent=2))")
+          NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"passed","commitSha":"'\$COMMIT_SHA'","branch":"'\$GIT_BRANCH'"}'
+          UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "import sys, json; state = json.load(sys.stdin); state['updatedAt'] = '\$TIMESTAMP'; state['currentImageTag'] = '$IMAGE_TAG'; state['lastSuccessfulImageTag'] = '$IMAGE_TAG'; state['deployHistory'].insert(0, \$NEW_ENTRY); state['deployHistory'] = state['deployHistory'][:10]; print(json.dumps(state, indent=2))")
           echo "\$UPDATED_STATE" | sudo tee \$STATE_FILE > /dev/null
           echo "✓ Deploy state updated"
           exit 0
@@ -343,7 +344,7 @@ deploy:
           # Registrar deploy fallido en el estado
           if [ -f "\$STATE_FILE" ]; then
             CURRENT_STATE=\$(sudo cat \$STATE_FILE)
-            NEW_ENTRY='{"imageTag":"$CI_COMMIT_SHORT_SHA","timestamp":"'\$TIMESTAMP'","healthcheck":"failed","commitSha":"$CI_COMMIT_SHA","branch":"$CI_COMMIT_REF_NAME"}'
+            NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"failed","commitSha":"'\$COMMIT_SHA'","branch":"'\$GIT_BRANCH'"}'
             UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "import sys, json; state = json.load(sys.stdin); state['updatedAt'] = '\$TIMESTAMP'; state['deployHistory'].insert(0, \$NEW_ENTRY); state['deployHistory'] = state['deployHistory'][:10]; print(json.dumps(state, indent=2))")
             echo "\$UPDATED_STATE" | sudo tee \$STATE_FILE > /dev/null
           fi

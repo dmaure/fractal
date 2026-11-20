@@ -305,7 +305,7 @@ jobs:
           # en ~/.docker/config.json.
           ssh -o StrictHostKeyChecking=yes -i deploy_key "\$SSH_USER@\$SSH_HOST" \\
             "DOCKER_REGISTRY='ghcr.io/\${{ github.repository }}' IMAGE_TAG='${imageTagExpr}' GIT_BRANCH='\${{ github.ref_name }}' bash -s" << 'ENDSSH'
-            set -e
+            set -euo pipefail
 
             # FRA-76: las credenciales del registry se setean acá, dentro del
             # cuerpo del heredoc (viaja por el stdin de SSH), y nunca en el argv
@@ -358,7 +358,7 @@ jobs:
     if (commands.migrate) {
       workflow += `
             # Ejecutar migraciones
-            docker compose exec -T app ${commands.migrate}
+            docker compose exec -T app ${commands.migrate} < /dev/null
 `;
     }
 
@@ -367,7 +367,7 @@ jobs:
             # Comandos post-deploy
 `;
       commands.cacheClear.forEach((cmd) => {
-        workflow += `            docker compose exec -T app ${cmd}\n`;
+        workflow += `            docker compose exec -T app ${cmd} < /dev/null\n`;
       });
     }
 
