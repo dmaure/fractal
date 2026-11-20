@@ -74,6 +74,9 @@ export interface ValidatedNewParams {
   /** Topología del proyecto */
   topology: ProjectTopology;
 
+  /** Targets de los adapters frontend elegidos (FRA-115). Vacío/ausente = sin frontends. */
+  frontends?: string[];
+
   /** Framework destino (único adapter disponible en v1) */
   target: string;
 }

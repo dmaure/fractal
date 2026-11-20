@@ -1,4 +1,4 @@
-import { confirm, input, password, select } from '@inquirer/prompts';
+import { checkbox, confirm, input, password, select } from '@inquirer/prompts';
 import type { DnsProvider, SshAuthMethod } from '../types/deploy-command.js';
 import type { NewCommandOptions, NewWizardParams } from '../types/new-command.js';
 import { DEFAULT_TOPOLOGY, isValidTopology, type ProjectTopology } from '../types/topology.js';
@@ -220,9 +220,23 @@ export const WIZARD_FRONTEND_OPTIONS: WizardFrontendOption[] = [
 export const DEFAULT_WIZARD_FRONTEND = 'react-vite';
 
 /**
- * Prompt de frontend (FRA-84). Visible aunque haya una sola opción.
+ * Prompt de frontend (FRA-84). Con `frontendOptions` (adapters frontend
+ * instalados, FRA-115) permite elegir 0..N y devuelve los targets separados
+ * por coma; sin opciones mantiene el comportamiento legacy (selector único).
  */
-export async function promptFrontend(): Promise<string> {
+export async function promptFrontend(frontendOptions: WizardFrontendOption[] = []): Promise<string> {
+  if (frontendOptions.length > 0) {
+    const chosen = await checkbox({
+      message: 'Frontends (0..N):',
+      choices: frontendOptions.map((opt, i) => ({
+        value: opt.value,
+        name: opt.name,
+        description: opt.description,
+        checked: i === 0,
+      })),
+    });
+    return chosen.join(',');
+  }
   return select({
     message: 'Framework del frontend:',
     choices: WIZARD_FRONTEND_OPTIONS.map((opt) => ({
@@ -286,9 +300,32 @@ export function resolveDatabaseValue(
  * Precedencia flag > FRACTAL_NEW_FRONTEND (sin fallback DEPLOY: campo de código).
  */
 export function resolveFrontendValue(
-  options: NewCommandOptions
+  options: NewCommandOptions,
+  frontendOptions: WizardFrontendOption[] = []
 ): { value: string; error?: string } {
   const provided = flagOrEnv(options.frontend, 'FRACTAL_NEW_FRONTEND');
+
+  // FRA-115: con adapters frontend instalados, las opciones salen de ellos
+  // (lista separada por coma; 'none' = sin frontends; default = el primero).
+  if (frontendOptions.length > 0) {
+    if (!provided) {
+      return { value: frontendOptions[0].value };
+    }
+    if (provided === 'none') {
+      return { value: '' };
+    }
+    const requested = provided.split(',').map((v) => v.trim()).filter(Boolean);
+    const invalid = requested.find((v) => !frontendOptions.some((opt) => opt.value === v));
+    if (invalid !== undefined) {
+      const valores = frontendOptions.map((opt) => opt.value).join(', ');
+      return {
+        value: frontendOptions[0].value,
+        error: `frontend inválido: "${invalid}" (opciones válidas: ${valores}, o "none")`,
+      };
+    }
+    return { value: requested.join(',') };
+  }
+
   if (!provided) {
     return { value: DEFAULT_WIZARD_FRONTEND };
   }
@@ -327,7 +364,8 @@ export async function promptNewWizard(
   options: NewCommandOptions,
   frameworkOptions: WizardFrameworkOption[] = [],
   defaultFramework?: string,
-  useOrchestrator: boolean = true
+  useOrchestrator: boolean = true,
+  frontendOptions: WizardFrontendOption[] = []
 ): Promise<NewWizardParams> {
   const resolvedName = resolveProjectName(projectName, options);
   
@@ -351,7 +389,7 @@ export async function promptNewWizard(
     const { orchestrateWizard } = await import('../wizard/orchestrator.js');
 
     const checklist = new ChecklistArm();
-    const codeArm = new CodeArm(frameworkOptions, defaultFramework);
+    const codeArm = new CodeArm(frameworkOptions, defaultFramework, frontendOptions);
     const infraArm = new InfrastructureArm();
     const databaseArm = new DatabaseArm(options);
 
@@ -411,7 +449,7 @@ export async function promptNewWizard(
     }
     
     database = await promptDatabaseType();
-    frontend = await promptFrontend();
+    frontend = await promptFrontend(frontendOptions);
   }
   
   if (!finalProjectName) {
@@ -523,7 +561,7 @@ export async function promptNewWizard(
     topology: topology as ProjectTopology,
     framework: framework || defaultFramework,
     database: database || DEFAULT_WIZARD_DATABASE,
-    frontend: frontend || DEFAULT_WIZARD_FRONTEND,
+    frontend: frontend ?? (frontendOptions[0]?.value || DEFAULT_WIZARD_FRONTEND),
     force: options.force,
     serverIp: deployParams.serverIp,
     sshUser: deployParams.sshUser,
@@ -576,7 +614,8 @@ export function loadNewWizardFromEnvAndFlags(
   projectName: string | undefined,
   options: NewCommandOptions,
   frameworkOptions: WizardFrameworkOption[] = [],
-  defaultFramework?: string
+  defaultFramework?: string,
+  frontendOptions: WizardFrontendOption[] = []
 ): NewWizardParams {
   const errors: string[] = [];
 
@@ -605,7 +644,7 @@ export function loadNewWizardFromEnvAndFlags(
   if (databaseResolution.error) {
     errors.push(databaseResolution.error);
   }
-  const frontendResolution = resolveFrontendValue(options);
+  const frontendResolution = resolveFrontendValue(options, frontendOptions);
   if (frontendResolution.error) {
     errors.push(frontendResolution.error);
   }
@@ -794,16 +833,23 @@ export async function collectNewWizardParams(
   projectName: string | undefined,
   options: NewCommandOptions,
   frameworkOptions: WizardFrameworkOption[] = [],
-  defaultFramework?: string
+  defaultFramework?: string,
+  frontendOptions: WizardFrontendOption[] = []
 ): Promise<NewWizardParams | null> {
   const mode = resolveWizardMode(options);
   if (mode === 'skip') {
     return null;
   }
   if (mode === 'non-interactive') {
-    return loadNewWizardFromEnvAndFlags(projectName, options, frameworkOptions, defaultFramework);
+    return loadNewWizardFromEnvAndFlags(
+      projectName,
+      options,
+      frameworkOptions,
+      defaultFramework,
+      frontendOptions
+    );
   }
-  return promptNewWizard(projectName, options, frameworkOptions, defaultFramework);
+  return promptNewWizard(projectName, options, frameworkOptions, defaultFramework, true, frontendOptions);
 }
 
 /**

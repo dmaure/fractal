@@ -368,3 +368,9 @@ otro ticket.
   ADR-0005, ADR-0010 (Aceptados), SPEC-0002 (Aprobado).
 - **Definition of Done:** Comando implementado contra el contrato, tests y
   snapshots en verde, lint de acoplamiento limpio.
+
+---
+
+## Addendum (FRA-115, ADR-0017): adapters frontend
+
+Aditivo y retrocompatible. `package.json > fractal` admite `kind` (`backend` por defecto | `frontend`) y `platform` (`web` por defecto). Un adapter `kind: 'frontend'` implementa `get-contract` (devuelve `FrontendContract`) y `create-frontend` (`CreateFrontendPayload`); core calcula los directorios con `computeLayout` y persiste `frontends` en el manifiesto del pack. Ver `docs/adr/0017-frontend-como-adapter.md`.

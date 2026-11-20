@@ -39,11 +39,13 @@ export {
   assertPackManifestValid,
   collectPackManifestViolations,
   isManifestPackFile,
+  withManifestFrontends,
   PackManifestValidationError,
   PACK_MANIFEST_PATH,
   PACK_MANIFEST_VERSION,
   type PackManifest,
   type PackManifestFramework,
   type PackManifestData,
+  type PackManifestFrontend,
   type PackManifestViolation,
 } from './manifest.js';

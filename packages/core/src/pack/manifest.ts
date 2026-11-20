@@ -28,6 +28,14 @@ export interface PackManifestFramework {
   name: string;
 }
 
+/** Un frontend del proyecto (FRA-115): adapter, nombre legible y directorio. */
+export interface PackManifestFrontend {
+  adapter: string;
+  name: string;
+  /** Directorio del frontend relativo a la raíz del layout (ver computeLayout). */
+  dir: string;
+}
+
 /** Declaración de los datos (contrato de dominio) que consume el agente. */
 export interface PackManifestData {
   /** Ruta (relativa al pack) del documento FDL del dominio. */
@@ -54,6 +62,8 @@ export interface PackManifest {
   data: PackManifestData;
   /** Prompts reutilizables del pack (rutas relativas al pack). */
   prompts: string[];
+  /** Frontends del proyecto (FRA-115). Opcional: ausente = sin frontends. */
+  frontends?: PackManifestFrontend[];
 }
 
 /** Una violación del manifiesto del pack, localizada por campo. */
@@ -106,12 +116,46 @@ export function serializePackManifest(manifest: PackManifest): PackFile {
     conventions: manifest.conventions,
     data: { fdl: manifest.data.fdl },
     prompts: [...manifest.prompts],
+    ...(manifest.frontends && manifest.frontends.length > 0
+      ? {
+          frontends: manifest.frontends.map((f) => ({
+            adapter: f.adapter,
+            name: f.name,
+            dir: f.dir,
+          })),
+        }
+      : {}),
   };
 
   return {
     path: PACK_MANIFEST_PATH,
     contents: `${JSON.stringify(canonical, null, 2)}\n`,
   };
+}
+
+/**
+ * Persiste `frontends` en el manifiesto de un pack ya generado por el backend
+ * (FRA-115). Sin frontends devuelve los archivos tal cual (bytes idénticos).
+ * Si el manifiesto falta o no parsea, no toca nada: el gate lo reporta después.
+ */
+export function withManifestFrontends(
+  files: PackFile[],
+  frontends: PackManifestFrontend[]
+): PackFile[] {
+  if (frontends.length === 0) {
+    return files;
+  }
+  return files.map((file) => {
+    if (!isManifestPackFile(file)) {
+      return file;
+    }
+    try {
+      const parsed = JSON.parse(file.contents) as PackManifest;
+      return serializePackManifest({ ...parsed, frontends });
+    } catch {
+      return file;
+    }
+  });
 }
 
 /** True si `value` es un string no vacío (tras recortar espacios). */
@@ -201,6 +245,21 @@ export function collectPackManifestViolations(
         });
       }
     });
+  }
+
+  if (m.frontends !== undefined) {
+    if (!Array.isArray(m.frontends)) {
+      violations.push({ field: 'frontends', message: 'debe ser un arreglo.' });
+    } else {
+      m.frontends.forEach((f, i) => {
+        const fe = f as Record<string, unknown> | null;
+        for (const key of ['adapter', 'name', 'dir']) {
+          if (typeof fe !== 'object' || fe === null || !isNonEmptyString(fe[key])) {
+            violations.push({ field: `frontends[${i}].${key}`, message: 'requerido: string no vacío.' });
+          }
+        }
+      });
+    }
   }
 
   return violations;

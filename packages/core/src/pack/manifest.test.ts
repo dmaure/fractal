@@ -18,6 +18,7 @@ import {
   PackManifestValidationError,
   PACK_MANIFEST_PATH,
   PACK_MANIFEST_VERSION,
+  withManifestFrontends,
   type PackManifest,
 } from './manifest.js';
 import type { PackFile } from './write-pack.js';
@@ -178,5 +179,36 @@ describe('assertPackManifestValid', () => {
       serializePackManifest(manifest),
     ];
     expect(() => assertPackManifestValid(pack)).toThrow(PackManifestValidationError);
+  });
+});
+
+describe('frontends en el manifiesto (FRA-115)', () => {
+  const fe = [{ adapter: 'fake-web', name: 'fake-web', dir: 'web' }];
+
+  it('sin frontends los bytes no cambian', () => {
+    const m = validManifest();
+    expect(serializePackManifest({ ...m, frontends: [] }).contents).toBe(serializePackManifest(m).contents);
+  });
+
+  it('withManifestFrontends persiste frontends y el resultado valida', () => {
+    const base = validManifest();
+    const files: PackFile[] = [
+      serializePackManifest(base),
+      ...[base.conventions, base.data.fdl, ...base.prompts].map((path) => ({ path, contents: 'x' })),
+    ];
+    const out = withManifestFrontends(files, fe);
+    const manifest = JSON.parse(out.find(isManifestPackFile)!.contents);
+    expect(manifest.frontends).toEqual(fe);
+    expect(collectPackManifestViolations(manifest, files.map((f) => f.path))).toEqual([]);
+    expect(withManifestFrontends(files, [])).toBe(files);
+  });
+
+  it('rechaza frontends mal formados', () => {
+    const base = validManifest();
+    const v = collectPackManifestViolations(
+      { ...JSON.parse(serializePackManifest(base).contents), frontends: [{ adapter: 'x' }] },
+      [base.conventions, base.data.fdl, ...base.prompts]
+    );
+    expect(v.map((x) => x.field)).toEqual(['frontends[0].name', 'frontends[0].dir']);
   });
 });

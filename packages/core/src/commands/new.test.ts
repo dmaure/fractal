@@ -29,9 +29,11 @@ beforeEach(() => {
   process.env.GIT_COMMITTER_EMAIL = 'test@fractal.dev';
   
   // Mockear el resolver de adapters para retornar un adapter ficticio
-  vi.spyOn(adapterResolver, 'resolveSingleAdapter').mockReturnValue({
+  vi.spyOn(adapterResolver, 'resolveBackendAdapter').mockReturnValue({
     packageName: '@fractal/adapter-test',
     target: 'test',
+    kind: 'backend',
+    platform: 'web',
     packagePath: '/fake/path',
     bridgeEntryPath: '/fake/path/bridge.js',
     command: [process.execPath, '/fake/path/bridge.js'],
@@ -257,6 +259,83 @@ describe('newCommand', () => {
     );
   });
   
+  describe('frontends como adapters (FRA-115)', () => {
+    const fakeFrontend = {
+      packageName: '@fractal/adapter-fake-web',
+      target: 'fake-web',
+      kind: 'frontend' as const,
+      platform: 'web',
+      packagePath: '/fake/front',
+      bridgeEntryPath: '/fake/front/bridge.js',
+      command: [process.execPath, '/fake/front/bridge.js'],
+    };
+
+    function withFakeFrontend() {
+      vi.spyOn(adapterResolver, 'listFrontendAdapters').mockReturnValue([fakeFrontend]);
+      vi.spyOn(adapterResolver, 'resolveFrontendAdapters').mockReturnValue([fakeFrontend]);
+      const previous = vi.mocked(adapterBridge.invokeAdapter).getMockImplementation()!;
+      const calls: any[] = [];
+      vi.mocked(adapterBridge.invokeAdapter).mockImplementation(async (command, payload: any) => {
+        if (command[1] === '/fake/front/bridge.js') {
+          calls.push(payload);
+          if (payload.action === 'get-contract') {
+            return { success: true, data: { version: '0', kind: 'frontend', target: 'fake-web', platform: 'web' } };
+          }
+          mkdirSync(payload.destinationPath, { recursive: true });
+          writeFileSync(join(payload.destinationPath, 'index.html'), '<html></html>');
+          return { success: true, data: {} };
+        }
+        return previous(command, payload);
+      });
+      return calls;
+    }
+
+    async function run(topology: 'monolith' | 'monorepo' | 'multirepo', frontend?: string) {
+      const originalCwd = process.cwd();
+      process.chdir(TEST_DIR);
+      try {
+        await newCommand('app', { topology, force: false, frontend });
+      } finally {
+        process.chdir(originalCwd);
+      }
+    }
+
+    it('monorepo: crea el frontend en web/ y lo persiste en el manifiesto', async () => {
+      const calls = withFakeFrontend();
+      await run('monorepo', 'fake-web');
+      const create = calls.find((c) => c.action === 'create-frontend');
+      expect(create).toMatchObject({ mode: 'standalone', destinationPath: join(TEST_DIR, 'app', 'web') });
+      expect(existsSync(join(TEST_DIR, 'app', 'web', 'index.html'))).toBe(true);
+      const manifest = JSON.parse(readFileSync(join(TEST_DIR, 'app', 'fractal', 'manifest.json'), 'utf-8'));
+      expect(manifest.frontends).toEqual([{ adapter: 'fake-web', name: 'fake-web', dir: 'web' }]);
+    });
+
+    it('monolith: modo embedded en web/', async () => {
+      const calls = withFakeFrontend();
+      await run('monolith', 'fake-web');
+      expect(calls.find((c) => c.action === 'create-frontend')).toMatchObject({
+        mode: 'embedded',
+        destinationPath: join(TEST_DIR, 'app', 'web'),
+      });
+    });
+
+    it('multirepo: repo hermano <nombre>-web', async () => {
+      const calls = withFakeFrontend();
+      await run('multirepo', 'fake-web');
+      expect(calls.find((c) => c.action === 'create-frontend')?.destinationPath).toBe(
+        join(TEST_DIR, 'app-web')
+      );
+    });
+
+    it('sin adapters frontend instalados no se invoca create-frontend ni se escribe frontends', async () => {
+      await run('monorepo', 'react-vite');
+      const calls = vi.mocked(adapterBridge.invokeAdapter).mock.calls.map((c) => (c[1] as any).action);
+      expect(calls).not.toContain('create-frontend');
+      const manifest = JSON.parse(readFileSync(join(TEST_DIR, 'app', 'fractal', 'manifest.json'), 'utf-8'));
+      expect(manifest.frontends).toBeUndefined();
+    });
+  });
+
   describe('inicialización de git', () => {
     it('inicializa git para monolith', { timeout: 30000 }, async () => {
       const projectName = 'git-monolith';

@@ -9,7 +9,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { resolveAdapters, resolveSingleAdapter } from './adapter-resolver.js';
+import {
+  resolveAdapters,
+  resolveSingleAdapter,
+  resolveBackendAdapter,
+  resolveFrontendAdapters,
+  listFrontendAdapters,
+} from './adapter-resolver.js';
 
 describe('adapter-resolver', () => {
   let testDir: string;
@@ -250,6 +256,49 @@ describe('adapter-resolver', () => {
       expect(() => resolveSingleAdapter(testDir)).toThrow(
         'múltiples adapters'
       );
+    });
+  });
+
+  describe('kind / platform (FRA-115)', () => {
+    function addAdapter(dirName: string, fractal: Record<string, unknown>) {
+      const dir = join(fractalDir, dirName);
+      mkdirSync(join(dir, 'dist'), { recursive: true });
+      writeFileSync(
+        join(dir, 'package.json'),
+        JSON.stringify({ name: `@fractal/${dirName}`, fractal: { adapter: true, bridge: 'dist/bridge.js', ...fractal } })
+      );
+      writeFileSync(join(dir, 'dist', 'bridge.js'), '// bridge');
+    }
+
+    it('sin kind ⇒ backend, platform web (retrocompatible)', () => {
+      addAdapter('adapter-back', { target: 'back' });
+      expect(resolveAdapters(testDir).adapters[0]).toMatchObject({ kind: 'backend', platform: 'web' });
+    });
+
+    it('kind inválido se ignora', () => {
+      addAdapter('adapter-bad', { target: 'bad', kind: 'otro' });
+      expect(resolveAdapters(testDir).adapters).toHaveLength(0);
+    });
+
+    it('resolveBackendAdapter ignora los frontends; resolveSingleAdapter es alias', () => {
+      addAdapter('adapter-back', { target: 'back' });
+      addAdapter('adapter-front', { target: 'fake-web', kind: 'frontend' });
+      expect(resolveBackendAdapter(testDir).target).toBe('back');
+      expect(resolveSingleAdapter(testDir).target).toBe('back');
+      expect(resolveBackendAdapter(testDir, 'back').target).toBe('back');
+      expect(() => resolveBackendAdapter(testDir, 'fake-web')).toThrow(/backend/);
+    });
+
+    it('resolveFrontendAdapters devuelve en orden, sin duplicados, y falla si no existe', () => {
+      addAdapter('adapter-back', { target: 'back' });
+      addAdapter('adapter-front', { target: 'fake-web', kind: 'frontend' });
+      addAdapter('adapter-mobile', { target: 'fake-rn', kind: 'frontend', platform: 'mobile' });
+      expect(listFrontendAdapters(testDir)).toHaveLength(2);
+      const r = resolveFrontendAdapters(testDir, ['fake-rn', 'fake-web', 'fake-rn']);
+      expect(r.map((a) => a.target)).toEqual(['fake-rn', 'fake-web']);
+      expect(r[0].platform).toBe('mobile');
+      expect(resolveFrontendAdapters(testDir, [])).toEqual([]);
+      expect(() => resolveFrontendAdapters(testDir, ['nope'])).toThrow(/frontend 'nope'/);
     });
   });
 });

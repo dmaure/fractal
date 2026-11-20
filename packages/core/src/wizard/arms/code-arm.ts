@@ -7,7 +7,7 @@
  * antes que infraestructura.
  */
 
-import { input, select } from '@inquirer/prompts';
+import { checkbox, input, select } from '@inquirer/prompts';
 import type { WizardArm, WizardContext, WizardArmResult } from '../../types/wizard-arm.js';
 import { promptTopology } from '../../utils/prompts.js';
 import { validateProjectName } from '../../utils/param-validators.js';
@@ -128,7 +128,20 @@ export async function promptDatabase(): Promise<string> {
  * Prompt para seleccionar el frontend.
  * Visible aunque haya una sola opción (ADR-0016 §4, AC-2).
  */
-export async function promptFrontend(): Promise<string> {
+export async function promptFrontend(frontendOptions: FrontendOption[] = []): Promise<string> {
+  // FRA-115: con adapters frontend instalados, 0..N y las opciones salen de ellos.
+  if (frontendOptions.length > 0) {
+    const chosen = await checkbox({
+      message: 'Frontends (0..N):',
+      choices: frontendOptions.map((opt, i) => ({
+        value: opt.value,
+        name: opt.name,
+        description: opt.description,
+        checked: i === 0,
+      })),
+    });
+    return chosen.join(',');
+  }
   return select({
     message: 'Framework del frontend:',
     choices: FRONTEND_OPTIONS.map((opt) => ({
@@ -149,11 +162,14 @@ export class CodeArm implements WizardArm {
 
   private frameworkOptions: FrameworkOption[];
   private defaultFramework?: string;
+  private frontendOptions: FrontendOption[];
 
   constructor(
     frameworkOptions: FrameworkOption[] = [],
-    defaultFramework?: string
+    defaultFramework?: string,
+    frontendOptions: FrontendOption[] = []
   ) {
+    this.frontendOptions = frontendOptions;
     this.frameworkOptions = frameworkOptions;
     this.defaultFramework = defaultFramework;
   }
@@ -186,7 +202,7 @@ export class CodeArm implements WizardArm {
       
       const topology = context.topology ?? (await promptTopology());
       const database = await promptDatabase();
-      const frontend = await promptFrontend();
+      const frontend = await promptFrontend(this.frontendOptions);
 
       return {
         success: true,

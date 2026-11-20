@@ -8,16 +8,29 @@ import { validateTargetDirectory } from '../utils/directory-validator.js';
 import { validateProjectName } from '../utils/param-validators.js';
 import { promptTopology } from '../utils/prompts.js';
 import { initializeGit } from '../utils/git-initializer.js';
-import { resolveSingleAdapter } from '../adapter-resolver.js';
+import {
+  resolveBackendAdapter,
+  listFrontendAdapters,
+  resolveFrontendAdapters,
+  type ResolvedAdapter,
+} from '../adapter-resolver.js';
 import { invokeAdapter } from '../adapter-bridge.js';
 import { checkRuntimeRequirements } from '../bridge/binary-check.js';
 import {
   assertPackFdlValid,
   assertPackManifestValid,
+  withManifestFrontends,
+  type PackManifestFrontend,
   writePack,
   type PackFile,
 } from '../pack/index.js';
 import type { AdapterContract, CreateProjectPayload } from '../types/adapter-contract.js';
+import {
+  computeLayout,
+  layoutRoot,
+  type CreateFrontendPayload,
+  type FrontendContract,
+} from '../types/frontend-contract.js';
 import {
   collectNewWizardParams,
   formatDeployEnvExports,
@@ -139,12 +152,13 @@ export async function newCommand(
   // Solo si vamos a ejecutar el wizard
   let frameworkOptions: Array<{ value: string; name: string; description: string }> = [];
   let defaultFramework: string | undefined;
+  let frontendOptions: Array<{ value: string; name: string; description: string }> = [];
   
   if (mode !== 'skip') {
     const cliPath = dirname(fileURLToPath(import.meta.url));
     let adapter;
     try {
-      adapter = resolveSingleAdapter(cliPath);
+      adapter = resolveBackendAdapter(cliPath);
       console.log(chalk.dim(`   Adapter: ${adapter.target}`));
       
       // Framework options del adapter (Art. II: el core no hardcodea frameworks)
@@ -156,6 +170,13 @@ export async function newCommand(
         },
       ];
       defaultFramework = adapter.target;
+
+      // FRA-115: opciones de frontend = adapters frontend instalados (sin lista en core)
+      frontendOptions = listFrontendAdapters(cliPath).map((a) => ({
+        value: a.target,
+        name: a.target,
+        description: `Frontend ${a.target} (${a.platform})`,
+      }));
     } catch (error) {
       console.error(
         chalk.red(
@@ -169,7 +190,13 @@ export async function newCommand(
   let wizard: NewWizardParams | null = null;
   try {
     if (mode !== 'skip') {
-      wizard = await collectNewWizardParams(projectName, options, frameworkOptions, defaultFramework);
+      wizard = await collectNewWizardParams(
+        projectName,
+        options,
+        frameworkOptions,
+        defaultFramework,
+        frontendOptions
+      );
       if (wizard) {
         projectName = wizard.projectName;
         topology = wizard.topology;
@@ -196,7 +223,21 @@ export async function newCommand(
     targetDir: resolve(process.cwd(), projectName),
     topology,
     target: 'default',
+    frontends: [],
   };
+
+  // FRA-115: frontends elegidos (wizard o flag/env). Sin adapters frontend
+  // instalados la lista queda vacía y el comportamiento no cambia.
+  try {
+    const cliPathForFrontends = dirname(fileURLToPath(import.meta.url));
+    params.frontends = selectFrontendTargets(
+      cliPathForFrontends,
+      wizard ? wizard.frontend : options.frontend ?? process.env.FRACTAL_NEW_FRONTEND
+    );
+  } catch (error) {
+    console.error(chalk.red(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}`));
+    process.exit(1);
+  }
 
   console.log(chalk.green('\n✅ Parámetros validados:'));
   console.log(`   Proyecto: ${chalk.bold(params.projectName)}`);
@@ -317,6 +358,19 @@ function packRootDir(
  * obtiene el pack, valida su FDL (gate AC-1) y su manifiesto (FRA-104) e imprime
  * los paths que se escribirían; no toca disco y deja el directorio destino vacío.
  */
+/**
+ * FRA-115: convierte la selección de frontends (lista separada por coma) en
+ * targets de adapters frontend instalados. Sin adapters frontend instalados
+ * devuelve [] (se ignora el valor legacy). Un target desconocido es un error.
+ */
+export function selectFrontendTargets(cliPath: string, requested: string | undefined): string[] {
+  if (listFrontendAdapters(cliPath).length === 0 || !requested || requested === 'none') {
+    return [];
+  }
+  const targets = requested.split(',').map((v) => v.trim()).filter(Boolean);
+  return resolveFrontendAdapters(cliPath, targets).map((a) => a.target);
+}
+
 async function runPackDryRun(
   projectName: string,
   targetDir: string,
@@ -330,7 +384,7 @@ async function runPackDryRun(
 
   let packFiles: PackFile[];
   try {
-    const adapter = resolveSingleAdapter(cliPath);
+    const adapter = resolveBackendAdapter(cliPath);
     console.log(chalk.dim(`   Adapter: ${adapter.target}`));
     packFiles = await fetchPack(adapter.command, projectName, topology);
     assertPackFdlValid(packFiles);
@@ -357,6 +411,59 @@ async function runPackDryRun(
   );
 }
 
+/**
+ * FRA-115: por cada adapter frontend pide su contrato y le encarga
+ * `create-frontend` en el directorio que dicta `computeLayout`. Core no sabe
+ * nada del stack: solo orquesta contratos. Termina el proceso ante un error.
+ */
+async function generateFrontends(
+  frontends: ResolvedAdapter[],
+  params: ValidatedNewParams
+): Promise<PackManifestFrontend[]> {
+  const layout = computeLayout(
+    params.topology,
+    params.projectName,
+    frontends.map((f) => ({ target: f.target, platform: f.platform }))
+  );
+  const root = layoutRoot(params.topology, params.targetDir);
+  const manifest: PackManifestFrontend[] = [];
+
+  for (const [i, adapter] of frontends.entries()) {
+    const entry = layout.frontends[i];
+
+    const contractResult = await invokeAdapter(adapter.command, { action: 'get-contract' });
+    if (!contractResult.success) {
+      console.error(
+        chalk.red(`\n❌ Error al obtener contrato del frontend ${adapter.target}: ${contractResult.error.message}`)
+      );
+      process.exit(1);
+    }
+    const contract = contractResult.data as FrontendContract;
+    if (contract.kind !== 'frontend') {
+      console.error(chalk.red(`\n❌ El adapter ${adapter.target} no declara kind 'frontend' en su contrato.`));
+      process.exit(1);
+    }
+
+    const payload: CreateFrontendPayload = {
+      name: params.projectName,
+      destinationPath: join(root, entry.path),
+      mode: params.topology === 'monolith' ? 'embedded' : 'standalone',
+    };
+    const result = await invokeAdapter(adapter.command, { action: 'create-frontend', ...payload });
+    if (!result.success) {
+      console.error(
+        chalk.red(`\n❌ Error al generar el frontend ${adapter.target}: ${result.error.message}`)
+      );
+      process.exit(1);
+    }
+
+    console.log(chalk.green(`   ✓ Frontend ${adapter.target} en ${entry.path}`));
+    manifest.push({ adapter: adapter.target, name: adapter.target, dir: entry.path });
+  }
+
+  return manifest;
+}
+
 async function generateProject(
   params: ValidatedNewParams
 ): Promise<{ repositories: string[] }> {
@@ -366,7 +473,7 @@ async function generateProject(
   let adapter;
 
   try {
-    adapter = resolveSingleAdapter(cliPath);
+    adapter = resolveBackendAdapter(cliPath);
     console.log(chalk.dim(`   Adapter: ${adapter.target}`));
   } catch (error) {
     console.error(
@@ -449,6 +556,14 @@ async function generateProject(
 
   console.log(chalk.green('   ✓ Estructura generada'));
 
+  // FRA-115: componer los frontends (0..N) sobre el layout de la topología.
+  const frontendAdapters = resolveFrontendAdapters(cliPath, params.frontends ?? []);
+  const manifestFrontends: PackManifestFrontend[] = [];
+  if (frontendAdapters.length > 0) {
+    console.log(chalk.blue('\n🖼️  Generando frontends...'));
+    manifestFrontends.push(...(await generateFrontends(frontendAdapters, params)));
+  }
+
   // SPEC-0007 AC-2/AC-8: escribir el pack de convenciones (AGENTS.md + FDL +
   // prompt + manifiesto) junto al scaffold. El FDL del pack es un contrato: se
   // valida antes de escribir (gate AC-1), igual que el manifiesto (FRA-104), y
@@ -457,7 +572,10 @@ async function generateProject(
 
   let packFiles: PackFile[];
   try {
-    packFiles = await fetchPack(adapter.command, params.projectName, params.topology);
+    packFiles = withManifestFrontends(
+      await fetchPack(adapter.command, params.projectName, params.topology),
+      manifestFrontends
+    );
     assertPackFdlValid(packFiles);
     assertPackManifestValid(packFiles);
   } catch (error) {
