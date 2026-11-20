@@ -403,16 +403,7 @@ jobs:
               
               # Agregar entrada al historial
               NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"passed","commitSha":"'\$IMAGE_TAG'","branch":"'\$GIT_BRANCH'"}'
-              UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "
-import sys, json
-state = json.load(sys.stdin)
-state['updatedAt'] = '\$TIMESTAMP'
-state['currentImageTag'] = '\$IMAGE_TAG'
-state['lastSuccessfulImageTag'] = '\$IMAGE_TAG'
-state['deployHistory'].insert(0, \$NEW_ENTRY)
-state['deployHistory'] = state['deployHistory'][:10]
-print(json.dumps(state, indent=2))
-")
+              UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "import sys, json; state = json.load(sys.stdin); state['updatedAt'] = '\$TIMESTAMP'; state['currentImageTag'] = '\$IMAGE_TAG'; state['lastSuccessfulImageTag'] = '\$IMAGE_TAG'; state['deployHistory'].insert(0, \$NEW_ENTRY); state['deployHistory'] = state['deployHistory'][:10]; print(json.dumps(state, indent=2))")
               echo "\$UPDATED_STATE" | sudo tee \$STATE_FILE > /dev/null
               echo "✓ Deploy state updated"
               exit 0
@@ -423,14 +414,7 @@ print(json.dumps(state, indent=2))
               if [ -f "\$STATE_FILE" ]; then
                 CURRENT_STATE=\$(sudo cat \$STATE_FILE)
                 NEW_ENTRY='{"imageTag":"'\$IMAGE_TAG'","timestamp":"'\$TIMESTAMP'","healthcheck":"failed","commitSha":"'\$IMAGE_TAG'","branch":"'\$GIT_BRANCH'"}'
-                UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "
-import sys, json
-state = json.load(sys.stdin)
-state['updatedAt'] = '\$TIMESTAMP'
-state['deployHistory'].insert(0, \$NEW_ENTRY)
-state['deployHistory'] = state['deployHistory'][:10]
-print(json.dumps(state, indent=2))
-")
+                UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "import sys, json; state = json.load(sys.stdin); state['updatedAt'] = '\$TIMESTAMP'; state['deployHistory'].insert(0, \$NEW_ENTRY); state['deployHistory'] = state['deployHistory'][:10]; print(json.dumps(state, indent=2))")
                 echo "\$UPDATED_STATE" | sudo tee \$STATE_FILE > /dev/null
               fi
               
@@ -472,7 +456,7 @@ print(json.dumps(state, indent=2))
               
               exit 1
             fi
-ENDSSH
+          ENDSSH
           
           rm -f deploy_key
 

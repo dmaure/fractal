@@ -333,16 +333,7 @@ deploy:
           
           # Agregar entrada al historial
           NEW_ENTRY='{"imageTag":"$CI_COMMIT_SHORT_SHA","timestamp":"'\$TIMESTAMP'","healthcheck":"passed","commitSha":"$CI_COMMIT_SHA","branch":"$CI_COMMIT_REF_NAME"}'
-          UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "
-import sys, json
-state = json.load(sys.stdin)
-state['updatedAt'] = '\$TIMESTAMP'
-state['currentImageTag'] = '$CI_COMMIT_SHORT_SHA'
-state['lastSuccessfulImageTag'] = '$CI_COMMIT_SHORT_SHA'
-state['deployHistory'].insert(0, \$NEW_ENTRY)
-state['deployHistory'] = state['deployHistory'][:10]
-print(json.dumps(state, indent=2))
-")
+          UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "import sys, json; state = json.load(sys.stdin); state['updatedAt'] = '\$TIMESTAMP'; state['currentImageTag'] = '$CI_COMMIT_SHORT_SHA'; state['lastSuccessfulImageTag'] = '$CI_COMMIT_SHORT_SHA'; state['deployHistory'].insert(0, \$NEW_ENTRY); state['deployHistory'] = state['deployHistory'][:10]; print(json.dumps(state, indent=2))")
           echo "\$UPDATED_STATE" | sudo tee \$STATE_FILE > /dev/null
           echo "✓ Deploy state updated"
           exit 0
@@ -353,14 +344,7 @@ print(json.dumps(state, indent=2))
           if [ -f "\$STATE_FILE" ]; then
             CURRENT_STATE=\$(sudo cat \$STATE_FILE)
             NEW_ENTRY='{"imageTag":"$CI_COMMIT_SHORT_SHA","timestamp":"'\$TIMESTAMP'","healthcheck":"failed","commitSha":"$CI_COMMIT_SHA","branch":"$CI_COMMIT_REF_NAME"}'
-            UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "
-import sys, json
-state = json.load(sys.stdin)
-state['updatedAt'] = '\$TIMESTAMP'
-state['deployHistory'].insert(0, \$NEW_ENTRY)
-state['deployHistory'] = state['deployHistory'][:10]
-print(json.dumps(state, indent=2))
-")
+            UPDATED_STATE=\$(echo "\$CURRENT_STATE" | python3 -c "import sys, json; state = json.load(sys.stdin); state['updatedAt'] = '\$TIMESTAMP'; state['deployHistory'].insert(0, \$NEW_ENTRY); state['deployHistory'] = state['deployHistory'][:10]; print(json.dumps(state, indent=2))")
             echo "\$UPDATED_STATE" | sudo tee \$STATE_FILE > /dev/null
           fi
           
@@ -393,7 +377,7 @@ print(json.dumps(state, indent=2))
           
           exit 1
         fi
-ENDSSH
+      ENDSSH
   after_script:
     - |
       if [ $CI_JOB_STATUS == 'success' ]; then
