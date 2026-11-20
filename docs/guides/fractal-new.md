@@ -354,8 +354,9 @@ autenticación Sanctum Bearer, ADR-0005); solo cambia **dónde vive el código**
 
 ### Monolito (`monolith`)
 
-Un único repositorio. API y SPA conviven en la misma estructura Laravel (el SPA
-en `resources/js`). Es la topología por defecto.
+Un único repositorio. API (Laravel) y SPA conviven: el SPA React + Vite vive en
+`web/` (sin Blade) y en producción nginx sirve su build estático y delega `/api`
+a Laravel. Es la topología por defecto.
 
 ```bash
 fractal new mi-app --topology monolith
@@ -375,7 +376,8 @@ cd mi-app
 composer install
 cp .env.example .env
 php artisan key:generate
-php artisan serve   # http://localhost:8000  — / muestra la landing y /api/health responde
+php artisan serve   # http://localhost:8000  — / responde un texto mínimo y /api/health responde
+(cd web && npm install && npm run dev)   # SPA en http://localhost:3000, con proxy de /api
 ```
 
 El `.env.example` generado usa SQLite y drivers de archivo/sync por defecto, así

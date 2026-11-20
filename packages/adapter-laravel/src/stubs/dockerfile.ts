@@ -4,7 +4,7 @@
  * Imagen php-fpm construida en el VPS durante el deploy (FRA-70). Una etapa
  * Node compila el SPA con Vite (FRA-111) y la etapa PHP instala las extensiones,
  * dependencias de Composer en modo producción, copia la app a /var/www/html
- * junto con `public/build` y ajusta permisos sobre storage y bootstrap/cache.
+ * junto con el SPA compilado en `public/spa` y ajusta permisos sobre storage y bootstrap/cache.
  *
  * El servicio php-fpm resultante escucha en el puerto 9000 y nginx (en su
  * propio contenedor) le hace fastcgi_pass; ver nginx-conf.ts.
@@ -13,13 +13,12 @@ import { PHP_DOCKER_IMAGE } from './php-version.js';
 
 export function generateDockerfile(): string {
   return `# Dockerfile generado por Fractal
-# Etapa 1: compila el SPA React con Vite (public/build).
-FROM node:22-alpine AS assets
-WORKDIR /app
-COPY package*.json ./
+# Etapa 1: compila el SPA React con Vite (web/dist).
+FROM node:22-alpine AS web-build
+WORKDIR /app/web
+COPY web/package*.json ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
-COPY index.html vite.config.ts ./
-COPY resources ./resources
+COPY web/ ./
 RUN npm run build
 
 # Etapa 2: imagen php-fpm para producción. Se construye en el VPS durante el deploy.
@@ -44,8 +43,8 @@ WORKDIR /var/www/html
 # Copiar el código de la aplicación.
 COPY . /var/www/html
 
-# Assets compilados del SPA (etapa Node).
-COPY --from=assets /app/public/build /var/www/html/public/build
+# SPA compilado (etapa Node); nginx lo sirve desde public/spa.
+COPY --from=web-build /app/web/dist /var/www/html/public/spa
 
 # Instalar dependencias de producción.
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
@@ -76,7 +75,8 @@ export function generateDockerignore(): string {
 node_modules
 vendor
 dist
-public/build
+web/node_modules
+web/dist
 storage/logs/*.log
 .env
 .env.*

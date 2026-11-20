@@ -63,7 +63,38 @@ pnpm dev
 pnpm build
 \`\`\`
 `
-        : `## Instalación
+        : topology === 'monolith'
+          ? `## Instalación
+
+\`\`\`bash
+composer install
+cp .env.example .env
+php artisan key:generate
+\`\`\`
+
+## Desarrollo
+
+\`\`\`bash
+php artisan serve
+(cd web && npm install && npm run dev)
+\`\`\`
+
+- API (Laravel): http://localhost:8000
+- SPA (Vite, con proxy de /api a Laravel): http://localhost:3000
+
+## Build
+
+\`\`\`bash
+(cd web && npm run build)
+\`\`\`
+
+## Tests
+
+\`\`\`bash
+php artisan test
+\`\`\`
+`
+          : `## Instalación
 
 \`\`\`bash
 composer install

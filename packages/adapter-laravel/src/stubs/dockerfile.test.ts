@@ -11,12 +11,14 @@ describe('dockerfile', () => {
       expect(result).toContain('FROM php:8.3-fpm');
     });
 
-    it('compila el SPA en una etapa Node y copia public/build', () => {
+    it('compila web/ en una etapa Node y copia el dist a public/spa', () => {
       const result = generateDockerfile();
-      expect(result).toContain('FROM node:22-alpine AS assets');
+      expect(result).toContain('FROM node:22-alpine AS web-build');
+      expect(result).toContain('WORKDIR /app/web');
+      expect(result).toContain('COPY web/package*.json ./');
       expect(result).toContain('npm ci');
       expect(result).toContain('npm run build');
-      expect(result).toContain('COPY --from=assets /app/public/build');
+      expect(result).toContain('COPY --from=web-build /app/web/dist /var/www/html/public/spa');
     });
 
     it('instala dependencias de producción con Composer', () => {
@@ -49,6 +51,8 @@ describe('dockerfile', () => {
       expect(result).toContain('node_modules');
       expect(result).toContain('vendor');
       expect(result).toContain('.git');
+      expect(result).toContain('web/node_modules');
+      expect(result).toContain('web/dist');
     });
   });
 });

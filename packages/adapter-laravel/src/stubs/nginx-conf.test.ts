@@ -34,9 +34,12 @@ describe('nginx-conf', () => {
       expect(result).toContain('return 301 https://$host$request_uri;');
     });
 
-    it('usa try_files hacia index.php', () => {
+    it('/api/ va a Laravel y / sirve el SPA estático con fallback a index.html', () => {
       const result = generateNginxConf();
-      expect(result).toContain('try_files $uri $uri/ /index.php?$query_string;');
+      expect(result).toContain('location /api/ {');
+      expect(result).toContain('try_files $uri /index.php?$query_string;');
+      expect(result).toContain('root /var/www/html/public/spa;');
+      expect(result).toContain('try_files $uri /index.html;');
     });
 
     it('delega PHP al contenedor app por fastcgi en el puerto 9000', () => {

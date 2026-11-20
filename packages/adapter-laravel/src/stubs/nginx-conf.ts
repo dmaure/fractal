@@ -2,7 +2,7 @@
  * Generador de docker/nginx/nginx.conf para el proyecto Laravel generado.
  *
  * nginx corre en su propio contenedor (servicio `nginx` del compose), escucha
- * en los puertos 80 y 443 y sirve /var/www/html/public. Las peticiones a
+ * en los puertos 80 y 443 y sirve el SPA estático desde /var/www/html/public/spa y /api desde Laravel. Las peticiones a
  * archivos .php se pasan por fastcgi al contenedor php-fpm (servicio `app`,
  * puerto 9000), que comparte el código vía un volumen montado en la misma ruta.
  *
@@ -67,8 +67,15 @@ http {
 
         charset utf-8;
 
+        # API: Laravel (php-fpm).
+        location /api/ {
+            try_files $uri /index.php?$query_string;
+        }
+
+        # SPA React compilada (web/dist copiada a public/spa).
         location / {
-            try_files $uri $uri/ /index.php?$query_string;
+            root /var/www/html/public/spa;
+            try_files $uri /index.html;
         }
 
         location = /favicon.ico { access_log off; log_not_found off; }
