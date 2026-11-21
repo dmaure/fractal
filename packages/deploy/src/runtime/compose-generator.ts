@@ -298,6 +298,14 @@ ${appSource}
       .join('');
   }
 
+  /** Bloque `args:` del build (vacío si no hay). Valores entre comillas simples. */
+  private renderBuildArgs(args?: Record<string, string>): string {
+    const entries = Object.entries(args ?? {});
+    if (entries.length === 0) return '';
+    const lines = entries.map(([k, v]) => `\n        ${k}: '${v.replace(/'/g, "''")}'`);
+    return `\n      args:${lines.join('')}`;
+  }
+
   /**
    * Devuelve el bloque YAML que define el origen de la imagen de los servicios
    * de aplicación: `build:` (contexto + archivo de build) cuando el runtime lo
@@ -319,7 +327,7 @@ ${appSource}
     if (runtime.build) {
       return `    build:
       context: ${runtime.build.context}
-      dockerfile: ${runtime.build.dockerfile}
+      dockerfile: ${runtime.build.dockerfile}${this.renderBuildArgs(runtime.build.args)}
 ${imageRef}`;
     }
     return imageRef;
@@ -330,9 +338,15 @@ ${imageRef}`;
    * Solo nginx sirviendo archivos de dist/.
    */
   private generateFrontendStaticCompose(projectName: string, header: string, runtime: ComposeConfig['runtime']): string {
+    // Con `build` (FRA-112) el Dockerfile compila el SPA y lo copia a la imagen
+    // nginx; sin `build` se sirve ./dist montado (runtime legado).
+    const source = runtime.build
+      ? this.renderImageOrBuild(projectName, runtime)
+      : '    image: nginx:alpine';
+    const distMount = runtime.build ? '' : '\n      - ./dist:/usr/share/nginx/html:ro';
     return header + `services:
   nginx:
-    image: nginx:alpine
+${source}
     container_name: ${projectName}_nginx
     restart: unless-stopped
     ports:
@@ -340,8 +354,7 @@ ${imageRef}`;
       - "443:443"
     expose:
       - "${runtime.port}"
-    volumes:
-      - ./dist:/usr/share/nginx/html:ro
+    volumes:${distMount}
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
       - ./docker/nginx/certbot:/var/www/certbot:ro

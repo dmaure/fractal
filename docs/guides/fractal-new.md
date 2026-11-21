@@ -447,6 +447,19 @@ Resultado:
 
 El arranque de cada repo es análogo al backend y al frontend del monorepo.
 
+Cada repo se despliega solo con `fractal deploy` (FRA-112):
+
+- `mi-app-api/` trae `Dockerfile`, `docker/nginx/` y `public/index.php`
+  (sin frontend), y `config/cors.php`, que permite el origen del web
+  (`CORS_ALLOWED_ORIGIN`). Su `AGENTS.md` indica dónde está el frontend.
+- `mi-app-web/` trae `Dockerfile` (compila el SPA con `VITE_API_URL` como build
+  arg y lo sirve con nginx) y `/health.txt`.
+- En el primer deploy de cada repo se pide el dominio del hermano: el web
+  hornea `https://<dominio-api>` como `VITE_API_URL` y el api permite
+  `https://<dominio-web>` en CORS. Cada repo necesita su propio VPS.
+- `--deploy` no se encadena en multirepo: requiere dos servidores y dos dominios.
+  El e2e real está en `.github/workflows/deploy-e2e-multirepo.yml`.
+
 ---
 
 ## Ejemplos

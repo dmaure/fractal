@@ -21,7 +21,12 @@ export const REACT_VITE_FRONTEND_DEPLOY_RUNTIME: DeployRuntime = {
   },
 };
 
-export function getContract(): FrontendContract {
+/**
+ * @param options.siblingDomain Dominio de la API (multirepo, FRA-112): se hornea
+ *   como `VITE_API_URL` (build arg del Dockerfile) en el build del frontend.
+ */
+export function getContract(options: { siblingDomain?: string } = {}): FrontendContract {
+  const apiUrl = options.siblingDomain ? `https://${options.siblingDomain}` : undefined;
   return {
     version: '0',
     kind: 'frontend',
@@ -41,6 +46,14 @@ export function getContract(): FrontendContract {
     serve: 'static',
     dev: { command: 'npm run dev', port: 3000, apiProxy: '/api' },
     apiBaseEnv: 'VITE_API_URL',
-    deployRuntime: REACT_VITE_FRONTEND_DEPLOY_RUNTIME,
+    deployRuntime: {
+      ...REACT_VITE_FRONTEND_DEPLOY_RUNTIME,
+      // Repo propio: la imagen nginx se construye con el Dockerfile del repo web.
+      build: {
+        context: '.',
+        dockerfile: 'Dockerfile',
+        ...(apiUrl && { args: { VITE_API_URL: apiUrl } }),
+      },
+    },
   };
 }

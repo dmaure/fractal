@@ -102,7 +102,19 @@ function buildDomainFdl(projectName: string): string {
  * Sección de estructura del repo en monorepo (FRA-114): backend en `api/`,
  * frontend en `web/`. En las demás topologías el backend está en la raíz.
  */
-function buildLayoutSection(topology: ProjectTopology): string {
+function buildLayoutSection(topology: ProjectTopology, projectName: string): string {
+  if (topology === 'multirepo') {
+    return `
+## Estructura del repo (multirepo)
+
+- **Este repo es solo el backend Laravel** (\`${projectName}-api\`).
+- **Frontend:** repo hermano \`${projectName}-web\` (React + Vite), normalmente
+  en \`../${projectName}-web\`, con el código fuente en \`src\`. Consume la API
+  vía \`VITE_API_URL\`.
+- **CORS:** \`config/cors.php\` permite el origen del frontend desde
+  \`CORS_ALLOWED_ORIGIN\` (lo setea \`fractal deploy\`).
+`;
+  }
   if (topology !== 'monorepo') return '';
   return `
 ## Estructura del repo (monorepo)
@@ -131,7 +143,7 @@ siguiendo estas convenciones.
 
 - **Dominio:** \`fractal/domain.fdl.json\` (validá con \`fractal fdl check fractal/domain.fdl.json\`).
 - **Prompt reutilizable:** \`fractal/prompts/add-entity.md\`.
-${buildLayoutSection(topology)}
+${buildLayoutSection(topology, projectName)}
 ## Cómo mapear el FDL a cada capa
 
 Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,

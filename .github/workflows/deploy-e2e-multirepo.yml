@@ -1,0 +1,298 @@
+name: Deploy E2E multirepo (2 VPS efímeros)
+
+# E2E real de `fractal new --topology multirepo` + `fractal deploy` en cada repo
+# (FRA-112). Mismo patrón que deploy-e2e.yml (monolito/monorepo), pero con DOS
+# VPS Vultr efímeros —api y web no pueden compartir 80/443— y dos registros DNS
+# DNS-only en Cloudflare:
+#   api-<run>.codigofractal.dev → VPS api   (<name>-api, Laravel)
+#   web-<run>.codigofractal.dev → VPS web   (<name>-web, nginx + SPA)
+#   1. `fractal new` genera <name>-api y <name>-web.
+#   2. `fractal deploy --non-interactive` en cada repo (cada uno recibe el dominio
+#      del hermano: web hornea VITE_API_URL, api permite CORS del web).
+#   3. Se verifica: api /api/health, web /health.txt, bundle web apuntando a la
+#      API, y CORS (preflight desde el origen del web).
+# SIEMPRE destruye VPS, SSH key y DNS al final (`if: always()`).
+#
+# Secrets (GitHub Environment `dev`): VULTR_API_KEY, CLOUDFLARE_API_TOKEN,
+# CLOUDFLARE_ZONE_ID.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'packages/deploy/**'
+      - 'packages/core/**'
+      - 'packages/adapter-laravel/**'
+      - 'packages/adapter-react-vite/**'
+      - '.github/workflows/deploy-e2e-multirepo.yml'
+  workflow_dispatch:
+
+# No cancelar runs en progreso: un run cancelado podría dejar huérfanos VPS pagos.
+concurrency:
+  group: deploy-e2e-multirepo-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-e2e-multirepo:
+    name: deploy e2e multirepo (api + web)
+    runs-on: ubuntu-latest
+    environment: dev
+    timeout-minutes: 60
+    env:
+      VULTR_REGION: ewr
+      VULTR_PLAN: vc2-2c-4gb
+      LABEL_PREFIX: fra112-e2e-${{ github.run_id }}-
+      API_DOMAIN: api-e2e-${{ github.run_id }}-${{ github.run_attempt }}.codigofractal.dev
+      WEB_DOMAIN: web-e2e-${{ github.run_id }}-${{ github.run_attempt }}.codigofractal.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm -r build
+
+      - name: Generar keypair SSH efímero (ed25519, sin passphrase)
+        run: |
+          set -euo pipefail
+          KEY_PATH="$HOME/.ssh/fractal_e2e"
+          mkdir -p "$HOME/.ssh"
+          ssh-keygen -t ed25519 -N "" -C "fractal-e2e-${GITHUB_RUN_ID}" -f "$KEY_PATH"
+          echo "FRACTAL_E2E_SSH_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Provisionar los 2 VPS Vultr y sus registros DNS
+        env:
+          VULTR_API_KEY: ${{ secrets.VULTR_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          API="https://api.vultr.com/v2"
+          AUTH="Authorization: Bearer $VULTR_API_KEY"
+
+          echo "→ Subiendo clave pública a Vultr..."
+          PUBKEY="$(cat "${FRACTAL_E2E_SSH_KEY_PATH}.pub")"
+          KEY_RESP="$(curl -sS -X POST "$API/ssh-keys" -H "$AUTH" -H 'Content-Type: application/json' \
+            -d "$(jq -nc --arg n "${LABEL_PREFIX}key" --arg k "$PUBKEY" '{name:$n, ssh_key:$k}')")"
+          SSH_KEY_ID="$(echo "$KEY_RESP" | jq -r '.ssh_key.id')"
+          if [ -z "$SSH_KEY_ID" ] || [ "$SSH_KEY_ID" = "null" ]; then
+            echo "No se pudo crear la SSH key en Vultr: $KEY_RESP"; exit 1
+          fi
+          echo "VULTR_SSH_KEY_ID=$SSH_KEY_ID" >> "$GITHUB_ENV"
+
+          OS_ID="$(curl -sS "$API/os?per_page=500" -H "$AUTH" \
+            | jq -r '.os[] | select(.name | test("Ubuntu 24.04 LTS x64")) | .id' | head -1)"
+          if [ -z "$OS_ID" ] || [ "$OS_ID" = "null" ]; then OS_ID=2284; fi
+
+          for ROLE in api web; do
+            UPPER="$(echo "$ROLE" | tr a-z A-Z)"
+            LABEL="${LABEL_PREFIX}${ROLE}-${GITHUB_RUN_ATTEMPT}"
+            echo "→ [$ROLE] Creando instancia ($VULTR_PLAN en $VULTR_REGION)..."
+            CREATE="$(curl -sS -X POST "$API/instances" -H "$AUTH" -H 'Content-Type: application/json' \
+              -d "$(jq -nc --arg r "$VULTR_REGION" --arg p "$VULTR_PLAN" --argjson os "$OS_ID" \
+                      --arg l "$LABEL" --arg k "$SSH_KEY_ID" \
+                      '{region:$r, plan:$p, os_id:$os, label:$l, hostname:$l, sshkey_id:[$k]}')")"
+            INSTANCE_ID="$(echo "$CREATE" | jq -r '.instance.id')"
+            if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "null" ]; then
+              echo "No se pudo crear la instancia $ROLE: $CREATE"; exit 1
+            fi
+            echo "VULTR_${UPPER}_INSTANCE_ID=$INSTANCE_ID" >> "$GITHUB_ENV"
+
+            IP=""
+            for i in $(seq 1 60); do
+              INFO="$(curl -sS "$API/instances/$INSTANCE_ID" -H "$AUTH")"
+              STATUS="$(echo "$INFO" | jq -r '.instance.status')"
+              POWER="$(echo "$INFO" | jq -r '.instance.power_status')"
+              IP="$(echo "$INFO" | jq -r '.instance.main_ip')"
+              if [ "$STATUS" = "active" ] && [ "$POWER" = "running" ] && [ "$IP" != "0.0.0.0" ] && [ -n "$IP" ] && [ "$IP" != "null" ]; then
+                break
+              fi
+              sleep 10
+            done
+            if [ -z "$IP" ] || [ "$IP" = "0.0.0.0" ] || [ "$IP" = "null" ]; then
+              echo "La instancia $ROLE no obtuvo IP a tiempo"; exit 1
+            fi
+            echo "FRACTAL_E2E_${UPPER}_IP=$IP" >> "$GITHUB_ENV"
+            echo "   [$ROLE] IP=$IP"
+
+            SSH_OK=0
+            for i in $(seq 1 60); do
+              if ssh -i "$FRACTAL_E2E_SSH_KEY_PATH" -o StrictHostKeyChecking=no \
+                   -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 "root@$IP" 'echo ok' 2>/dev/null | grep -q ok; then
+                SSH_OK=1; break
+              fi
+              sleep 5
+            done
+            if [ "$SSH_OK" != "1" ]; then echo "SSH ($ROLE) no respondió a tiempo"; exit 1; fi
+
+            # FRA-75: host key pineada con ssh-keyscan (un archivo por VPS).
+            KH="$RUNNER_TEMP/known-hosts-$ROLE"
+            for i in $(seq 1 10); do
+              ssh-keyscan -t ed25519,rsa,ecdsa "$IP" > "$KH" 2>/dev/null || true
+              grep -qE '[[:space:]](ssh-|ecdsa-)' "$KH" && break
+              sleep 2
+            done
+            grep -qE '[[:space:]](ssh-|ecdsa-)' "$KH" || { echo "Sin host key de $ROLE"; exit 1; }
+            echo "KNOWN_HOSTS_${UPPER}=$KH" >> "$GITHUB_ENV"
+
+            DOMAIN_VAR="${UPPER}_DOMAIN"
+            DOMAIN="${!DOMAIN_VAR}"
+            echo "→ [$ROLE] DNS A $DOMAIN → $IP (proxied:false, TTL 60)"
+            RESP="$(curl -sS -X POST \
+              "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' \
+              -d "$(jq -nc --arg d "$DOMAIN" --arg ip "$IP" '{type:"A", name:$d, content:$ip, ttl:60, proxied:false}')")"
+            REC_ID="$(echo "$RESP" | jq -r '.result.id')"
+            if [ -z "$REC_ID" ] || [ "$REC_ID" = "null" ]; then
+              echo "No se pudo crear el DNS de $ROLE: $RESP"; exit 1
+            fi
+          done
+
+      - name: Setup PHP y Composer en el runner (para fractal new)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, json, sqlite3, pdo_sqlite
+          tools: composer:v2
+
+      - name: fractal new — generar <name>-api y <name>-web
+        run: |
+          set -euo pipefail
+          git config --global user.email "e2e@codigofractal.dev"
+          git config --global user.name "Fractal E2E Bot"
+          FRACTAL="$GITHUB_WORKSPACE/packages/core/dist/cli.js"
+          echo "FRACTAL_CLI=$FRACTAL" >> "$GITHUB_ENV"
+          WORK="$RUNNER_TEMP/fractal-e2e-work"
+          mkdir -p "$WORK"
+          cd "$WORK"
+          node "$FRACTAL" new fractale2e --topology multirepo --force
+          test -f fractale2e-api/Dockerfile
+          test -f fractale2e-api/public/index.php
+          test -f fractale2e-web/Dockerfile
+          echo "FRACTAL_E2E_WORK=$WORK" >> "$GITHUB_ENV"
+
+      - name: fractal deploy — repo api
+        working-directory: ${{ env.FRACTAL_E2E_WORK }}/fractale2e-api
+        env:
+          FRACTAL_DEPLOY_SERVER_IP: ${{ env.FRACTAL_E2E_API_IP }}
+          FRACTAL_DEPLOY_SSH_USER: root
+          FRACTAL_DEPLOY_AUTH_METHOD: key
+          FRACTAL_DEPLOY_SSH_KEY_PATH: ${{ env.FRACTAL_E2E_SSH_KEY_PATH }}
+          FRACTAL_DEPLOY_SSH_KNOWN_HOSTS: ${{ env.KNOWN_HOSTS_API }}
+          FRACTAL_DEPLOY_DOMAIN: ${{ env.API_DOMAIN }}
+          FRACTAL_DEPLOY_EMAIL: e2e@codigofractal.dev
+          FRACTAL_DEPLOY_DNS_PROVIDER: manual
+          FRACTAL_DEPLOY_GIT_REPOSITORY: https://github.com/dmaure/fractal-api.git
+          FRACTAL_DEPLOY_PRODUCTION_BRANCH: master
+          FRACTAL_DEPLOY_SSL_ENV: staging
+          # Coordinación multirepo (ADR-0012): dominio del hermano (web).
+          FRACTAL_DEPLOY_SIBLING_GIT_URL: https://github.com/dmaure/fractal-web.git
+          FRACTAL_DEPLOY_SIBLING_DOMAIN: ${{ env.WEB_DOMAIN }}
+        run: node "$FRACTAL_CLI" deploy --non-interactive
+
+      - name: fractal deploy — repo web
+        working-directory: ${{ env.FRACTAL_E2E_WORK }}/fractale2e-web
+        env:
+          FRACTAL_DEPLOY_SERVER_IP: ${{ env.FRACTAL_E2E_WEB_IP }}
+          FRACTAL_DEPLOY_SSH_USER: root
+          FRACTAL_DEPLOY_AUTH_METHOD: key
+          FRACTAL_DEPLOY_SSH_KEY_PATH: ${{ env.FRACTAL_E2E_SSH_KEY_PATH }}
+          FRACTAL_DEPLOY_SSH_KNOWN_HOSTS: ${{ env.KNOWN_HOSTS_WEB }}
+          FRACTAL_DEPLOY_DOMAIN: ${{ env.WEB_DOMAIN }}
+          FRACTAL_DEPLOY_EMAIL: e2e@codigofractal.dev
+          FRACTAL_DEPLOY_DNS_PROVIDER: manual
+          FRACTAL_DEPLOY_GIT_REPOSITORY: https://github.com/dmaure/fractal-web.git
+          FRACTAL_DEPLOY_PRODUCTION_BRANCH: master
+          FRACTAL_DEPLOY_SSL_ENV: staging
+          FRACTAL_DEPLOY_SIBLING_GIT_URL: https://github.com/dmaure/fractal-api.git
+          FRACTAL_DEPLOY_SIBLING_DOMAIN: ${{ env.API_DOMAIN }}
+        run: node "$FRACTAL_CLI" deploy --non-interactive
+
+      - name: fractal doctor — api y web sanos
+        run: |
+          set -euo pipefail
+          node "$FRACTAL_CLI" doctor "https://$API_DOMAIN/api/health" --insecure --check-redirect \
+            --expect-content '"status":"healthy"' --timeout 15000 --retries 30 --retry-delay 10000
+          node "$FRACTAL_CLI" doctor "https://$WEB_DOMAIN/health.txt" --insecure --check-redirect \
+            --expect-content 'ok' --timeout 15000 --retries 30 --retry-delay 10000
+
+      - name: Verificar conexión web → api (URL de la API horneada y CORS)
+        run: |
+          set -euo pipefail
+          WEB="https://$WEB_DOMAIN"
+          API="https://$API_DOMAIN"
+
+          HTML="$(curl -ksS -m 15 "$WEB/")"
+          printf '%s' "$HTML" | grep -q '<div id="root">' || { echo "✗ web '/' no devuelve la SPA"; exit 1; }
+          JS_PATH="$(printf '%s' "$HTML" | grep -oE '<script[^>]*type="module"[^>]*src="[^"]+"' | head -1 | grep -oE 'src="[^"]+"' | sed -E 's/^src="(.*)"$/\1/' || true)"
+          [ -n "$JS_PATH" ] || { echo "✗ la SPA no referencia ningún bundle"; exit 1; }
+          # VITE_API_URL horneada: el bundle debe contener la URL de la API.
+          curl -ksS -m 15 "$WEB$JS_PATH" | grep -qF "$API" \
+            || { echo "✗ el bundle web no contiene la URL de la API ($API)"; exit 1; }
+
+          # CORS: el navegador del SPA (origen web) llama a api /api/health.
+          HDRS="$(curl -ksS -m 15 -D - -o /dev/null -H "Origin: $WEB" "$API/api/health")"
+          printf '%s' "$HDRS" | grep -iq "^access-control-allow-origin: $WEB" \
+            || { echo "✗ la API no permite el origen $WEB (CORS)"; printf '%s\n' "$HDRS"; exit 1; }
+          PRE="$(curl -ksS -m 15 -D - -o /dev/null -X OPTIONS -H "Origin: $WEB" \
+            -H 'Access-Control-Request-Method: GET' "$API/api/health")"
+          printf '%s' "$PRE" | grep -iq "^access-control-allow-origin: $WEB" \
+            || { echo "✗ preflight sin CORS para $WEB"; printf '%s\n' "$PRE"; exit 1; }
+          echo "✓ web sirve la SPA con la URL de la API y la API permite su origen"
+
+      - name: Teardown — destruir VPS, SSH key y DNS (siempre)
+        if: always()
+        env:
+          VULTR_API_KEY: ${{ secrets.VULTR_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          # Idempotente: nunca falla el job. Busca por el PREFIJO del run
+          # (fra112-e2e-<run_id>-), sin depender de ids persistidos (FRA-106).
+          set +e
+          API="https://api.vultr.com/v2"
+          AUTH="Authorization: Bearer $VULTR_API_KEY"
+
+          for i in $(seq 1 6); do
+            IDS="$(curl -sS "$API/instances?per_page=500" -H "$AUTH" \
+              | jq -r --arg P "$LABEL_PREFIX" '.instances[]? | select(.label | startswith($P)) | .id')"
+            for id in ${VULTR_API_INSTANCE_ID:-} ${VULTR_WEB_INSTANCE_ID:-} $IDS; do
+              echo "   borrando instancia $id"
+              curl -sS -o /dev/null -X DELETE "$API/instances/$id" -H "$AUTH"
+            done
+            [ -z "$IDS" ] && break
+            sleep 10
+          done
+
+          for id in $(curl -sS "$API/ssh-keys?per_page=500" -H "$AUTH" \
+              | jq -r --arg P "$LABEL_PREFIX" '.ssh_keys[]? | select(.name | startswith($P)) | .id'); do
+            echo "   borrando ssh-key $id"
+            curl -sS -o /dev/null -X DELETE "$API/ssh-keys/$id" -H "$AUTH"
+          done
+
+          if [ -n "$CLOUDFLARE_ZONE_ID" ] && [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            for DOMAIN in "$API_DOMAIN" "$WEB_DOMAIN"; do
+              for NAME in "$DOMAIN" "www.$DOMAIN"; do
+                for id in $(curl -sS -G "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records" \
+                    --data-urlencode "name=$NAME" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                    | jq -r '.result[]?.id'); do
+                  echo "   borrando DNS $NAME ($id)"
+                  curl -sS -o /dev/null -X DELETE \
+                    "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records/$id" \
+                    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+                done
+              done
+            done
+          fi
+          exit 0

@@ -440,6 +440,7 @@ async function generateFrontends(
       name: params.projectName,
       destinationPath: join(root, entry.path),
       mode: params.topology === 'monolith' ? 'embedded' : 'standalone',
+      ...(params.topology === 'multirepo' && { ownRepo: true }),
     };
     const result = await invokeAdapter(adapter.command, { action: 'create-frontend', ...payload });
     if (!result.success) {

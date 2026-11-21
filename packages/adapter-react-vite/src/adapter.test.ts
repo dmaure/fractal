@@ -26,6 +26,15 @@ describe('get-contract', () => {
       buildCommand: 'npm run build',
       port: 80,
       healthcheck: { path: '/health.txt' },
+      build: { context: '.', dockerfile: 'Dockerfile' },
+    });
+  });
+
+  it('hornea la URL de la API como build arg cuando conoce el dominio hermano (FRA-112)', () => {
+    expect(getContract({ siblingDomain: 'api.x.dev' }).deployRuntime?.build).toEqual({
+      context: '.',
+      dockerfile: 'Dockerfile',
+      args: { VITE_API_URL: 'https://api.x.dev' },
     });
   });
 });
@@ -60,6 +69,31 @@ describe('create-frontend standalone', () => {
     ]);
     expect(await readFile(join(dest, 'public', 'health.txt'), 'utf-8')).toBe('ok');
     expect(JSON.parse(await readFile(join(dest, 'package.json'), 'utf-8')).name).toBe('shop-web');
+  });
+});
+
+describe('create-frontend ownRepo (multirepo, FRA-112)', () => {
+  it('agrega Dockerfile con VITE_API_URL, .dockerignore y nginx con SPA fallback', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'rv-'));
+    dirs.push(root);
+    const dest = join(root, 'shop-web');
+    const res = await createFrontend({ name: 'shop', destinationPath: dest, mode: 'standalone', ownRepo: true });
+    expect(res.success).toBe(true);
+    const dockerfile = await readFile(join(dest, 'Dockerfile'), 'utf-8');
+    expect(dockerfile).toContain('ARG VITE_API_URL');
+    expect(dockerfile).toContain('COPY --from=build /app/dist /usr/share/nginx/html');
+    const conf = await readFile(join(dest, 'docker', 'nginx', 'nginx.conf'), 'utf-8');
+    expect(conf).toContain('try_files $uri /index.html;');
+    expect(await readFile(join(dest, 'docker', 'nginx', 'ssl', '.gitkeep'), 'utf-8')).toBe('');
+    expect(await readFile(join(dest, 'public', 'health.txt'), 'utf-8')).toBe('ok');
+  });
+
+  it('sin ownRepo (monorepo) no agrega Dockerfile', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'rv-'));
+    dirs.push(root);
+    const dest = join(root, 'web');
+    await createFrontend({ name: 'shop', destinationPath: dest, mode: 'standalone' });
+    expect((await readdir(dest))).not.toContain('Dockerfile');
   });
 });
 

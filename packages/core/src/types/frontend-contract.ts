@@ -56,6 +56,11 @@ export interface CreateFrontendPayload {
   mode: FrontendMode;
   /** URL de la API (solo en modo standalone). */
   apiUrl?: string;
+  /**
+   * El frontend vive en su propio repo y se despliega solo (multirepo, FRA-112):
+   * el adapter agrega Dockerfile y nginx. En monorepo lo compila el backend.
+   */
+  ownRepo?: boolean;
 }
 
 /**

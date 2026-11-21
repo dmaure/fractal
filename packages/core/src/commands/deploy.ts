@@ -733,6 +733,11 @@ export async function deployCommand(
     console.log(chalk.dim(`   Topología: ${topology}`));
   }
 
+  const siblingDomain =
+    params.siblingInfo?.domain ??
+    manifestResult.manifest?.sibling.domain ??
+    undefined;
+
   const contractResult = await invokeAdapter(
     adapter.command,
     {
@@ -741,6 +746,9 @@ export async function deployCommand(
       domain: params.domain,
       projectName,
       ...(topology && { topology }),
+      // FRA-112: dominio del repo hermano (multirepo). El contrato del api
+      // lo usa para CORS; el del web, para la URL de la API en el build.
+      ...(siblingDomain && { siblingDomain }),
     }
   );
 
@@ -811,7 +819,8 @@ export async function deployCommand(
     projectDir,
     '/home/deploy',
     projectName,
-    loadUploadTimeoutMsFromEnv()
+    loadUploadTimeoutMsFromEnv(),
+    deployRuntime.services.includes('app')
   );
 
   if (!runtimeStart.success) {
@@ -1189,6 +1198,8 @@ interface RuntimeDeployClient {
  * @param projectDir Directorio local del proyecto a subir
  * @param remoteDir Directorio del VPS donde vive el docker-compose.yml
  * @param projectName Nombre del proyecto; determina el nombre del volumen app_code
+ * @param hasApp El runtime declara el servicio `app` (backend); el frontend
+ *   estático (FRA-112) solo tiene `nginx` y no se hace `up -d app`.
  * @param uploadTimeoutMs Presupuesto de tiempo (ms) para toda la subida del
  *   proyecto. Se pasa explícito a `uploadDirectory` para no reusar el
  *   readyTimeout de conexión SSH (120s); ver `loadUploadTimeoutMsFromEnv`.
@@ -1198,7 +1209,8 @@ export async function uploadAndStartContainers(
   projectDir: string,
   remoteDir: string,
   projectName: string,
-  uploadTimeoutMs: number
+  uploadTimeoutMs: number,
+  hasApp = true
 ): Promise<{ success: boolean; stage?: 'upload' | 'compose'; error?: string }> {
   const uploadResult = await client.uploadDirectory(projectDir, remoteDir, {
     timeoutMs: uploadTimeoutMs,
@@ -1232,7 +1244,7 @@ export async function uploadAndStartContainers(
   // populate cuando varios servicios montan el volumen vacío. db_data NO se
   // elimina: la BD persiste.
   const composeUpResult = await client.executeCommand(
-    `cd ${remoteDir} && docker compose build && (docker compose down --remove-orphans 2>/dev/null || true) && (docker volume rm -f ${projectName}_app_code 2>/dev/null || true) && docker compose up -d app && docker compose up -d`,
+    `cd ${remoteDir} && docker compose build && (docker compose down --remove-orphans 2>/dev/null || true) && (docker volume rm -f ${projectName}_app_code 2>/dev/null || true) && ${hasApp ? 'docker compose up -d app && ' : ''}docker compose up -d`,
     { timeoutMs: 900_000 } // 15 minutos: ahora incluye build + reinicio completo
   );
   if (!composeUpResult.success) {

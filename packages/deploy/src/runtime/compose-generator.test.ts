@@ -501,6 +501,23 @@ describe('ComposeGenerator', () => {
       expect(volumes.db_data).not.toHaveProperty('name');
     });
 
+    it('frontend-static con build: compila con Dockerfile + args y no monta ./dist (FRA-112)', () => {
+      const result = generator.generate({
+        runtime: {
+          ...createFrontendStaticRuntime(),
+          build: { context: '.', dockerfile: 'Dockerfile', args: { VITE_API_URL: 'https://api.x.dev' } },
+        },
+        projectName: 'shop-web',
+        outputPath: '/home/deploy/docker-compose.yml',
+      });
+      const parsed = parseYaml(result.content as string) as {
+        services: { nginx: { build: { args: Record<string, string> }; volumes: string[] } };
+      };
+      expect(parsed.services.nginx.build.args).toEqual({ VITE_API_URL: 'https://api.x.dev' });
+      expect(parsed.services.nginx.volumes.some((v) => v.includes('./dist'))).toBe(false);
+      expect(parsed.services.nginx.volumes).toContain('./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro');
+    });
+
     it('should generate valid parseable YAML for frontend-static', () => {
       const config: ComposeConfig = {
         runtime: createFrontendStaticRuntime(),

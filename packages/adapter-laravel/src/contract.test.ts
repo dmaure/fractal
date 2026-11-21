@@ -11,6 +11,18 @@ import {
   LARAVEL_BACKEND_DEPLOY_RUNTIME,
 } from './contract.js';
 
+describe('CORS multirepo (FRA-112)', () => {
+  it('inyecta CORS_ALLOWED_ORIGIN y SANCTUM_STATEFUL_DOMAINS con el dominio del web', () => {
+    const env = getAdapterContract({ siblingDomain: 'web.x.dev' }).deployRuntime.secretEnv!;
+    expect(env.CORS_ALLOWED_ORIGIN).toBe('https://web.x.dev');
+    expect(env.SANCTUM_STATEFUL_DOMAINS).toBe('web.x.dev');
+  });
+
+  it('sin dominio hermano no define CORS_ALLOWED_ORIGIN', () => {
+    expect(getAdapterContract().deployRuntime.secretEnv).not.toHaveProperty('CORS_ALLOWED_ORIGIN');
+  });
+});
+
 describe('getAdapterContract', () => {
   it('retorna un contrato válido', () => {
     const contract = getAdapterContract();

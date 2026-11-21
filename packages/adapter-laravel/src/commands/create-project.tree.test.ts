@@ -185,3 +185,29 @@ describe('monorepo con frontend estático (FRA-114)', () => {
     expect(contents['demo/.gitignore']).toContain('/web/node_modules');
   });
 });
+
+describe('multirepo api desplegable (FRA-112)', () => {
+  it('genera Dockerfile, nginx, public/index.php y CORS en <name>-api, sin frontend', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'fractal-tree-'));
+    tempDirs.push(root);
+
+    const response = await createProject({
+      name: 'demo',
+      topology: 'multirepo',
+      destinationPath: root,
+      target: 'laravel',
+      layout: computeLayout('multirepo', 'demo', [{ target: 'x', platform: 'web' }]),
+    });
+    expect(response.success).toBe(true);
+
+    const { contents } = await readTree(root);
+    expect(contents['demo-api/Dockerfile']).toContain('COPY . /var/www/html');
+    expect(contents['demo-api/Dockerfile']).not.toContain('web-build');
+    expect(contents['demo-api/docker/nginx/nginx.conf']).toContain('location /api/');
+    expect(contents['demo-api/docker/nginx/nginx.conf']).toContain('/index.php?$query_string');
+    expect(contents['demo-api/public/index.php']).toContain('bootstrap/app.php');
+    expect(contents['demo-api/.dockerignore']).toBeDefined();
+    expect(contents['demo-api/config/cors.php']).toContain("env('CORS_ALLOWED_ORIGIN'");
+    expect(contents['demo-api/config/cors.php']).toContain("'paths' => ['api/*']");
+  });
+});

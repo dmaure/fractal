@@ -138,9 +138,11 @@ async function main(): Promise<void> {
         const topology = isValidTopology(String(payload.topology))
           ? (payload.topology as ProjectTopology)
           : undefined;
+        const siblingDomain =
+          typeof payload.siblingDomain === 'string' ? payload.siblingDomain : undefined;
         response = {
           success: true,
-          data: getAdapterContract({ domain, projectName, topology }),
+          data: getAdapterContract({ domain, projectName, topology, siblingDomain }),
         };
         break;
       }
