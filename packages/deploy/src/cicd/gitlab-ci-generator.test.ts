@@ -392,4 +392,23 @@ describe('GitLabCiGenerator', () => {
       });
     });
   });
+
+  describe('build de monorepo (runtime.build)', () => {
+    it('usa runtime.build.context y dockerfile en vez del Dockerfile de la raíz', async () => {
+      const result = await generator.generate({
+        provider: 'gitlab-ci',
+        targetType: 'backend-full',
+        runtime: {
+          ...BACKEND_RUNTIME,
+          build: { context: '.', dockerfile: 'api/Dockerfile' },
+        },
+        projectName: 'mono',
+        productionBranch: 'main',
+        domain: 'mono.example.com',
+        outputPath: '/tmp/test-gitlab-ci-monorepo-' + Math.random() + '.yml',
+      });
+      const content = result.content ?? '';
+      expect(content).toContain('docker build -f api/Dockerfile -t');
+    });
+  });
 });

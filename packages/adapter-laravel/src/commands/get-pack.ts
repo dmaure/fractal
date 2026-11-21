@@ -122,8 +122,9 @@ function buildLayoutSection(topology: ProjectTopology, projectName: string): str
 - **Backend Laravel:** \`api/\` (todas las rutas de backend de abajo son
   relativas a \`api/\`).
 - **Frontend:** \`web/\`, con el código fuente en \`web/src\`.
-- **Deploy:** \`api/Dockerfile\` compila \`web/\` y lo sirve en \`/\`; la API
-  queda en \`/api\` bajo el mismo dominio (\`docker/nginx/nginx.conf\`).
+- **Deploy:** \`api/Dockerfile\` (contexto en la raíz) construye la imagen de
+  la API, que queda en \`/api\` (\`docker/nginx/nginx.conf\`). Si \`web/\`
+  tiene frontend, el mismo Dockerfile lo compila y lo sirve en \`/\`.
 `;
 }
 

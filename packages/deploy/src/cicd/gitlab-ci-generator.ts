@@ -12,6 +12,7 @@ import type {
   SecretConfig,
   DeployCommands,
 } from './types.js';
+import { ciBuildPaths } from './build-paths.js';
 
 export class GitLabCiGenerator {
   /**
@@ -212,6 +213,8 @@ export class GitLabCiGenerator {
    */
   private generatePipeline(config: DeployConfig, commands: DeployCommands): string {
     const timestamp = new Date().toISOString();
+    const build = ciBuildPaths(config.runtime);
+    const buildFile = build.file === 'Dockerfile' ? '' : `-f ${build.file} `;
 
     let pipeline = `# Pipeline de deploy generado por Fractal
 # Generado: ${timestamp}
@@ -238,7 +241,7 @@ build:
   before_script:
     - docker login -u $DOCKER_REGISTRY_USER -p $DOCKER_REGISTRY_TOKEN $CI_REGISTRY
   script:
-    - docker build -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA -t $IMAGE_NAME:latest .
+    - docker build ${buildFile}-t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA -t $IMAGE_NAME:latest ${build.context}
     - docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
     - docker push $IMAGE_NAME:latest
 
