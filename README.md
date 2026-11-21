@@ -36,6 +36,22 @@ comando generador de Fractal (ver SPEC-0007 y el ROADMAP).
 
 ---
 
+## Instalación (usuarios)
+
+Fractal no está en npm: se instala desde un release del repo privado (requiere
+acceso al repo y `gh auth login`, o `GH_TOKEN`):
+
+```bash
+d=$(mktemp -d) && gh release download -R dmaure/fractal -p 'fractal-cli-*.tgz' -D "$d" \
+  && npm install -g "$d"/fractal-cli-*.tgz
+fractal --version
+fractal self-update    # actualiza a la última versión
+```
+
+Detalle, cómo publicar un release y cómo migrar a npm: [`docs/guides/distribucion.md`](docs/guides/distribucion.md).
+
+---
+
 ## Desarrollo
 
 ### Requisitos

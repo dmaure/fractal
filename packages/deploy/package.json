@@ -1,6 +1,6 @@
 {
   "name": "@fractal/deploy",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Provisioning, Docker, Nginx, SSL, CI/CD. Framework-agnostic.",
   "type": "module",
   "main": "./dist/index.js",

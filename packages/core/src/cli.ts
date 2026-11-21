@@ -8,6 +8,8 @@ import { deployCommand } from './commands/deploy.js';
 import { statusCommand } from './commands/status.js';
 import { fdlCheckCommand } from './commands/fdl-check.js';
 import { doctorCommand } from './commands/doctor.js';
+import { readVersion } from './version.js';
+import { selfUpdateCommand } from './commands/self-update.js';
 import type { NewCommandOptions } from './types/new-command.js';
 import type { DeployCommandOptions } from './types/deploy-command.js';
 import type { StatusCommandOptions } from './types/status-command.js';
@@ -17,7 +19,7 @@ const program = new Command();
 program
   .name('fractal')
   .description('Generador de aplicaciones production-ready, multi-framework')
-  .version('0.0.0');
+  .version(readVersion());
 
 program
   .command('new [project-name]')
@@ -59,6 +61,18 @@ program
   .action(async (projectName: string | undefined, options: NewCommandOptions) => {
     try {
       await newCommand(projectName, options);
+    } catch (error) {
+      console.error('Error:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('self-update')
+  .description('Reinstala la última versión de Fractal desde el repo privado de GitHub')
+  .action(async () => {
+    try {
+      process.exit(await selfUpdateCommand());
     } catch (error) {
       console.error('Error:', error);
       process.exit(1);

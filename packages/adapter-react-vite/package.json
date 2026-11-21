@@ -1,6 +1,6 @@
 {
   "name": "@fractal/adapter-react-vite",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Adapter frontend React + Vite (platform: web)",
   "type": "module",
   "main": "./dist/index.js",
