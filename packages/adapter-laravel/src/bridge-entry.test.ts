@@ -80,6 +80,19 @@ describe('bridge-entry', () => {
       });
     });
 
+    it('con topology monorepo el build apunta a api/Dockerfile', async () => {
+      const result = await invokeBridgeEntry({ action: 'get-contract', topology: 'monorepo' });
+
+      expect(result.exitCode).toBe(0);
+      const response = result.response as {
+        data: { deployRuntime: { build?: { context: string; dockerfile: string } } };
+      };
+      expect(response.data.deployRuntime.build).toMatchObject({
+        context: '.',
+        dockerfile: 'api/Dockerfile',
+      });
+    });
+
     it('sin target retorna el runtime de backend (con postDeployCommands)', async () => {
       const result = await invokeBridgeEntry({ action: 'get-contract' });
 

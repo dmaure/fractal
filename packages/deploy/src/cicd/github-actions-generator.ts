@@ -12,6 +12,7 @@ import type {
   SecretConfig,
   DeployCommands,
 } from './types.js';
+import { ciBuildPaths } from './build-paths.js';
 
 export class GitHubActionsGenerator {
   /**
@@ -225,6 +226,9 @@ export class GitHubActionsGenerator {
       ? 'docker compose up -d app\n                docker compose up -d'
       : 'docker compose up -d';
 
+    const build = ciBuildPaths(config.runtime);
+    const buildFile = build.file === 'Dockerfile' ? '' : `\n          file: ${build.file}`;
+
     let workflow = `# Workflow de deploy generado por Fractal
 # Generado: ${timestamp}
 # Proyecto: ${config.projectName}
@@ -265,7 +269,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${build.context}${buildFile}
           push: true
           tags: |
             \${{ env.IMAGE_NAME }}:${imageTagExpr}
