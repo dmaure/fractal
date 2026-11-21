@@ -417,6 +417,13 @@ npm install
 npm run dev         # http://localhost:3000
 ```
 
+Para producción, un solo `fractal deploy` desde la raíz publica los dos bajo el
+mismo dominio (FRA-114): `api/Dockerfile` compila `web/` en una etapa Node y la
+imagen php-fpm lleva la SPA en `public/spa`; el nginx de `docker/nginx/`
+sirve la SPA en `/` y pasa `/api` a Laravel (`api/public/index.php`). El
+contexto de build es la raíz del repo; `fractal deploy` lee la topología de
+`fractal/manifest.json` para usar `api/Dockerfile`.
+
 ### Multirepo (`multirepo`)
 
 Dos repositorios git **independientes**, cada uno con su propio pipeline CI/CD.

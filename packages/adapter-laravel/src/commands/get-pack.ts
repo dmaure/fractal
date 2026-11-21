@@ -98,7 +98,27 @@ function buildDomainFdl(projectName: string): string {
  * Son documentos del proyecto (Artículo V): el proyecto es autónomo y el usuario
  * es dueño del código; no hay lenguaje del tipo "no toques esto".
  */
-function buildAgentsMd(projectName: string): string {
+/**
+ * Sección de estructura del repo en monorepo (FRA-114): backend en `api/`,
+ * frontend en `web/`. En las demás topologías el backend está en la raíz.
+ */
+function buildLayoutSection(topology: ProjectTopology): string {
+  if (topology !== 'monorepo') return '';
+  return `
+## Estructura del repo (monorepo)
+
+- **Backend Laravel:** \`api/\` (todas las rutas de backend de abajo son
+  relativas a \`api/\`).
+- **Frontend:** \`web/\`, con el código fuente en \`web/src\`.
+- **Deploy:** \`api/Dockerfile\` compila \`web/\` y lo sirve en \`/\`; la API
+  queda en \`/api\` bajo el mismo dominio (\`docker/nginx/nginx.conf\`).
+`;
+}
+
+function buildAgentsMd(projectName: string, topology: ProjectTopology = 'monolith'): string {
+  // Prefijo de las rutas del backend: \`api/\` en monorepo, raíz en el resto.
+  const b = topology === 'monorepo' ? 'api/' : '';
+  const frontendSrc = topology === 'monorepo' ? ' (código en `web/src`)' : '';
   return `# Convenciones de agente — ${projectName}
 
 Este proyecto usa un contrato de dominio en **FDL** (Fractal Definition Language)
@@ -111,14 +131,14 @@ siguiendo estas convenciones.
 
 - **Dominio:** \`fractal/domain.fdl.json\` (validá con \`fractal fdl check fractal/domain.fdl.json\`).
 - **Prompt reutilizable:** \`fractal/prompts/add-entity.md\`.
-
+${buildLayoutSection(topology)}
 ## Cómo mapear el FDL a cada capa
 
 Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
 \`maxLength\`, \`precision\`/\`scale\`, \`default\`, \`values\` de enum) y sus
 \`relations\` (\`one-to-many\`, \`many-to-one\`, \`many-to-many\`):
 
-### Migración (database/migrations)
+### Migración (${b}database/migrations)
 
 - Un archivo de migración por entidad, con \`Schema::create\` de la tabla en
   plural snake_case (p. ej. \`Book\` → \`books\`).
@@ -133,7 +153,7 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
 - Relaciones \`many-to-one\` → columna foránea \`<relation>_id\` con
   \`->constrained()\`; \`many-to-many\` → tabla pivote.
 
-### Modelo (app/Models)
+### Modelo (${b}app/Models)
 
 - Un modelo Eloquent por entidad, con \`$fillable\` a partir de los \`fields\`,
   \`$casts\` para \`boolean\`, \`datetime\`, \`decimal\` y \`json\`.
@@ -142,16 +162,16 @@ Para cada entidad del FDL, con sus \`fields\` (tipo, \`nullable\`, \`unique\`,
 
 ### API / controlador / rutas
 
-- Un controlador API por entidad en \`app/Http/Controllers/Api\` con las acciones
+- Un controlador API por entidad en \`${b}app/Http/Controllers/Api\` con las acciones
   REST (index, show, store, update, destroy).
-- Rutas bajo \`/api\` en \`routes/api.php\` (p. ej. \`Route::apiResource('books', ...)\`).
+- Rutas bajo \`/api\` en \`${b}routes/api.php\` (p. ej. \`Route::apiResource('books', ...)\`).
 - Validación en servidor para toda entrada (FormRequest), derivada de los
   modificadores del FDL (\`required\` si no es \`nullable\`, \`max\` desde
   \`maxLength\`, \`unique\`, \`in\` desde los \`values\` del enum).
 
 ### Frontend
 
-- El frontend es un módulo aparte; sus convenciones están en
+- El frontend es un módulo aparte${frontendSrc}; sus convenciones están en
   \`fractal/frontends/\` (un archivo por frontend). Consume las rutas \`/api\`.
 
 ### Tests
@@ -245,7 +265,7 @@ export function getPack(
 ): GetPackResponse {
   return {
     files: [
-      { path: CONVENTIONS_PATH, contents: buildAgentsMd(projectName) },
+      { path: CONVENTIONS_PATH, contents: buildAgentsMd(projectName, topology) },
       { path: DOMAIN_FDL_PATH, contents: buildDomainFdl(projectName) },
       { path: ADD_ENTITY_PROMPT_PATH, contents: buildAddEntityPrompt() },
       serializePackManifest(buildManifest(projectName, topology)),

@@ -99,6 +99,23 @@ describe('getAdapterContract', () => {
 
 });
 
+describe('build según la topología (FRA-114)', () => {
+  it('sin topología o en monolito el Dockerfile está en la raíz', () => {
+    expect(getAdapterContract().deployRuntime.build).toEqual({ context: '.', dockerfile: 'Dockerfile' });
+    expect(getAdapterContract({ topology: 'monolith' }).deployRuntime.build).toEqual({
+      context: '.',
+      dockerfile: 'Dockerfile',
+    });
+  });
+
+  it('en monorepo el Dockerfile está en api/ y el contexto es la raíz del repo', () => {
+    expect(getAdapterContract({ topology: 'monorepo' }).deployRuntime.build).toEqual({
+      context: '.',
+      dockerfile: 'api/Dockerfile',
+    });
+  });
+});
+
 describe('env vars de producción del backend (FRA-72)', () => {
   it('inyecta APP_ENV=production y APP_DEBUG=false', () => {
     const c = getAdapterContract();

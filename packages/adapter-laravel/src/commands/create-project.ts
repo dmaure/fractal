@@ -36,7 +36,7 @@ export async function createProject(
         break;
 
       case 'monorepo':
-        projectPath = await generateMonorepo(name, destinationPath, layout);
+        projectPath = await generateMonorepo(name, destinationPath, layout, frontends);
         break;
 
       case 'multirepo':

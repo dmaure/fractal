@@ -10,7 +10,7 @@
 
 import { mkdir, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
-import { computeLayout, type ProjectLayout } from '@fractal/core';
+import { computeLayout, type BackendFrontendRef, type ProjectLayout } from '@fractal/core';
 import { generateComposerJson } from '../stubs/composer.js';
 import { generateEnvExample } from '../stubs/env.js';
 import { generateGitignore } from '../stubs/gitignore.js';
@@ -32,6 +32,8 @@ import {
   generateStorageLogsGitignore,
 } from '../stubs/storage.js';
 import { generateConsoleRoutes, generateApiWebRoutes } from '../stubs/routes.js';
+import { generateIndexPhp } from '../stubs/public-index.js';
+import { writeDockerAssets } from './docker-assets.js';
 
 /**
  * Genera un proyecto Laravel en topología monorepo desacoplado.
@@ -39,20 +41,24 @@ import { generateConsoleRoutes, generateApiWebRoutes } from '../stubs/routes.js'
  * @param name - Nombre del proyecto
  * @param destinationPath - Path absoluto donde generar el proyecto
  * @param layout - Layout de core (computeLayout); el frontend lo genera su adapter
+ * @param frontends - Contratos de los frontends (FRA-116): el Dockerfile de
+ *   api/ compila el frontend estático y nginx lo sirve en `/` (FRA-114)
  * @returns Path del proyecto generado
  */
 export async function generateMonorepo(
   name: string,
   destinationPath: string,
-  layout: ProjectLayout = computeLayout('monorepo', name)
+  layout: ProjectLayout = computeLayout('monorepo', name),
+  frontends: BackendFrontendRef[] = []
 ): Promise<string> {
   const projectPath = join(destinationPath, name);
 
   try {
     await mkdir(projectPath, { recursive: true });
 
-    await generateRootStructure(projectPath, name, layout);
+    await generateRootStructure(projectPath, name, layout, frontends);
     await generateApiPackage(join(projectPath, layout.backend.path), name);
+    await writeDockerAssets(projectPath, frontends, layout.backend.path);
 
     return projectPath;
   } catch (error) {
@@ -66,7 +72,8 @@ export async function generateMonorepo(
 async function generateRootStructure(
   projectPath: string,
   name: string,
-  layout: ProjectLayout
+  layout: ProjectLayout,
+  frontends: BackendFrontendRef[]
 ): Promise<void> {
   // Los frontends son los packages del workspace (api/ es PHP, sin package.json).
   const workspaces = layout.frontends.map((f) => f.path);
@@ -87,7 +94,10 @@ async function generateRootStructure(
     generateTurboConfig()
   );
 
-  await writeFile(join(projectPath, '.gitignore'), generateGitignore());
+  await writeFile(
+    join(projectPath, '.gitignore'),
+    generateGitignore({ frontends, backendDir: layout.backend.path })
+  );
 
   await writeFile(
     join(projectPath, 'README.md'),
@@ -119,6 +129,10 @@ async function generateApiPackage(
   await generateConfigDirectory(apiPath);
   await generateDatabaseDirectory(apiPath);
   await generateStorageDirectory(apiPath);
+
+  // Front controller: nginx le pasa /api/* a php-fpm vía public/index.php.
+  await mkdir(join(apiPath, 'public'), { recursive: true });
+  await writeFile(join(apiPath, 'public', 'index.php'), generateIndexPhp());
 
   const appPath = join(apiPath, 'app');
   await mkdir(join(appPath, 'Http', 'Controllers', 'Api'), {

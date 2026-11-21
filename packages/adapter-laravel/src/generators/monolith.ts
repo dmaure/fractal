@@ -33,8 +33,8 @@ import {
   generateStorageLogsGitignore,
 } from '../stubs/storage.js';
 import { generateConsoleRoutes } from '../stubs/routes.js';
-import { generateDockerfile, generateDockerignore } from '../stubs/dockerfile.js';
-import { generateNginxConf } from '../stubs/nginx-conf.js';
+import { generateIndexPhp } from '../stubs/public-index.js';
+import { writeDockerAssets } from './docker-assets.js';
 
 /**
  * Genera un proyecto Laravel en topología monolito.
@@ -61,7 +61,7 @@ export async function generateMonolith(
     await generateStorageDirectory(projectPath);
     await generatePublicDirectory(projectPath);
     await generateRoutesDirectory(projectPath);
-    await generateDockerAssets(projectPath, frontends);
+    await writeDockerAssets(projectPath, frontends);
 
     return projectPath;
   } catch (error) {
@@ -232,35 +232,6 @@ async function generateRoutesDirectory(projectPath: string): Promise<void> {
   await writeFile(join(routesPath, 'console.php'), generateConsoleRoutes());
 }
 
-/**
- * Genera los artefactos de contenedor para el deploy (FRA-70, FRA-71):
- * Dockerfile y .dockerignore en la raíz, y docker/nginx/nginx.conf. TLS ya está
- * cableado (FRA-71): el directorio docker/nginx/ssl aloja el certificado
- * Let's Encrypt (fullchain.pem/privkey.pem) que el nginx del contenedor monta,
- * y docker/nginx/certbot es el webroot compartido del challenge ACME HTTP-01.
- * Ambos directorios se crean como placeholders (los usan los montajes del
- * compose) con un .gitkeep.
- */
-async function generateDockerAssets(
-  projectPath: string,
-  frontends: BackendFrontendRef[]
-): Promise<void> {
-  await writeFile(join(projectPath, 'Dockerfile'), generateDockerfile(frontends));
-  await writeFile(join(projectPath, '.dockerignore'), generateDockerignore(frontends));
-
-  const nginxPath = join(projectPath, 'docker', 'nginx');
-  await mkdir(nginxPath, { recursive: true });
-  await writeFile(join(nginxPath, 'nginx.conf'), generateNginxConf(frontends));
-
-  const sslPath = join(nginxPath, 'ssl');
-  await mkdir(sslPath, { recursive: true });
-  await writeFile(join(sslPath, '.gitkeep'), '');
-
-  const certbotPath = join(nginxPath, 'certbot');
-  await mkdir(certbotPath, { recursive: true });
-  await writeFile(join(certbotPath, '.gitkeep'), '');
-}
-
 function generateHealthController(): string {
   return `<?php
 
@@ -278,27 +249,6 @@ class HealthController
         ]);
     }
 }
-`;
-}
-
-function generateIndexPhp(): string {
-  return `<?php
-
-define('LARAVEL_START', microtime(true));
-
-require __DIR__.'/../vendor/autoload.php';
-
-$app = require_once __DIR__.'/../bootstrap/app.php';
-
-$kernel = $app->make(Illuminate\\Contracts\\Http\\Kernel::class);
-
-$response = $kernel->handle(
-    $request = Illuminate\\Http\\Request::capture()
-);
-
-$response->send();
-
-$kernel->terminate($request, $response);
 `;
 }
 

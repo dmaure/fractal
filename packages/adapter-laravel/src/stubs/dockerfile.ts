@@ -43,8 +43,31 @@ RUN ${build.buildCommand}
 `;
 }
 
-export function generateDockerfile(frontends: BackendFrontendRef[] = []): string {
+/**
+ * Opciones de layout del Dockerfile. `backendDir` es el directorio del backend
+ * relativo al contexto de build: `.` en monolito, `api` en monorepo (FRA-114),
+ * donde el contexto es la raíz del repo para poder compilar también `web/`.
+ */
+export interface DockerLayoutOptions {
+  backendDir?: string;
+}
+
+/** Prefijo (`''` o `api/`) para las rutas del backend dentro del contexto. */
+export function backendPrefix(backendDir: string = '.'): string {
+  return backendDir === '.' || backendDir === '' ? '' : `${backendDir.replace(/\/+$/, '')}/`;
+}
+
+export function generateDockerfile(
+  frontends: BackendFrontendRef[] = [],
+  options: DockerLayoutOptions = {}
+): string {
   const frontend = pickStaticFrontend(frontends);
+  const prefix = backendPrefix(options.backendDir);
+  const copyApp = prefix
+    ? `# Copiar el código del backend (${prefix}) a la raíz de la app.
+COPY ${prefix} /var/www/html`
+    : `# Copiar el código de la aplicación.
+COPY . /var/www/html`;
   return `# Dockerfile generado por Fractal
 ${generateFrontendStage(frontend)}${frontend ? '# Etapa 2: ' : '# '}imagen php-fpm para producción. Se construye en el VPS durante el deploy.
 FROM ${PHP_DOCKER_IMAGE}
@@ -65,8 +88,7 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copiar el código de la aplicación.
-COPY . /var/www/html
+${copyApp}
 
 ${frontend ? `# SPA compilado (etapa Node); nginx lo sirve desde public/spa.
 COPY --from=web-build /app/${frontend.dir}/${frontend.build.outputDir} /var/www/html/public/spa
@@ -95,17 +117,22 @@ CMD ["php-fpm"]
  * Genera el .dockerignore del proyecto para acelerar el build y evitar copiar
  * artefactos que se regeneran dentro de la imagen.
  */
-export function generateDockerignore(frontends: BackendFrontendRef[] = []): string {
+export function generateDockerignore(
+  frontends: BackendFrontendRef[] = [],
+  options: DockerLayoutOptions = {}
+): string {
   const frontend = pickStaticFrontend(frontends);
+  const prefix = backendPrefix(options.backendDir);
   const frontendIgnores = frontend
     ? `${frontend.dir}/node_modules\n${frontend.dir}/${frontend.build.outputDir}\n`
     : '';
+  const backendIgnores = prefix ? `${prefix}vendor\n` : '';
   return `.git
 node_modules
 vendor
 dist
-${frontendIgnores}storage/logs/*.log
-.env
-.env.*
+${backendIgnores}${frontendIgnores}${prefix}storage/logs/*.log
+${prefix}.env
+${prefix}.env.*
 `;
 }

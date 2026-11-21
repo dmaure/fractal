@@ -5,21 +5,26 @@
  */
 
 import type { BackendFrontendRef } from '@fractal/core';
-import { pickStaticFrontend } from './dockerfile.js';
+import { backendPrefix, pickStaticFrontend } from './dockerfile.js';
 
-export function generateGitignore(options: { frontends?: BackendFrontendRef[] } = {}): string {
-  // Monolito: el frontend vive en su dir (dependencias y build fuera del repo).
+export function generateGitignore(
+  options: { frontends?: BackendFrontendRef[]; backendDir?: string } = {}
+): string {
+  // El frontend vive en su dir (dependencias y build fuera del repo).
   const frontend = pickStaticFrontend(options.frontends);
   const web = frontend
     ? `/${frontend.dir}/node_modules\n/${frontend.dir}/${frontend.build.outputDir}\n`
     : '';
+  // Monorepo (FRA-114): el backend vive en api/, sus artefactos también.
+  const p = backendPrefix(options.backendDir);
+  const backend = p ? `/${p}vendor\n` : '';
   return `# Laravel
 /vendor
-/node_modules
-/public/hot
-/public/storage
-/public/build
-${web}/storage/*.key
+${backend}/node_modules
+/${p}public/hot
+/${p}public/storage
+/${p}public/build
+${web}/${p}storage/*.key
 .env
 .env.backup
 .phpunit.result.cache
