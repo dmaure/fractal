@@ -1,6 +1,6 @@
 {
   "name": "@fractal/adapter-laravel",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Adapter para Laravel: stubs y lógica PHP específica",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@fractal/progress-export",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Renderer del mapa de progreso: texto Mermaid -> SVG/PNG vía Chromium headless. Agnóstico de framework.",
   "type": "module",
   "main": "./dist/index.js",

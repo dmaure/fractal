@@ -34,3 +34,4 @@ coverage/
 # No se commitean: los PNG de Chromium no son byte-reproducibles y harían
 # flaky cualquier guardia; se regeneran bajo demanda con `fractal status --export`.
 docs/progress-map/
+release

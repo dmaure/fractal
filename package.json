@@ -1,6 +1,6 @@
 {
   "name": "@fractal/monorepo",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "description": "Generador de aplicaciones production-ready, multi-framework",
@@ -19,7 +19,9 @@
     "lint:coupling": "node scripts/lint-coupling.js",
     "progress": "pnpm --filter @fractal/core build && node scripts/progress-map.js",
     "status": "pnpm --filter \"@fractal/core...\" build && node packages/core/dist/cli.js status",
-    "status:check": "pnpm -r build && node packages/core/dist/cli.js status --check"
+    "status:check": "pnpm -r build && node packages/core/dist/cli.js status --check",
+    "pack:release": "pnpm build && node scripts/pack-release.js",
+    "version:set": "node scripts/set-version.js"
   },
   "keywords": [
     "fractal",

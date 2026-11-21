@@ -1,6 +1,6 @@
 {
   "name": "@fractal/adapter-rails",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Adapter para Rails: stubs y lógica Ruby específica",
   "type": "module",
   "main": "./dist/index.js",
