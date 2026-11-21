@@ -34,6 +34,9 @@ import {
   generateStorageLogsGitignore,
 } from '../stubs/storage.js';
 import { generateConsoleRoutes, generateApiWebRoutes } from '../stubs/routes.js';
+import { generateIndexPhp } from '../stubs/public-index.js';
+import { generateConfigCors } from '../stubs/config.js';
+import { writeDockerAssets } from './docker-assets.js';
 
 /**
  * Genera un proyecto Laravel en topología multirepo.
@@ -96,6 +99,12 @@ async function generateApiRepo(apiPath: string, name: string): Promise<void> {
   await generateDatabaseDirectory(apiPath);
   await generateStorageDirectory(apiPath);
 
+  // Front controller + Dockerfile/nginx (FRA-112): el repo api se despliega solo,
+  // sin frontend (el SPA vive en <name>-web). Contexto de build = raíz del repo.
+  await mkdir(join(apiPath, 'public'), { recursive: true });
+  await writeFile(join(apiPath, 'public', 'index.php'), generateIndexPhp());
+  await writeDockerAssets(apiPath);
+
   const appPath = join(apiPath, 'app');
   await mkdir(join(appPath, 'Http', 'Controllers', 'Api'), {
     recursive: true,
@@ -154,6 +163,9 @@ async function generateConfigDirectory(apiPath: string): Promise<void> {
     join(configPath, 'database.php'),
     generateConfigDatabase()
   );
+
+  // CORS para que el SPA de <name>-web (otro origen) llame a /api (FRA-112).
+  await writeFile(join(configPath, 'cors.php'), generateConfigCors());
 }
 
 async function generateDatabaseDirectory(apiPath: string): Promise<void> {

@@ -158,7 +158,8 @@ export function generateWebCss(): string {
 export async function writeFrontendFiles(
   destinationPath: string,
   name: string,
-  mode: 'embedded' | 'standalone' = 'embedded'
+  mode: 'embedded' | 'standalone' = 'embedded',
+  ownRepo = false
 ): Promise<void> {
   await mkdir(join(destinationPath, 'src', 'lib'), { recursive: true });
 
@@ -181,4 +182,92 @@ export async function writeFrontendFiles(
       `# ${name}-web\n\nFrontend React + Vite de ${name}.\n\n- \`npm install\` y \`npm run dev\` (puerto 3000, \`/api\` se proxea a localhost:8000)\n- \`npm run build\` genera \`dist/\`\n- La URL de la API se configura con \`VITE_API_URL\`\n`
     );
   }
+
+  if (ownRepo) await writeDeployAssets(destinationPath);
+}
+
+/**
+ * Dockerfile + nginx del repo web (multirepo, FRA-112). El Dockerfile compila
+ * el SPA (VITE_API_URL llega como build arg) y copia dist/ a una imagen nginx;
+ * el nginx.conf (TLS, SPA fallback, /health.txt) lo monta el compose.
+ */
+async function writeDeployAssets(destinationPath: string): Promise<void> {
+  await writeFile(join(destinationPath, 'Dockerfile'), generateWebDockerfile());
+  await writeFile(join(destinationPath, '.dockerignore'), 'node_modules\ndist\n.git\n.env\n.env.*\n');
+  const nginxPath = join(destinationPath, 'docker', 'nginx');
+  for (const dir of ['ssl', 'certbot']) {
+    await mkdir(join(nginxPath, dir), { recursive: true });
+    await writeFile(join(nginxPath, dir, '.gitkeep'), '');
+  }
+  await writeFile(join(nginxPath, 'nginx.conf'), generateWebNginxConf());
+}
+
+export function generateWebDockerfile(): string {
+  return `# Dockerfile generado por Fractal (repo web)
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+COPY . .
+# URL de la API, horneada en el bundle por Vite (la pasa el compose).
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+`;
+}
+
+export function generateWebNginxConf(): string {
+  return `# nginx.conf generado por Fractal (repo web): SPA estático con TLS.
+worker_processes auto;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    sendfile on;
+    keepalive_timeout 65;
+
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name _;
+
+        # Challenge ACME HTTP-01 (Let's Encrypt).
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+
+    server {
+        listen 443 ssl;
+        listen [::]:443 ssl;
+        http2 on;
+        server_name _;
+
+        ssl_certificate /etc/nginx/ssl/fullchain.pem;
+        ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # /health.txt sale de public/health.txt (copiado a dist/ por Vite).
+        location / {
+            try_files $uri /index.html;
+        }
+    }
+}
+`;
 }

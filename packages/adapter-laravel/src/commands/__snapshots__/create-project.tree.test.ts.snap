@@ -1624,6 +1624,14 @@ exports[`árbol generado por createProject (estructura + contenido) > monorepo >
 
 exports[`árbol generado por createProject (estructura + contenido) > multirepo > contenido 1`] = `
 {
+  "demo-api/.dockerignore": ".git
+node_modules
+vendor
+dist
+storage/logs/*.log
+.env
+.env.*
+",
   "demo-api/.env.example": "APP_NAME="demo-api"
 APP_ENV=local
 APP_KEY=
@@ -1684,6 +1692,48 @@ Thumbs.db
 
 # Fractal
 .fractal.lock
+",
+  "demo-api/Dockerfile": "# Dockerfile generado por Fractal
+# imagen php-fpm para producción. Se construye en el VPS durante el deploy.
+FROM php:8.3-fpm
+
+# Dependencias de sistema y extensiones PHP requeridas por Laravel + PostgreSQL.
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+        git \\
+        unzip \\
+        libpq-dev \\
+        libzip-dev \\
+        libicu-dev \\
+    && docker-php-ext-install pdo pdo_pgsql pgsql zip intl opcache bcmath \\
+    && apt-get clean \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Composer (copiado desde la imagen oficial).
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# Copiar el código de la aplicación.
+COPY . /var/www/html
+
+
+# Instalar dependencias de producción.
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+
+# Permisos de escritura para el runtime de Laravel.
+RUN chown -R www-data:www-data storage bootstrap/cache \\
+    && chmod -R ug+rwX storage bootstrap/cache
+
+# php-fpm, por default, vacía el entorno del worker (\`clear_env = yes\`).
+# Las variables que compose inyecta (APP_KEY, DB_*, APP_URL) no llegarían
+# a PHP y Laravel respondería 500 en \`/\` (EncryptCookies exige APP_KEY).
+# Destapado por el e2e real de FRA-73: HTTPS devolvía 500 estable.
+RUN printf '%s\\n' '[www]' 'clear_env = no' \\
+    > /usr/local/etc/php-fpm.d/zz-fractal.conf
+
+EXPOSE 9000
+
+CMD ["php-fpm"]
 ",
   "demo-api/README.md": "# demo-api
 
@@ -1972,6 +2022,28 @@ return [
 
 ];
 ",
+  "demo-api/config/cors.php": "<?php
+
+return [
+
+    'paths' => ['api/*'],
+
+    'allowed_methods' => ['*'],
+
+    'allowed_origins' => array_filter(array_map('trim', explode(',', env('CORS_ALLOWED_ORIGIN', 'http://localhost:3000')))),
+
+    'allowed_origins_patterns' => [],
+
+    'allowed_headers' => ['*'],
+
+    'exposed_headers' => [],
+
+    'max_age' => 0,
+
+    'supports_credentials' => false,
+
+];
+",
   "demo-api/config/database.php": "<?php
 
 use Illuminate\\Support\\Str;
@@ -2123,6 +2195,105 @@ return [
   "demo-api/database/.gitignore": "*.sqlite
 *.sqlite-journal
 ",
+  "demo-api/docker/nginx/certbot/.gitkeep": "",
+  "demo-api/docker/nginx/nginx.conf": "# nginx.conf generado por Fractal
+# Sirve la app Laravel por HTTP (puerto 80, redirect a HTTPS) y HTTPS (puerto
+# 443, TLS terminado en el contenedor), y delega PHP al contenedor php-fpm.
+worker_processes auto;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    sendfile on;
+    keepalive_timeout 65;
+    client_max_body_size 100M;
+
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name _;
+
+        # Challenge ACME HTTP-01 (Let's Encrypt): webroot compartido con el host.
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        # Todo lo demás se redirige a HTTPS.
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+
+    server {
+        listen 443 ssl;
+        listen [::]:443 ssl;
+        http2 on;
+        server_name _;
+
+        ssl_certificate /etc/nginx/ssl/fullchain.pem;
+        ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        ssl_prefer_server_ciphers on;
+
+        root /var/www/html/public;
+        index index.php index.html;
+
+        charset utf-8;
+
+        # API: Laravel (php-fpm).
+        location /api/ {
+            try_files $uri /index.php?$query_string;
+        }
+
+        # Sin frontend: todo lo que no es estático lo resuelve Laravel.
+        location / {
+            try_files $uri /index.php?$query_string;
+        }
+
+        location = /favicon.ico { access_log off; log_not_found off; }
+        location = /robots.txt  { access_log off; log_not_found off; }
+
+        error_page 404 /index.php;
+
+        location ~ \\.php$ {
+            fastcgi_pass app:9000;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            fastcgi_param DOCUMENT_ROOT $realpath_root;
+        }
+
+        location ~ /\\.(?!well-known).* {
+            deny all;
+        }
+    }
+}
+",
+  "demo-api/docker/nginx/ssl/.gitkeep": "",
+  "demo-api/public/index.php": "<?php
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/../vendor/autoload.php';
+
+$app = require_once __DIR__.'/../bootstrap/app.php';
+
+$kernel = $app->make(Illuminate\\Contracts\\Http\\Kernel::class);
+
+$response = $kernel->handle(
+    $request = Illuminate\\Http\\Request::capture()
+);
+
+$response->send();
+
+$kernel->terminate($request, $response);
+",
   "demo-api/routes/api.php": "<?php
 
 use App\\Http\\Controllers\\Api\\HealthController;
@@ -2195,8 +2366,10 @@ services.json
 exports[`árbol generado por createProject (estructura + contenido) > multirepo > estructura 1`] = `
 [
   "demo-api/",
+  "demo-api/.dockerignore",
   "demo-api/.env.example",
   "demo-api/.gitignore",
+  "demo-api/Dockerfile",
   "demo-api/README.md",
   "demo-api/app/",
   "demo-api/app/Http/",
@@ -2214,11 +2387,21 @@ exports[`árbol generado por createProject (estructura + contenido) > multirepo 
   "demo-api/composer.json",
   "demo-api/config/",
   "demo-api/config/app.php",
+  "demo-api/config/cors.php",
   "demo-api/config/database.php",
   "demo-api/database/",
   "demo-api/database/.gitignore",
   "demo-api/database/migrations/",
   "demo-api/database/seeders/",
+  "demo-api/docker/",
+  "demo-api/docker/nginx/",
+  "demo-api/docker/nginx/certbot/",
+  "demo-api/docker/nginx/certbot/.gitkeep",
+  "demo-api/docker/nginx/nginx.conf",
+  "demo-api/docker/nginx/ssl/",
+  "demo-api/docker/nginx/ssl/.gitkeep",
+  "demo-api/public/",
+  "demo-api/public/index.php",
   "demo-api/routes/",
   "demo-api/routes/api.php",
   "demo-api/routes/console.php",

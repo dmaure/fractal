@@ -213,6 +213,12 @@ export interface ImageBuild {
    * (p.ej. "Dockerfile").
    */
   dockerfile: string;
+
+  /**
+   * Build args (`ARG` del Dockerfile), p. ej. la URL de la API que Vite hornea
+   * en el bundle del frontend (FRA-112). Opcional.
+   */
+  args?: Record<string, string>;
 }
 
 /**

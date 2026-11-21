@@ -72,6 +72,13 @@ describe('getPack', () => {
     expect(agents).toContain('Modelo');
   });
 
+  it('FRA-112: en multirepo el AGENTS.md dice dónde está el frontend', () => {
+    const agents = getPack('shop', 'multirepo').files.find((f) => f.path === 'AGENTS.md')!.contents;
+    expect(agents).toContain('shop-web');
+    expect(agents).toContain('../shop-web');
+    expect(agents).toContain('CORS_ALLOWED_ORIGIN');
+  });
+
   it('el AGENTS.md no nombra el frontend: remite a fractal/frontends/', () => {
     const { files } = getPack('p', 'monolith');
     const agents = files.find((f) => f.path === 'AGENTS.md')!.contents;

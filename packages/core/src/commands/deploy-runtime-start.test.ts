@@ -46,6 +46,22 @@ describe('uploadAndStartContainers (FRA-70, FRA-71, FRA-73)', () => {
     );
   });
 
+  it('FRA-112: sin servicio app (frontend estático) no hace `up -d app`', async () => {
+    const executeCommand = vi.fn().mockResolvedValue({ success: true, stdout: '', stderr: '' });
+    const result = await uploadAndStartContainers(
+      { uploadDirectory: vi.fn().mockResolvedValue({ success: true }), executeCommand },
+      '/local/web',
+      '/home/deploy',
+      'myweb',
+      600_000,
+      false
+    );
+    expect(result.success).toBe(true);
+    const [composeCmd] = executeCommand.mock.calls[1];
+    expect(composeCmd).not.toContain('up -d app');
+    expect(composeCmd).toMatch(/docker compose build .* && docker compose up -d$/);
+  });
+
   it('se detiene en la etapa de subida si falla el upload', async () => {
     const uploadDirectory = vi.fn().mockResolvedValue({ success: false, error: 'sin espacio' });
     const executeCommand = vi.fn();

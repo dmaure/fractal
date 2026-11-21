@@ -30,7 +30,12 @@ async function readStdin(): Promise<string> {
 async function handle(payload: Record<string, unknown>): Promise<BridgeResponse> {
   switch (payload.action) {
     case 'get-contract':
-      return { success: true, data: getContract() };
+      return {
+        success: true,
+        data: getContract({
+          siblingDomain: typeof payload.siblingDomain === 'string' ? payload.siblingDomain : undefined,
+        }),
+      };
 
     case 'create-frontend': {
       if (typeof payload.name !== 'string' || !payload.name) {

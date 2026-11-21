@@ -120,7 +120,8 @@ export const LARAVEL_BACKEND_DEPLOY_RUNTIME: DeployRuntime = {
 function buildBackendSecretEnv(
   appKey: string,
   domain?: string,
-  projectName?: string
+  projectName?: string,
+  webDomain?: string
 ): Record<string, string> {
   const dbName = projectName && projectName.trim() !== '' ? projectName : 'app';
   const secretEnv: Record<string, string> = {
@@ -141,6 +142,11 @@ function buildBackendSecretEnv(
   };
   if (domain && domain.trim() !== '') {
     secretEnv.APP_URL = `https://${domain}`;
+  }
+  // FRA-112 (multirepo): el origen del frontend hermano. config/cors.php lo lee.
+  if (webDomain && webDomain.trim() !== '') {
+    secretEnv.CORS_ALLOWED_ORIGIN = `https://${webDomain}`;
+    secretEnv.SANCTUM_STATEFUL_DOMAINS = webDomain;
   }
   return secretEnv;
 }
@@ -167,13 +173,15 @@ export function getAdapterContract(
     projectName?: string;
     /** Topología del proyecto desplegado (de fractal/manifest.json). */
     topology?: ProjectTopology;
+    /** Dominio del frontend hermano (multirepo): se permite en CORS. */
+    siblingDomain?: string;
   } = {}
 ): LaravelAdapterContract {
   const appKey = (options.generateAppKey ?? generateAppKey)();
   const deployRuntime: DeployRuntime = {
     ...LARAVEL_BACKEND_DEPLOY_RUNTIME,
     build: backendBuildFor(options.topology),
-    secretEnv: buildBackendSecretEnv(appKey, options.domain, options.projectName),
+    secretEnv: buildBackendSecretEnv(appKey, options.domain, options.projectName, options.siblingDomain),
   };
 
   return {

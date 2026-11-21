@@ -267,3 +267,35 @@ return [
 ];
 `;
 }
+
+/**
+ * config/cors.php (FRA-112): en multirepo el SPA vive en otro origen
+ * (web.<dominio>) y llama a /api del backend. HandleCors (middleware global de
+ * Laravel) lee esta config; el origen permitido sale de CORS_ALLOWED_ORIGIN,
+ * que `fractal deploy` inyecta con el dominio del web. Auth por Bearer
+ * (ADR-0005), por eso no hay cookies/credenciales.
+ */
+export function generateConfigCors(): string {
+  return `<?php
+
+return [
+
+    'paths' => ['api/*'],
+
+    'allowed_methods' => ['*'],
+
+    'allowed_origins' => array_filter(array_map('trim', explode(',', env('CORS_ALLOWED_ORIGIN', 'http://localhost:3000')))),
+
+    'allowed_origins_patterns' => [],
+
+    'allowed_headers' => ['*'],
+
+    'exposed_headers' => [],
+
+    'max_age' => 0,
+
+    'supports_credentials' => false,
+
+];
+`;
+}
